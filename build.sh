@@ -15,6 +15,8 @@ swift build --package-path "$PROJECT_DIR" --scratch-path "$BUILD_ROOT/arm64" -c 
 ARM_BIN=$(swift build --package-path "$PROJECT_DIR" --scratch-path "$BUILD_ROOT/arm64" -c release --triple arm64-apple-macosx13.0 --show-bin-path)
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 xcrun lipo -create "$INTEL_BIN/ZweiCommander" "$ARM_BIN/ZweiCommander" -output "$APP/Contents/MacOS/ZweiCommander"
+# Linker debug references can contain absolute paths from the build computer.
+xcrun strip -S "$APP/Contents/MacOS/ZweiCommander"
 cp "$PROJECT_DIR/Resources/Info.plist" "$APP/Contents/Info.plist"
 swift "$PROJECT_DIR/scripts/icon.swift" "$BUILD_ROOT/AppIcon.iconset"
 iconutil --convert icns --output "$APP/Contents/Resources/AppIcon.icns" "$BUILD_ROOT/AppIcon.iconset"

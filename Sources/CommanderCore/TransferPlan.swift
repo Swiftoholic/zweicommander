@@ -47,8 +47,8 @@ public struct TransferPlan {
         return TransferPlan(kind:kind,policy:policy,destination:destination,filter:filter,merge:try merge.resolving(action,with:decision),destinationVersion:destinationVersion,entries:entries)
     }
 }
-public enum TransferItemState: String { case waiting, running, completed, skipped, failed, cancelled }
-public struct TransferItemProgress: Identifiable {
+public enum TransferItemState: String, Codable { case waiting, running, completed, skipped, failed, cancelled }
+public struct TransferItemProgress: Identifiable, Codable {
     public let id: UUID
     public let source: URL, target: URL
     public var state: TransferItemState
@@ -86,16 +86,17 @@ public enum TransferPlanner {
         let merge = mergeFolders ? try MergePlan.prepare(entries,to:destination,policy:policy,token:token) : nil
         return TransferPlan(kind:kind,policy:policy,destination:destination,filter:filter,merge:merge,destinationVersion:destinationVersion,entries:entries)
     }
-    public static func execute(_ plan: TransferPlan,token: CancellationToken = .init(),progress: @escaping (TransferProgress) -> Void = { _ in }) -> OperationReport {
-        if let merge = plan.merge { return merge.execute(entries:plan.entries,token:token,progress:progress) }
+    public static func execute(_ plan: TransferPlan,token: CancellationToken = .init(),validateExecution: (() throws -> Void)? = nil,progress: @escaping (TransferProgress) -> Void = { _ in }) -> OperationReport {
+        if let merge = plan.merge { return merge.execute(entries:plan.entries,token:token,validateExecution:validateExecution,progress:progress) }
         var report = OperationReport()
         var items = plan.initialItems
         var last = Date.distantPast, detail = "Prüfe Dateiplan …"
-        var deliveredBytes = false
+        var deliveredBytes = false,current: Int?
         func emit(_ force: Bool = true) {
             let copied = items.reduce(Int64(0)) { $0+$1.bytes }
-            guard force || (!deliveredBytes && copied > 0) || Date().timeIntervalSince(last) >= 0.08 else { return }; last = Date()
-            if copied > 0 { deliveredBytes = true }
+            let activeBytes = current.map { items[$0].bytes } ?? 0
+            guard force || (!deliveredBytes && activeBytes > 0) || Date().timeIntervalSince(last) >= 0.08 else { return }; last = Date()
+            if activeBytes > 0 { deliveredBytes = true }
             let total = items.filter { $0.state != .skipped }.reduce(Int64(0)) { $0+$1.totalBytes }
             let finished = items.allSatisfy { [.completed,.skipped].contains($0.state) }
             let fraction: Double? = plan.kind == .copy && total > 0 ? (finished ? 1 : min(0.999,Double(copied)/Double(total))) : nil
@@ -104,6 +105,7 @@ public enum TransferPlanner {
         emit()
         do {
             try token.check()
+            try validateExecution?()
             guard FileSystem.isDirectory(plan.destination) else { throw CommanderError.message("Zielordner ist nicht mehr verfügbar.") }
             guard try FileStamp(plan.destination).sameObject(as:plan.destinationVersion) else { throw CommanderError.message("Zielordner wurde seit der Vorschau ersetzt.") }
             // Validate every selected row before changing any destination.
@@ -116,8 +118,10 @@ public enum TransferPlanner {
         for (index,entry) in plan.entries.enumerated() {
             do {
                 try token.check()
+                try validateExecution?()
+                current = index;deliveredBytes = false
                 items[index].state = .running; detail = entry.source.lastPathComponent; emit()
-                let step = try FileOperations.transferPrepared(entry.source,to:entry.target,kind:plan.kind,policy:plan.policy,token:token,tree:entry.tree,expectedTarget:entry.targetVersion) { name,bytes,_ in
+                let step = try FileOperations.transferPrepared(entry.source,to:entry.target,kind:plan.kind,policy:plan.policy,token:token,tree:entry.tree,expectedTarget:entry.targetVersion,validateTarget:validateExecution) { name,bytes,_ in
                     items[index].bytes = max(items[index].bytes,bytes); detail = name; emit(false)
                 }
                 if let step {

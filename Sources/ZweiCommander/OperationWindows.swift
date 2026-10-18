@@ -69,7 +69,8 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
     private var previewMerge: MergePlan?
     private var previewOffsets: [Int] = []
     private(set) var previewCount = 0
-    var onSubmit: ((TransferPlan,Bool) -> Void)?
+    var onSubmit: ((TransferPlan,Bool) -> Bool)?
+    var recoveryNotice: String?
     let validateDestination: (URL) throws -> Void
     init(sources: [URL],destination: URL,kind: TransferKind,validateDestination: @escaping (URL) throws -> Void) {
         self.sources = sources;self.kind = kind;self.destination = input(destination.path);self.validateDestination = validateDestination
@@ -154,6 +155,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         updateCriteriaInfo();updateProfileState()
         policy.item(at:0)?.title = mergeFolders.state == .on ? "Einzeln entscheiden" : "Abbrechen bei Konflikt"
         safety.stringValue = !copy ? "Verschieben nutzt die Systemoperation. Pause und Abbruch greifen am nächsten sicheren Prüfpunkt." : mergeFolders.state == .on ? "Dateien werden einzeln veröffentlicht. Fertige Schritte bleiben bei Abbruch erhalten; Ersetzen sichert jede vorherige Zieldatei." : "Jedes Auswahlobjekt wird vollständig veröffentlicht. Ersetzen sichert das bisherige Ziel; Zusammenführen ist ausgeschaltet."
+        if let recoveryNotice { safety.stringValue = recoveryNotice;safety.textColor = .systemOrange;safety.toolTip = recoveryNotice }
     }
     func resetFilters() {
         include.stringValue = "*";exclude.stringValue = "";excludedFolders.stringValue = "";regex.state = .off
@@ -217,6 +219,15 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
             mergeFolders.state = value.mergeFolders ? .on : .off;policy.selectItem(at:ConflictPolicy.allCases.firstIndex(of:value.policy)!)
             criteria = value.filter;updateFilterControls();prepare()
         } catch { profileStatus.stringValue = error.localizedDescription;profileStatus.toolTip = error.localizedDescription }
+    }
+    func apply(_ intent: TransferIntent,notice: String) {
+        recoveryNotice = notice;selectedProfileID = nil;keepEmptyBeforeStructure = nil
+        let value = intent.filter
+        include.stringValue = value.include;exclude.stringValue = value.exclude;excludedFolders.stringValue = value.excludedFolders
+        regex.state = value.regularExpressions ? .on : .off;recursive.state = value.recursive ? .on : .off
+        keepEmpty.state = value.keepEmptyFolders ? .on : .off;structureOnly.state = value.structureOnly ? .on : .off
+        mergeFolders.state = intent.mergeFolders ? .on : .off;policy.selectItem(at:ConflictPolicy.allCases.firstIndex(of:intent.policy)!)
+        criteria = value;updateFilterControls();prepare()
     }
     func saveProfile() {
         guard kind == .copy,let id = selectedProfileID else { return }
@@ -288,7 +299,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         do { try validateDestination(plan.destination) } catch { showFailure(error);return }
         let selected = plan.selecting(Set(plan.entries.filter { !excluded.contains($0.source) }.map(\.id)))
         guard !selected.entries.isEmpty,(selected.merge?.unresolvedCount ?? 0) == 0 else { return }
-        onSubmit?(selected,start);close()
+        if onSubmit?(selected,start) == true { close() }
     }
     @objc func toggle(_ sender: NSButton) {
         guard let row = plan?.entries.indices.contains(sender.tag) == true ? plan?.entries[sender.tag] : nil else { return }
@@ -348,6 +359,9 @@ final class OperationQueueController: NSWindowController,NSTableViewDataSource,N
     let up = ActionButton("Nach oben",symbol:"arrow.up",action:{})
     let down = ActionButton("Nach unten",symbol:"arrow.down",action:{})
     let start = ActionButton("Starten / als Nächstes",symbol:"play.fill",action:{})
+    let review = ActionButton("Erneut prüfen …",symbol:"arrow.clockwise",action:{})
+    let subtitle = label("",size:12,weight:.medium)
+    var onReview: ((UUID) -> Void)?
     var snapshots: [WorkSnapshot] = []
     private var selectedID: UUID?
     private var timer: Timer?
@@ -356,23 +370,24 @@ final class OperationQueueController: NSWindowController,NSTableViewDataSource,N
     init(_ jobs: JobQueue) {
         self.jobs = jobs
         let w = NSWindow(contentRect:NSRect(x:0,y:0,width:1020,height:640),styleMask:[.titled,.closable,.resizable,.miniaturizable],backing:.buffered,defer:false)
-        w.title = "Aufträge · Warteschlange";w.minSize = NSSize(width:860,height:520);w.isReleasedWhenClosed = false
+        w.title = "Aufträge · Warteschlange";w.minSize = NSSize(width:1000,height:520);w.isReleasedWhenClosed = false
         super.init(window:w)
         let root = OperationContent(frame:w.contentView!.bounds);root.autoresizingMask = [.width,.height];w.contentView = root
         let title = label("Aufträge",size:22,weight:.semibold);title.frame = NSRect(x:22,y:590,width:980,height:32);title.autoresizingMask = [.minYMargin,.width];root.addSubview(title)
         summary.frame = NSRect(x:22,y:560,width:976,height:24);summary.autoresizingMask = [.minYMargin,.width];root.addSubview(summary)
         table.delegate = self;table.dataSource = self;itemsTable.delegate = self;itemsTable.dataSource = self
         let scroll = operationScroll(table);scroll.frame = NSRect(x:22,y:302,width:976,height:248);scroll.autoresizingMask = [.minYMargin,.width];root.addSubview(scroll)
-        let buttons = row([pause,cancel,start,up,down,remove]);buttons.frame = NSRect(x:20,y:258,width:980,height:34);buttons.autoresizingMask = [.minYMargin,.width];root.addSubview(buttons)
-        let subtitle = label("Objekte des ausgewählten Auftrags · beim Zusammenführen erscheint jeder Schritt einzeln",size:12,weight:.medium);subtitle.frame = NSRect(x:22,y:230,width:976,height:22);subtitle.autoresizingMask = [.minYMargin,.width];root.addSubview(subtitle)
+        let buttons = row([pause,cancel,start,review,up,down,remove]);buttons.frame = NSRect(x:20,y:258,width:980,height:34);buttons.autoresizingMask = [.minYMargin,.width];root.addSubview(buttons)
+        subtitle.frame = NSRect(x:22,y:230,width:976,height:22);subtitle.autoresizingMask = [.minYMargin,.width];root.addSubview(subtitle)
         let details = operationScroll(itemsTable);details.frame = NSRect(x:22,y:60,width:976,height:160);details.autoresizingMask = [.width,.height];root.addSubview(details)
-        let clear = ActionButton("Erledigte ausblenden",action:{ [weak self] in self?.jobs.scheduler.clearFinished();self?.refresh() });clear.frame = NSRect(x:22,y:16,width:192,height:30);root.addSubview(clear)
-        let hint = label("Pause hält auch die nächsten Aufträge an. Vormerkungen sind nur für diese Sitzung gespeichert.",size:11,color:.secondaryLabelColor);hint.frame = NSRect(x:230,y:20,width:768,height:22);hint.autoresizingMask = [.width];root.addSubview(hint)
+        let clear = ActionButton("Erledigte ausblenden",action:{ [weak self] in self?.jobs.clearFinished();self?.refresh() });clear.frame = NSRect(x:22,y:16,width:192,height:30);root.addSubview(clear)
+        let hint = label(jobs.journal != nil ? "Kopier- und Verschiebeaufträge bleiben lokal gespeichert. Nach einem Neustart erneut prüfen." : "Pause hält auch die nächsten Aufträge an. Andere Aufträge gelten für diese Sitzung.",size:11,color:.secondaryLabelColor);hint.frame = NSRect(x:230,y:20,width:768,height:22);hint.autoresizingMask = [.width];root.addSubview(hint)
         pause.perform = { [weak self] in self?.jobs.togglePause();self?.refresh() };cancel.perform = { [weak self] in self?.jobs.cancel() }
         start.perform = { [weak self] in guard let self else { return };self.jobs.scheduler.start(self.selectedID);self.refresh() }
         up.perform = { [weak self] in if let self,let id = self.selectedID { self.jobs.scheduler.move(id,by:-1);self.refresh() } }
         down.perform = { [weak self] in if let self,let id = self.selectedID { self.jobs.scheduler.move(id,by:1);self.refresh() } }
-        remove.perform = { [weak self] in if let self,let id = self.selectedID { self.jobs.scheduler.remove(id);self.refresh() } }
+        remove.perform = { [weak self] in if let self,let id = self.selectedID { self.jobs.remove(id);self.refresh() } }
+        review.perform = { [weak self] in if let self,let id = self.selectedID { self.onReview?(id) } }
         timer = Timer.scheduledTimer(withTimeInterval:0.25,repeats:true) { [weak self] _ in if self?.window?.isVisible == true { self?.refresh() } }
         refresh();w.center()
     }
@@ -385,11 +400,16 @@ final class OperationQueueController: NSWindowController,NSTableViewDataSource,N
         table.reloadData()
         if let index = snapshots.firstIndex(where:{$0.id == selectedID}) { table.selectRowIndexes(IndexSet(integer:index),byExtendingSelection:false) }
         itemsTable.reloadData();updating = false
-        summary.stringValue = "\(snapshots.filter(\.isPending).count) offen · \(snapshots.filter { $0.state == .completed }.count) abgeschlossen · \(snapshots.filter { $0.state == .failed }.count) mit Fehlern"
+        summary.stringValue = jobs.journalError.map { "Auftragsablage nicht verfügbar · "+$0 } ?? "\(snapshots.filter(\.isPending).count) offen · \(snapshots.filter { $0.state == .review }.count) erneut prüfen · \(snapshots.filter { $0.state == .completed }.count) abgeschlossen · \(snapshots.filter { $0.state == .failed }.count) mit Fehlern"
+        summary.toolTip = summary.stringValue;summary.textColor = jobs.journalError == nil ? .secondaryLabelColor : .systemOrange
         let active = jobs.active;pause.isEnabled = active != nil && active?.id == selectedID;cancel.isEnabled = pause.isEnabled
         pause.title = active.map { [.paused,.pausing].contains($0.state) ? "Fortsetzen" : "Pause" } ?? "Pause"
         pause.image = NSImage(systemSymbolName:pause.title == "Fortsetzen" ? "play.fill" : "pause.fill",accessibilityDescription:pause.title)
-        let waiting = selected?.state == .waiting;up.isEnabled = waiting;down.isEnabled = waiting;remove.isEnabled = waiting;start.isEnabled = waiting
+        let waiting = selected?.state == .waiting;up.isEnabled = waiting;down.isEnabled = waiting;remove.isEnabled = waiting || selected?.state == .review;start.isEnabled = waiting && jobs.journalError == nil
+        review.isEnabled = selected.map { !$0.isPending && jobs.journal?.entry($0.id) != nil } == true && jobs.journalError == nil
+        if let entry = selected.flatMap({ jobs.journal?.entry($0.id) }),selected?.state == .review {
+            subtitle.stringValue = "Letzter gemeldeter Stand vom "+operationDate.string(from:entry.updated)+" · \(entry.snapshot.items.count) von \(entry.itemCount) Objekten"
+        } else { subtitle.stringValue = "Objekte des ausgewählten Auftrags · beim Zusammenführen erscheint jeder Schritt einzeln" }
     }
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard !updating,notification.object as? NSTableView === table, snapshots.indices.contains(table.selectedRow) else { return }
@@ -400,11 +420,11 @@ final class OperationQueueController: NSWindowController,NSTableViewDataSource,N
         let value: String, color: NSColor
         if tableView === table {
             guard snapshots.indices.contains(row) else { return nil };let job = snapshots[row]
-            color = job.state == .failed ? .systemRed : .labelColor
+            color = job.state == .failed ? .systemRed : job.state == .review ? .systemOrange : .labelColor
             switch column?.identifier.rawValue {
             case "title":value = job.title
             case "state":value = job.state.german
-            case "progress":value = job.fraction.map { String(format:"%.1f %%",$0*100) } ?? ([.waiting,.cancelled,.failed].contains(job.state) ? "—" : "Wird ermittelt")
+            case "progress":value = job.fraction.map { (job.state == .review ? "Bisher " : "")+String(format:"%.1f %%",$0*100) } ?? ([.waiting,.review,.cancelled,.failed].contains(job.state) ? "—" : "Wird ermittelt")
             default:value = job.detail
             }
         } else {

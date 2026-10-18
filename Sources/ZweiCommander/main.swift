@@ -20,8 +20,12 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let filtersSmoke = args.firstIndex(of:"--filters-smoke")
         let mergeSmoke = args.firstIndex(of:"--merge-smoke")
         let profilesSmoke = args.firstIndex(of:"--profiles-smoke")
-        Preferences.testMode = smoke != nil || operationsSmoke != nil || filtersSmoke != nil || mergeSmoke != nil || profilesSmoke != nil
+        let journalSmoke = args.firstIndex(of:"--journal-smoke")
+        Preferences.testMode = smoke != nil || operationsSmoke != nil || filtersSmoke != nil || mergeSmoke != nil || profilesSmoke != nil || journalSmoke != nil
         if Preferences.testMode { Preferences.state = SavedState() }
+        if let journalSmoke,args.indices.contains(journalSmoke+1) {
+            Preferences.transferJournalTestDirectory = URL(fileURLWithPath:args[journalSmoke+1]).appendingPathComponent("Auftragsablage")
+        }
         if profilesSmoke != nil,let index = args.firstIndex(of:"--profile-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
             Preferences.copyProfileTestDefaults = UserDefaults(suiteName:args[index+1])
         }
@@ -36,7 +40,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
                 print("INI-Einstellungen importiert: \(profile.columns.count) Spalten, \(profile.plugins.filter(\.enabled).count) aktive Plug-in-Einträge. Pfadzuordnungen ausgelassen.")
             } catch { fputs("Einstellungsimport fehlgeschlagen: \(error.localizedDescription)\n",stderr);exit(2) }
         }
-        let root = (smoke ?? operationsSmoke ?? filtersSmoke ?? mergeSmoke ?? profilesSmoke).flatMap { args.indices.contains($0+1) ? URL(fileURLWithPath:args[$0+1]) : nil }
+        let root = (smoke ?? operationsSmoke ?? filtersSmoke ?? mergeSmoke ?? profilesSmoke ?? journalSmoke).flatMap { args.indices.contains($0+1) ? URL(fileURLWithPath:args[$0+1]) : nil }
         main = MainWindow(startLeft:root?.appendingPathComponent("Links"),startRight:root?.appendingPathComponent("Rechts"))
         main.onRebuildMenus = { [weak self] in self?.buildMenus(); self?.main.updateFunctionLabels() }
         buildMenus(); main.showWindow(nil); main.left.focus()
@@ -66,6 +70,11 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         }
         if let profilesSmoke,args.indices.contains(profilesSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runProfilesSmoke(root:root,prefix:args[profilesSmoke+2],reload:args.contains("--reload-profiles")) }
+        }
+        if let journalSmoke,args.indices.contains(journalSmoke+3),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runJournalSmoke(root:root,prefix:args[journalSmoke+2],phase:args[journalSmoke+3]) }
+        } else if !Preferences.testMode,(main.jobs.journalError != nil || main.jobs.scheduler.snapshots.contains { $0.state == .review }) {
+            DispatchQueue.main.async { self.main.showOperations() }
         }
     }
     static func parseShortcut(_ text:String) -> (String,NSEvent.ModifierFlags)? {
@@ -118,9 +127,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if item.keyEquivalentModifierMask.isEmpty, item.keyEquivalent == " ", NSApp.keyWindow?.firstResponder is NSTextView { return false }
         return true
     }
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:"0.6.0",.version:"6",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:"0.7.0",.version:"7",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
     func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply {
-        if main?.pendingWork ?? 0 > 0 { _ = dialog("Dateivorgänge laufen",message:"Bitte erst die laufenden Vorgänge abschließen oder abbrechen.",buttons:["OK"]); return .terminateCancel }
+        if main?.canTerminate == false { _ = dialog("Dateivorgänge laufen",message:"Laufende Vorgänge und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return .terminateCancel }
         main?.saveState(); return .terminateNow
     }
     func applicationShouldHandleReopen(_ sender:NSApplication,hasVisibleWindows flag:Bool) -> Bool { main.showWindow(nil); return true }

@@ -15,7 +15,7 @@ def write(root, name, contents):
 
 
 def fixtures(base):
-    main, operations, filters, merge, profiles = [base / name for name in ("main", "operations", "filters", "merge", "profiles")]
+    main, operations, filters, merge, profiles, journal, damaged = [base / name for name in ("main", "operations", "filters", "merge", "profiles", "journal", "damaged")]
     for name in ("Archiv", "Dokumente", "Fotos", "Projekte"):
         (main / "Links" / name).mkdir(parents=True)
     for name, text in (("Besprechung.txt", "Besprechung\n"), ("Grüße aus Wien.txt", "Hallo Wien\n"),
@@ -65,13 +65,25 @@ def fixtures(base):
     (profiles / "Links/Projekt/alias.txt").symlink_to(profiles / "Privat")
     write(profiles, "Rechts/Projekt/mittel.txt", "alt")
     write(profiles, "Rechts/Projekt/extra.txt", "extra")
-    return main, operations, filters, merge, profiles
+    for name in ("Rechts", "Sicherung", "AbbruchLinks", "AbbruchRechts", "FehlerRechts", "FehlerDanach"):
+        (journal / name).mkdir(parents=True)
+    for name, text in (("Projekt/a.txt", "new text"), ("Projekt/b.txt", "second text"),
+                       ("Projekt/Cache/off.txt", "cache"), ("Projekt/ignored.bin", "bin"),
+                       ("Weglassen.txt", "not selected"), ("Umzug.txt", "move me")):
+        write(journal, "Links/" + name, text)
+    write(journal, "Rechts/Projekt/a.txt", "old")
+    write(journal, "AbbruchLinks/A-Fertig.txt", "finished before interruption")
+    (journal / "AbbruchLinks/Z-Daten.bin").write_bytes(b"j" * (32 * 1024 * 1024))
+    write(damaged, "Links/Umzug.txt", "keep source")
+    (damaged / "Rechts").mkdir(parents=True)
+    write(damaged, "Auftragsablage/journal.json", "{broken")
+    return main, operations, filters, merge, profiles, journal, damaged
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--app", required=True, type=Path, help="App-Bundle oder ausführbare Testdatei")
-    parser.add_argument("--results", required=True, type=Path, help="Ordner für die sechs Testprotokolle")
+    parser.add_argument("--results", required=True, type=Path, help="Ordner für native Testprotokolle")
     parser.add_argument("--screenshots", required=True, type=Path, help="Ordner für native Fensteransichten")
     parser.add_argument("--settings", type=Path, default=Path(__file__).resolve().parents[1] / "Tests/fixtures/INISettings.sample.ini", help="Nur gelesene INI-Datei oder Settings-Ordner; Standard: künstliches Testprofil")
     args = parser.parse_args()
@@ -92,11 +104,19 @@ def main():
             ("merge", "--merge-smoke", roots[3], str(prefix), "MERGE UI PASS ", "MERGE SMOKE PASS 29 checks", 29),
             ("profiles-save", "--profiles-smoke", roots[4], str(prefix), "PROFILE UI PASS ", "PROFILE SMOKE PASS 19 checks", 19),
             ("profiles-reload", "--profiles-smoke", roots[4], str(prefix), "PROFILE UI PASS ", "PROFILE SMOKE PASS 16 checks", 16),
+            ("journal-save", "--journal-smoke", roots[5], str(prefix), "JOURNAL UI PASS ", "JOURNAL SMOKE PASS 8 checks", 8),
+            ("journal-reload", "--journal-smoke", roots[5], str(prefix), "JOURNAL UI PASS ", "JOURNAL SMOKE PASS 23 checks", 23),
+            ("journal-crash", "--journal-smoke", roots[5], str(prefix), "JOURNAL UI PASS ", "JOURNAL SMOKE PASS 7 checks", 7),
+            ("journal-recover", "--journal-smoke", roots[5], str(prefix), "JOURNAL UI PASS ", "JOURNAL SMOKE PASS 13 checks", 13),
+            ("journal-write-failure", "--journal-smoke", roots[5], str(prefix), "JOURNAL UI PASS ", "JOURNAL SMOKE PASS 10 checks", 10),
+            ("journal-damaged", "--journal-smoke", roots[6], str(prefix), "JOURNAL UI PASS ", "JOURNAL SMOKE PASS 5 checks", 5),
         ]
         suite = "local.zweicommander.tests." + str(uuid.uuid4())
         try:
             for name, flag, root, image, pass_prefix, marker, expected in cases:
                 command = [str(binary), flag, str(root), image]
+                if name.startswith("journal-"):
+                    command += [name.removeprefix("journal-")]
                 if args.settings:
                     command += ["--import-settings", str(args.settings.resolve())]
                 if name.startswith("profiles-"):

@@ -1,7 +1,7 @@
 import Foundation
 
-public enum WorkState: String { case waiting, running, pausing, paused, completed, failed, cancelled }
-public struct WorkSnapshot: Identifiable {
+public enum WorkState: String, Codable { case waiting, running, pausing, paused, review, completed, failed, cancelled }
+public struct WorkSnapshot: Identifiable, Codable {
     public let id: UUID
     public let title: String
     public var state: WorkState
@@ -11,6 +11,12 @@ public struct WorkSnapshot: Identifiable {
     public var totalBytes: Int64?
     public var items: [TransferItemProgress]
     public var isPending: Bool { [.waiting,.running,.pausing,.paused].contains(state) }
+    public var isFinished: Bool { [.completed,.failed,.cancelled].contains(state) }
+    public static func waiting(id: UUID = UUID(),title: String,items: [TransferItemProgress] = []) -> WorkSnapshot {
+        let tracked = !items.isEmpty && items.allSatisfy(\.isByteTracked)
+        let pendingBytes = items.filter { $0.state != .skipped }.reduce(Int64(0)) { $0+$1.totalBytes }
+        return WorkSnapshot(id:id,title:title,state:.waiting,detail:"Wartet",fraction:tracked && pendingBytes > 0 ? 0 : nil,transferredBytes:tracked ? 0 : nil,totalBytes:tracked ? pendingBytes : nil,items:items)
+    }
 }
 public final class WorkReporter {
     private let update: (String,Double?,TransferProgress?) -> Void
@@ -23,11 +29,8 @@ private final class ScheduledWork {
     let token = CancellationToken()
     var body: ((CancellationToken,WorkReporter) throws -> Void)?
     var completion: ((WorkSnapshot) -> Void)?
-    init(_ title: String,items: [TransferItemProgress],body: @escaping (CancellationToken,WorkReporter) throws -> Void,completion: @escaping (WorkSnapshot) -> Void) {
-        let tracked = !items.isEmpty && items.allSatisfy(\.isByteTracked)
-        let pendingBytes = items.filter { $0.state != .skipped }.reduce(Int64(0)) { $0+$1.totalBytes }
-        snapshot = WorkSnapshot(id:UUID(),title:title,state:.waiting,detail:"Wartet",fraction:tracked && pendingBytes > 0 ? 0 : nil,transferredBytes:tracked ? 0 : nil,totalBytes:tracked ? pendingBytes : nil,items:items)
-        self.body = body; self.completion = completion
+    init(_ snapshot: WorkSnapshot,body: ((CancellationToken,WorkReporter) throws -> Void)? = nil,completion: ((WorkSnapshot) -> Void)? = nil) {
+        self.snapshot = snapshot;self.body = body;self.completion = completion
     }
     var visible: WorkSnapshot {
         var result = snapshot
@@ -45,11 +48,26 @@ public final class WorkScheduler: @unchecked Sendable {
     public init() {}
     public var snapshots: [WorkSnapshot] { lock.lock(); defer { lock.unlock() }; return records.map(\.visible) }
     public var isHeld: Bool { lock.lock(); defer { lock.unlock() }; return held }
-    @discardableResult public func enqueue(_ title: String,start: Bool = true,items: [TransferItemProgress] = [],body: @escaping (CancellationToken,WorkReporter) throws -> Void,completion: @escaping (WorkSnapshot) -> Void = { _ in }) -> UUID {
-        let work = ScheduledWork(title,items:items,body:body,completion:completion)
+    @discardableResult public func enqueue(_ title: String,id: UUID = UUID(),start: Bool = true,items: [TransferItemProgress] = [],body: @escaping (CancellationToken,WorkReporter) throws -> Void,completion: @escaping (WorkSnapshot) -> Void = { _ in }) -> UUID {
+        let work = ScheduledWork(.waiting(id:id,title:title,items:items),body:body,completion:completion)
         lock.lock(); records.append(work)
         if start { held = false } else if active == nil { held = true }
         lock.unlock(); onChange?(); schedule(); return work.snapshot.id
+    }
+    // Restored descriptions never contain executable work and cannot be started.
+    public func restore(_ snapshots: [WorkSnapshot]) {
+        lock.lock()
+        for var snapshot in snapshots where !records.contains(where: { $0.snapshot.id == snapshot.id }) {
+            if !snapshot.isFinished { snapshot.state = .review }
+            records.append(ScheduledWork(snapshot))
+        }
+        lock.unlock();onChange?()
+    }
+    @discardableResult public func discardRestored(_ id: UUID) -> Bool {
+        lock.lock()
+        let index = records.firstIndex { $0.snapshot.id == id && !$0.snapshot.isPending && $0.body == nil }
+        if let index { records.remove(at:index) }
+        lock.unlock();onChange?();return index != nil
     }
     public func start(_ id: UUID? = nil) {
         lock.lock()
@@ -66,7 +84,7 @@ public final class WorkScheduler: @unchecked Sendable {
     }
     public func remove(_ id: UUID) {
         lock.lock()
-        let work = records.first { $0.snapshot.id == id && $0.snapshot.state == .waiting }
+        let work = records.first { $0.snapshot.id == id && [.waiting,.review].contains($0.snapshot.state) }
         if let work {
             work.token.cancel(); work.snapshot.state = .cancelled; work.snapshot.detail = "Aus Warteschlange entfernt"
             for i in work.snapshot.items.indices { work.snapshot.items[i].state = .cancelled;work.snapshot.items[i].message = "Nicht ausgeführt" }
@@ -79,7 +97,10 @@ public final class WorkScheduler: @unchecked Sendable {
     public func pause() { lock.lock(); let work = records.first { $0.snapshot.id == active }; held = true; work?.token.pause(); lock.unlock(); onChange?() }
     public func resume() { lock.lock(); held = false; records.first { $0.snapshot.id == active }?.token.resume(); lock.unlock(); onChange?(); schedule() }
     public func cancel() { lock.lock(); records.first { $0.snapshot.id == active }?.token.cancel(); lock.unlock(); onChange?() }
-    public func clearFinished() { lock.lock(); records.removeAll { !$0.snapshot.isPending }; lock.unlock(); onChange?() }
+    @discardableResult public func clearFinished() -> [UUID] {
+        lock.lock();let ids = records.filter { $0.snapshot.isFinished }.map { $0.snapshot.id }
+        records.removeAll { $0.snapshot.isFinished };lock.unlock();onChange?();return ids
+    }
     private func schedule() {
         lock.lock()
         guard active == nil,!held,let work = records.first(where:{$0.snapshot.state == .waiting}) else { lock.unlock(); return }

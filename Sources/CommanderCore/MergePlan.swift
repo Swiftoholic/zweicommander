@@ -113,7 +113,7 @@ public struct MergePlan {
         }
         return MergePlan(actions:actions,base:base,baseVersion:version)
     }
-    func execute(entries: [PlannedTransfer],token: CancellationToken,progress: @escaping (TransferProgress) -> Void) -> OperationReport {
+    func execute(entries: [PlannedTransfer],token: CancellationToken,validateExecution: (() throws -> Void)? = nil,progress: @escaping (TransferProgress) -> Void) -> OperationReport {
         var report = OperationReport(),items = initialItems
         var bindings: [String:FileStamp] = [base.path:baseVersion],created: [Int] = []
         var last = Date.distantPast,delivered = false,detail = "Prüfe Zusammenführungsplan …",current: Int?
@@ -140,6 +140,7 @@ public struct MergePlan {
         emit()
         do {
             try token.check()
+            try validateExecution?()
             guard unresolvedCount == 0 else { throw CommanderError.message("\(unresolvedCount) Konflikt(e) müssen vor dem Start entschieden werden.") }
             try directory(base)
             for entry in entries { try entry.tree.validate(entry.source,token:token) }
@@ -155,6 +156,7 @@ public struct MergePlan {
                 if isSkipped(action) { report.skipped.append(action.source);continue }
                 current = index;delivered = false;try token.check();try parents(action.target)
                 items[index].state = .running;detail = action.source.path;emit()
+                try validateExecution?();try token.check()
                 if action.node.directory {
                     if action.targetInfo?.kind == .directory { try directory(action.target);items[index].state = .completed }
                     else {
@@ -169,7 +171,7 @@ public struct MergePlan {
                     let tree = CopyTree(nodes:[node],filter:.init())
                     let policy: ConflictPolicy = action.conflict && action.decision == .replace ? .replace : .stop
                     let expectation = action.decision == .keepBoth ? TargetVersion(stamp:nil) : action.targetVersion
-                    let step = try FileOperations.transferPrepared(action.source,to:action.target,kind:.copy,policy:policy,token:token,tree:tree,expectedTarget:expectation,validateTarget:{ try parents(action.target) }) { _,copied,_ in
+                    let step = try FileOperations.transferPrepared(action.source,to:action.target,kind:.copy,policy:policy,token:token,tree:tree,expectedTarget:expectation,validateTarget:{ try parents(action.target);try validateExecution?() }) { _,copied,_ in
                         items[index].bytes = max(items[index].bytes,copied);emit(false)
                     }
                     if let step { report.completed.append(step.current);report.undo.append(step) }
@@ -182,6 +184,7 @@ public struct MergePlan {
             for entry in entries { try entry.tree.validate(entry.source,token:token) }
             for index in created.reversed() {
                 current = index;try token.check();let action = actions[index]
+                try validateExecution?()
                 try parents(action.target);try directory(action.target)
                 guard try FileStamp(action.source) == action.node.stamp else { throw CommanderError.message("Quellordner wurde während des Vorgangs verändert.") }
                 try NativeCopy.copy(action.source,to:action.target,metadataOnly:true,token:token,progress:{ _ in })

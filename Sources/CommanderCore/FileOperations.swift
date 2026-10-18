@@ -1,7 +1,7 @@
 import Foundation
 
 public enum ConflictPolicy: String, CaseIterable, Codable { case stop, skip, keepBoth, replace }
-public enum TransferKind { case copy, move }
+public enum TransferKind: String, Codable { case copy, move }
 public struct UndoStep {
     public let current: URL
     public let original: URL?

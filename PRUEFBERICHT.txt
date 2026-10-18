@@ -1,18 +1,52 @@
-ZweiCommander 0.6.0 — Prüfung vom 18. Oktober 2026
+ZweiCommander 0.7.0 — Prüfung vom 18. Oktober 2026
 
 Ergebnis
-- 99/99 Dateikern- und Integrationstests bestanden.
-- 120/120 native UI-Prüfungen am universellen Release-Build bestanden:
+- 117/117 Dateikern- und Integrationstests bestanden.
+- 186/186 native UI-Prüfungen am universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, Warteschlange 14,
   Kopierfilter 22, Ordner zusammenführen 29, Profile speichern 19,
-  Profile nach erneutem App-Start laden und verwenden 16.
+  Profile nach erneutem App-Start laden und verwenden 16,
+  Aufträge speichern 8, nach Neustart neu prüfen und ausführen 23,
+  abruptes Prozessende während Kopie 7, Wiederanlauf mit neuem Plan 13,
+  Speicherfehler während Kopie 10, beschädigte Auftragsablage 5.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
 - App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
+- Debug-Pfadverweise vor Signierung entfernt; Release-Binärdatei auf lokale
+  Benutzerpfade und persönliche Namen geprüft, ohne Treffer.
 
 Testsystem
 Intel-Mac, macOS 26.7.1, Swift 6.3.3. Apple Silicon und ältere macOS-Versionen
 wurden kompiliert, aber nicht zur Laufzeit geprüft. Keine Developer-ID-Signatur
 oder Notarisierung.
+
+Lokales Auftragsjournal und Wiederanlauf
+Neue Tests prüfen atomische Speicherung von Auftragsabsichten, Regeln,
+Reihenfolge und Fortschrittsauszügen, Rechte 0700/0600, Sperre gegen parallele
+App-Instanzen, beschädigte/unbekannte Daten, symbolische und harte Links,
+ersetzte Ablageordner/Sperrdateien, externe Dateiänderungen und Entfernen,
+Speichergrenzen ohne Verdrängen offener Aufträge sowie begrenzte Objektzeilen.
+Unfertige Aufträge werden nach Neustart ausschließlich zur erneuten Prüfung
+geladen. Terminale Ergebnisse bleiben als Historie erhalten. Ein neuer Plan
+sieht geänderte Quellen und vorhandene Ziele; einzelne Konfliktentscheidungen
+werden nicht aus dem früheren Plan übernommen. Bereits im Scheduler geladene
+Auftragsbeschreibungen enthalten keine ausführbaren Aktionen.
+
+Getrennte native App-Prozesse prüfen Speichern und reguläres Beenden mit
+vorgemerkten Kopien/Verschiebungen, Laden ohne automatische Ausführung,
+Neuerfassung des Bestands, erneute Konfliktwahl, atomisches Ersetzen des alten
+Auftrags, Entfernen und Ausblenden. Temporäre Archivquellen und ungespeicherte
+Sitzungsvorgänge sperren das Beenden bis zur Bearbeitung oder Entfernung.
+Ein eigener Testprozess beendet sich während der Übertragung einer 32-MiB-Datei
+sofort, nachdem die erste Datei veröffentlicht und der Teilfortschritt der
+zweiten Datei gespeichert wurde. Ein neuer Prozess prüft die Historie und
+führt erst nach neuer Planung eine vollständige Kopie der fehlenden Datei aus;
+die bereits fertige Datei wird übersprungen und behält ihre Dateiidentität.
+Ein weiterer Durchlauf verändert die Journaldatei während einer Kopie. Der
+aktive Auftrag bricht am Prüfpunkt ab, das nächste Objekt bleibt vorgemerkt,
+fertige Dateien bleiben erhalten und fremde Änderungen werden nicht ersetzt.
+Die Journalprüfung nutzt ausschließlich eine temporäre eigene Ablage.
+Die erste Teilfortschrittsmeldung wird auch für spätere Auswahlobjekte sofort
+weitergereicht, selbst wenn die vorherige Datei bereits Bytes gemeldet hat.
 
 Kopierprofile und Metadatenfilter
 Neue Tests prüfen Größenangaben mit 1000er-/1024er-Einheiten, Dezimalpunkt und
@@ -67,7 +101,14 @@ Neue Ordner können bis zum Abschluss vorläufig private Zugriffsrechte behalten
 Wird der Zielordner während der Arbeit ersetzt oder umbenannt, kann eine
 versteckte Staging-Datei im vorherigen Ordnerobjekt zurückbleiben.
 Typkonflikte mit Ordnern können nur übersprungen werden. Zusammenführen und
-Filter und Profile sind beim Verschieben gesperrt. Die Warteschlange ist sitzungsbezogen.
+Filter und Profile sind beim Verschieben gesperrt. Das Journal betrifft lokale
+Kopier-/Verschiebeabsichten und letzten gemeldeten Fortschritt, keine bestätigte
+Bestandsaufnahme nach dem Neustart. Bis zu 200 Aufträge/16 MiB und 200
+Objektzeilen pro Auftrag; keine automatische Ausführung oder Byte-Fortsetzung.
+Fehlende Quellen gelten nicht als erfolgreich verschoben. Andere Hintergrund-
+vorgänge und Rückgängig bleiben sitzungsbezogen. Nach abruptem Prozessende
+können versteckte unveröffentlichte Kopien zurückbleiben; keine automatische
+Bereinigung beim Wiederanlauf. Dateirechte sind keine Verschlüsselung.
 Größen-/Datumsgrenzen lassen symbolische Links aus und verwenden feste
 Zeitpunkte statt gleitender Altersregeln. Profile speichern nur Regeln und die
 globale Konfliktvorgabe; keine Pfade, Auswahl oder einzelnen Entscheidungen.

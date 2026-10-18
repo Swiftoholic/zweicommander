@@ -58,7 +58,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     let right: PaneView
     var active: PaneView
     var other: PaneView { active === left ? right : left }
-    let jobs = JobQueue()
+    let jobs: JobQueue
     var secondaryWindows: [NSWindowController] = []
     var undoSteps: [UndoStep] = []
     var renameUndo: [RenameItem]?
@@ -71,8 +71,13 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     var onRebuildMenus: (() -> Void)?
     var operationWindow: OperationQueueController?
     var pendingWork:Int { jobs.pending + secondaryWindows.compactMap { $0 as? RemoteWindow }.reduce(0) { $0+$1.jobs.pending } }
+    var canTerminate: Bool {
+        jobs.canClose && secondaryWindows.compactMap { $0 as? RemoteWindow }.allSatisfy { $0.jobs.pending == 0 } &&
+            !jobs.scheduler.snapshots.filter(\.isPending).contains { snapshot in jobs.journal?.entry(snapshot.id)?.intent.sources.contains { FileSystem.isInside($0,cache) } == true }
+    }
 
     init(startLeft: URL? = nil,startRight: URL? = nil) {
+        jobs = JobQueue.mainQueue()
         let home = FileManager.default.homeDirectoryForCurrentUser
         left = PaneView(url:startLeft ?? home,savedTabs:startLeft == nil ? Preferences.state.left : [])
         right = PaneView(url:startRight ?? home.appendingPathComponent("Downloads"),savedTabs:startRight == nil ? Preferences.state.right : [])
@@ -110,7 +115,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             self.content.cancel.isHidden = active == nil;self.content.pause.isHidden = active == nil
             self.content.pause.title = active.map { [.paused,.pausing].contains($0.state) ? "Fortsetzen" : "Pause" } ?? "Pause"
             self.content.pause.image = NSImage(systemSymbolName:self.content.pause.title == "Fortsetzen" ? "play.fill" : "pause.fill",accessibilityDescription:self.content.pause.title)
-            self.content.queueButton.title = "Aufträge (\(self.jobs.pending))"
+            self.content.queueButton.title = "Aufträge (\(self.jobs.pending+self.jobs.scheduler.snapshots.filter { $0.state == .review }.count))"
             self.content.progress.isHidden = self.jobs.pending == 0
             self.content.progress.isIndeterminate = done == nil
             if let done { self.content.progress.stopAnimation(nil);self.content.progress.doubleValue = done }
@@ -219,18 +224,35 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         let controller = TransferSetupController(sources:urls,destination:destination,kind:kind,validateDestination:{ url in
             guard !FileSystem.isInside(url,cache) else { throw CommanderError.message("Temporäre Archivordner sind schreibgeschützt.") }
         })
-        controller.onSubmit = { [weak self] plan,start in self?.enqueueTransfer(plan,start:start) }
+        controller.onSubmit = { [weak self] plan,start in self?.enqueueTransfer(plan,start:start) ?? false }
         secondaryWindows.append(controller);controller.showWindow(nil)
     }
-    func enqueueTransfer(_ plan: TransferPlan,start: Bool) {
-        let title = (plan.merge != nil ? "Zusammenführen" : plan.kind == .copy ? "Kopieren" : "Verschieben")+" → "+plan.destination.lastPathComponent
-        let id = jobs.submitReported(title,start:start,items:plan.initialItems,body:{ token,reporter in
-            TransferPlanner.execute(plan,token:token,progress:{ reporter.transfer($0) })
-        },completion:{ [weak self] in self?.complete($0) })
-        showOperations(select:id)
+    @discardableResult func enqueueTransfer(_ plan: TransferPlan,start: Bool,replacing oldID: UUID? = nil) -> Bool {
+        do {
+            let id = try jobs.submitTransfer(plan,start:start,replacing:oldID,completion:{ [weak self] in self?.complete($0) })
+            showOperations(select:id);return true
+        } catch { showFailure(error);return false }
+    }
+    @discardableResult func reviewTransfer(_ id: UUID) -> TransferSetupController? {
+        guard let entry = jobs.journal?.entry(id),jobs.scheduler.snapshots.first(where: { $0.id == id })?.isPending == false else { return nil }
+        let sources = entry.intent.sources.filter { FileSystem.exists($0) },missing = entry.intent.sources.count-sources.count
+        guard !sources.isEmpty else {
+            _ = dialog("Quellen nicht verfügbar",message:"Keine der gespeicherten Quellen ist vorhanden. Bitte Datenträger verbinden und Quellen sowie Ziel prüfen. Fehlende Quellen gelten nicht automatisch als erfolgreich verschoben.",buttons:["OK"]);return nil
+        }
+        let cache = self.cache
+        let controller = TransferSetupController(sources:sources,destination:entry.intent.destination,kind:entry.intent.kind,validateDestination:{ url in
+            guard !FileSystem.isInside(url,cache) else { throw CommanderError.message("Temporäre Archivordner sind schreibgeschützt.") }
+        })
+        let notice = missing > 0 ? "\(missing) gespeicherte Quelle(n) fehlen und werden ausgelassen. Vorhandene Ziele und den neuen Plan prüfen." : "Neuer Dateiplan: vorhandene Ziele prüfen und Einzelentscheidungen erneut treffen. Kein Fortsetzen an einer Byteposition."
+        controller.apply(entry.intent,notice:notice)
+        controller.onSubmit = { [weak self] plan,start in self?.enqueueTransfer(plan,start:start,replacing:id) ?? false }
+        secondaryWindows.append(controller);controller.showWindow(nil);return controller
     }
     func showOperations(select id: UUID? = nil) {
-        if operationWindow == nil { operationWindow = OperationQueueController(jobs) }
+        if operationWindow == nil {
+            operationWindow = OperationQueueController(jobs)
+            operationWindow?.onReview = { [weak self] id in self?.reviewTransfer(id) }
+        }
         if let id { operationWindow?.select(id) }
         operationWindow?.showWindow(nil)
     }
@@ -241,7 +263,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         })
     }
     func windowShouldClose(_ sender:NSWindow) -> Bool {
-        if jobs.pending > 0 { _ = dialog("Dateiaufträge sind offen",message:"Laufende Vorgänge erst abschließen oder abbrechen. Vorgemerkte Aufträge können im Fenster Aufträge entfernt werden.",buttons:["OK"]); return false }
+        if !canTerminate { _ = dialog("Dateiaufträge sind offen",message:"Laufende Vorgänge und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return false }
         saveState(); return true
     }
     func windowWillClose(_ notification:Notification) { saveState() }

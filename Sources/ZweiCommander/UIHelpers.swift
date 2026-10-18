@@ -91,6 +91,7 @@ struct SavedState: Codable {
 enum Preferences {
     static var state = load()
     static var testMode = false
+    static var transferJournalTestDirectory: URL?
     static func decode(_ data: Data) -> SavedState? {
         // Older builds stored the same profile schema under a different property name.
         guard var json = try? JSONSerialization.jsonObject(with:data) as? [String:Any] else { return nil }
@@ -139,23 +140,59 @@ extension ImportedRGB {
 private final class JobResult<Value> { var value: Result<Value,Error>? }
 final class JobQueue {
     let scheduler = WorkScheduler()
+    let journal: TransferJournal?
+    private let persistenceLock = NSLock()
+    private var persistenceFailure: String?
+    var journalError: String? { persistenceLock.lock();defer { persistenceLock.unlock() };return persistenceFailure }
     var onStatus: ((String, Double?) -> Void)?
     var pending: Int { scheduler.snapshots.filter(\.isPending).count }
     var log: [String] = []
+    var transferProgressObserver: ((TransferProgress) -> Void)?
     private var timer: Timer?
-    init() {
-        scheduler.onChange = { [weak self] in DispatchQueue.main.async { self?.publish() } }
+    init(journal: TransferJournal? = nil,journalError: String? = nil) {
+        self.journal = journal;persistenceFailure = journalError
+        if let journal { scheduler.restore(journal.entries.map(\.restoredSnapshot)) }
+        scheduler.onChange = { [weak self] in
+            self?.synchronizeJournal()
+            DispatchQueue.main.async { self?.publish() }
+        }
         timer = Timer.scheduledTimer(withTimeInterval:0.25,repeats:true) { [weak self] _ in if self?.pending ?? 0 > 0 { self?.publish() } }
     }
+    static func mainQueue() -> JobQueue {
+        if Preferences.testMode && Preferences.transferJournalTestDirectory == nil { return JobQueue() }
+        do { return JobQueue(journal:try TransferJournal(directory:Preferences.transferJournalTestDirectory ?? TransferJournal.defaultDirectory)) }
+        catch { return JobQueue(journalError:error.localizedDescription) }
+    }
     deinit { timer?.invalidate() }
+    private func synchronizeJournal() {
+        guard let journal else { return }
+        // Read the scheduler under this lock, so delayed callbacks cannot write an older snapshot.
+        persistenceLock.lock()
+        guard persistenceFailure == nil else { persistenceLock.unlock();return }
+        var failed = false
+        do { try journal.synchronize(scheduler.snapshots) }
+        catch { persistenceFailure = error.localizedDescription;failed = true }
+        persistenceLock.unlock()
+        if failed { scheduler.pause();scheduler.cancel() }
+    }
+    var canClose: Bool {
+        synchronizeJournal()
+        let pending = scheduler.snapshots.filter(\.isPending)
+        if pending.isEmpty { return true }
+        return journalError == nil && pending.allSatisfy { $0.state == .waiting && journal?.entry($0.id) != nil }
+    }
     var active: WorkSnapshot? { scheduler.snapshots.first { [.running,.pausing,.paused].contains($0.state) } }
     func publish() {
         let list = scheduler.snapshots, count = list.filter(\.isPending).count
+        if let journalError { onStatus?(journalError,nil);return }
         if let current = active {
             let prefix = current.state == .paused ? "Pausiert · " : current.state == .pausing ? "Pause angefordert · " : ""
             let transfer = current.transferredBytes.map { " · "+bytes($0)+" / "+bytes(current.totalBytes ?? 0) } ?? ""
             onStatus?(prefix+current.title+" · "+current.detail+transfer,current.fraction)
-        } else { onStatus?(count == 0 ? "Bereit" : "\(count) Auftrag/Aufträge warten · Start über Aufträge",count == 0 ? 1 : nil) }
+        } else {
+            let review = list.filter { $0.state == .review }.count
+            onStatus?(count > 0 ? "\(count) Auftrag/Aufträge warten · Start über Aufträge" : review > 0 ? "\(review) gespeicherte Aufträge · vor erneutem Start prüfen" : "Bereit",count == 0 ? 1 : nil)
+        }
     }
     @discardableResult func submit<T>(_ title: String, work: @escaping (CancellationToken, @escaping (String) -> Void) throws -> T, completion: @escaping (Result<T, Error>) -> Void) -> UUID {
         submitReported(title,body:{ token,reporter in
@@ -163,9 +200,9 @@ final class JobQueue {
             return try work(token,{ detail in guard Date().timeIntervalSince(last) >= 0.1 else { return };last = Date();reporter.report(detail) })
         },completion:completion)
     }
-    @discardableResult func submitReported<T>(_ title: String,start: Bool = true,items: [TransferItemProgress] = [],body: @escaping (CancellationToken,WorkReporter) throws -> T,completion: @escaping (Result<T,Error>) -> Void) -> UUID {
+    @discardableResult func submitReported<T>(_ title: String,id: UUID = UUID(),start: Bool = true,items: [TransferItemProgress] = [],body: @escaping (CancellationToken,WorkReporter) throws -> T,completion: @escaping (Result<T,Error>) -> Void) -> UUID {
         let box = JobResult<T>()
-        return scheduler.enqueue(title,start:start,items:items,body:{ token,reporter in
+        return scheduler.enqueue(title,id:id,start:start,items:items,body:{ token,reporter in
             let result = Result { try body(token,reporter) }; box.value = result
             switch result {
             case .failure(let error): throw error
@@ -180,6 +217,43 @@ final class JobQueue {
             }
         })
     }
+    @discardableResult func submitTransfer(_ plan: TransferPlan,start: Bool,replacing oldID: UUID? = nil,completion: @escaping (Result<OperationReport,Error>) -> Void) throws -> UUID {
+        if let journalError { throw CommanderError.message(journalError) }
+        if let oldID {
+            guard let old = scheduler.snapshots.first(where: { $0.id == oldID }),!old.isPending,journal?.entry(oldID) != nil else { throw CommanderError.message("Dieser Auftrag kann nicht erneut geprüft werden.") }
+        }
+        let id = UUID(),title = (plan.merge != nil ? "Zusammenführen" : plan.kind == .copy ? "Kopieren" : "Verschieben")+" → "+plan.destination.lastPathComponent
+        persistenceLock.lock()
+        do { try journal?.stage(TransferIntent(plan),snapshot:.waiting(id:id,title:title,items:plan.initialItems),replacing:oldID) }
+        catch { persistenceLock.unlock();throw error }
+        persistenceLock.unlock()
+        if let oldID { scheduler.discardRestored(oldID) }
+        return submitReported(title,id:id,start:start,items:plan.initialItems,body:{ [weak self] token,reporter in
+            if let error = self?.journalError { throw CommanderError.message(error) }
+            var report = TransferPlanner.execute(plan,token:token,validateExecution:{ [weak self] in
+                self?.synchronizeJournal()
+                if let error = self?.journalError { throw CommanderError.message(error) }
+            },progress:{ progress in reporter.transfer(progress);self?.transferProgressObserver?(progress) })
+            if let error = self?.journalError { report.errors.append(error) }
+            return report
+        },completion:completion)
+    }
+    func remove(_ id: UUID) {
+        scheduler.remove(id)
+        guard scheduler.snapshots.first(where: { $0.id == id })?.state == .cancelled else { return }
+        editJournal { try $0.remove([id]) }
+    }
+    func clearFinished() { let ids = scheduler.clearFinished();editJournal { try $0.remove(Set(ids)) } }
+    private func editJournal(_ edit: (TransferJournal) throws -> Void) {
+        guard let journal else { return }
+        persistenceLock.lock()
+        var failed = false
+        if persistenceFailure == nil {
+            do { try edit(journal) } catch { persistenceFailure = error.localizedDescription;failed = true }
+        }
+        persistenceLock.unlock()
+        if failed { scheduler.pause();scheduler.cancel() };publish()
+    }
     func cancel() { scheduler.cancel(); publish() }
     func togglePause() {
         if let state = active?.state,[.paused,.pausing].contains(state) { scheduler.resume() }
@@ -189,7 +263,7 @@ final class JobQueue {
 }
 extension WorkState {
     var german: String {
-        switch self { case .waiting:return "Wartet";case .running:return "Läuft";case .pausing:return "Pause angefordert";case .paused:return "Pausiert";case .completed:return "Fertig";case .failed:return "Fehler";case .cancelled:return "Abgebrochen" }
+        switch self { case .waiting:return "Wartet";case .running:return "Läuft";case .pausing:return "Pause angefordert";case .paused:return "Pausiert";case .review:return "Erneut prüfen";case .completed:return "Fertig";case .failed:return "Fehler";case .cancelled:return "Abgebrochen" }
     }
 }
 extension TransferItemState {

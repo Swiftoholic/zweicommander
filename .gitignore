@@ -25,5 +25,6 @@ __pycache__/
 *.ini
 *.shc
 *profile*.json
+*journal*.json
 !Tests/fixtures/INISettings.sample.ini
 !Tests/fixtures/INISettings.sample.shc
