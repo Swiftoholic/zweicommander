@@ -1,8 +1,8 @@
-ZweiCommander 0.11.0 — Prüfung vom 18. Oktober 2026
+ZweiCommander 0.12.0 — Prüfung vom 18. Oktober 2026
 
 Ergebnis
-- 176/176 Dateikern- und Integrationstests bestanden.
-- 371/371 native UI-Prüfungen am universellen Release-Build bestanden:
+- 200/200 Dateikern- und Integrationstests bestanden.
+- 425/425 native UI-Prüfungen am universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, Warteschlange 14,
   Kopierfilter 22, Ordner zusammenführen 29, Profile speichern 19,
   Profile nach erneutem App-Start laden und verwenden 16,
@@ -12,7 +12,8 @@ Ergebnis
   relative Altersregeln und Speichern 12, Altersregeln nach Neustart 19,
   Ansichten/Tabs/Favoriten und Speichern 44, Arbeitsbereich nach Neustart 16,
   Mehrfachumbenennen und Profile speichern 20, nach Neustart verwenden 27,
-  Sucharbeitsbereich und Profile speichern 22, nach Neustart verwenden 25.
+  Sucharbeitsbereich und Profile speichern 22, nach Neustart verwenden 25,
+  Ordnervergleich und Profile speichern 24, nach Neustart verwenden 30.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
 - App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
 - Debug-Pfadverweise vor Signierung entfernt; Release-Binärdatei auf lokale
@@ -32,6 +33,67 @@ Bei einer früheren Entwicklungsprüfung blieb ein Start aus dem Entwicklungsord
 Anwendungsinitialisierung hängen. Derselbe unveränderte Build startete aus
 dem Benutzer-Programmeordner regulär. Die genaue Ursache des ersten Hängers
 ist nicht abschließend bestimmt; die Verwendung aus Programme wird empfohlen.
+
+Ordnervergleich und Synchronisation
+24 zusätzliche Kernprüfungen kontrollieren Inhalts-/Größen-/Zeitvergleich,
+einschließliche Zeittoleranz, Dateimuster, Ordnerausschlüsse auch ohne Rekursion,
+versteckte und reservierte Arbeitsnamen, Typkonflikte samt Nachfahren, Links,
+Spezialdateien und Schreibweisenkonflikte. Ungültige oder ineinander liegende
+Wurzeln werden abgewiesen. Änderungen während des Vergleichs, auch bei gleicher
+Größe und wiederhergestelltem Änderungsdatum, verhindern eine ausführbare
+Vorschau. Filter dürfen einen echten Gegenpart eines Ordners nicht als fehlend
+erscheinen lassen, wenn dort ein abweichender Dateityp vorliegt.
+
+Vorschläge unterscheiden ausdrücklich offene Richtungen von ausgelassenen
+Zeilen. Geprüft werden Vorschläge für beide Seiten, neuere/fehlende und nur
+fehlende Dateien, notwendige Elternordner ohne ungeplante Unterordnerinhalte,
+gemischte Kopierrichtungen, Sicherungen, zusätzliche Zieldateien und bestehende
+Datei-Rücknahme. Profilregeln einschließlich Strategie werden gespeichert;
+Rootpfade und Dateientscheidungen gehören nicht zu den Profilen. Daten-/Versions-,
+Namens-, Mengen- und Größenprüfungen erhalten bestehende Profile bei Fehlern.
+
+Die gesamte gewählte Vorschau wird vor der ersten Mutation geprüft. Quellen und
+Ziele mit neuen Inhalten bei gleicher Größe und wiederhergestellter Änderungszeit
+halten den Plan vorab an. Geänderte oder ersetzte Wurzeln und Elternordner sowie
+neu auftauchende Ziele werden erkannt. Symbolische Elternordner werden nicht
+verfolgt. Reguläre Dateien werden über offene Dateideskriptoren kopiert; die
+Zielveröffentlichung und Sicherung verwenden geöffnete Ordner und Umbenennen
+mit Ausschluss bestehender Namen. Das C-Kopiermodul ergänzt dazu fcopyfile mit
+dem vorhandenen Pause-/Abbruch-/Fortschrittsrückruf.
+
+Weitere Szenarien bearbeiten die Quelle während des Kopierens, legen ein fremdes
+Ziel an, verschieben den Ziel-Elternordner und ersetzen ihn durch einen neuen,
+oder verschieben die eigene Zwischenkopie und belegen ihren ursprünglichen
+Namen mit fremden Daten. Alter Zielinhalt, fremde Daten und die verschobene
+Kopie bleiben in den geprüften Fällen erhalten. Bereinigung entfernt nur eine
+noch über ihre Identität erkannte eigene Zwischenkopie. Abbruch mitten in der
+Dateikopie erhält das alte Ziel; Abbruch nach einer fertigen Datei behält diese
+und führt weitere Dateien nicht mehr aus. Pause/Wiederaufnahme hält die echte
+Bytekopie an. Dateiinhalte, Änderungsdatum und neue Ordnerrechte werden geprüft.
+
+Zwei getrennte native Prozesse bedienen 54 Prüfungen: Gegenüberstellung, Filter,
+Typkonflikte, Vorschlag in beide Richtungen, seitengenaue Vorschau/Markierung,
+Menüsperre fremder Löschaktionen auch im Planfenster, Zeilenentscheidungen und erhaltene Auswahl,
+konkrete Planprüfung samt Abbrechen, Profile speichern/aktualisieren/laden,
+Benennung und mehrere offene Fenster. Nach Neustart werden Vorschläge neu aus
+Regeln statt aus alten Einzelentscheidungen erzeugt. Vormerken schreibt keine
+Dateien und blockiert Beenden; eigener Abbruch meldet den wartenden Auftrag
+zurück. Der native Start kopiert gemischte Richtungen, erhält Konfliktzweige und
+Sicherungen und liefert die erwarteten Datei-Rücknahmeschritte. Die Rücknahme
+im Hauptfenster stellt Dateien wieder her und erhält neue Ordner.
+
+Ein nachträglich bearbeiteter Quellpfad lässt den gesamten Plan vor den ersten
+Zieländerungen scheitern; der native Bericht erklärt den Fehler. Vergleichsabbruch
+liefert keine ausführbare Teilvorschau. Beschädigte Profile und falsche gespeicherte
+Datentypen bleiben unverändert. Löschen wird abgebrochen und bestätigt. Native
+Fensterbilder von Vergleich und Plan wurden lokal gerendert und visuell geprüft.
+
+Grenzen: Vorgemerkte Synchronisationen sind nicht dauerhaft gespeichert.
+Keine Löschspiegelung, automatische Gesamtrücksetzung oder dauerhafte Zweiwege-
+Beziehung. Ordner erhalten nur die POSIX-Rechte der Quelle; keine vollständige
+Ordner-Metadaten- oder ACL-Übernahme. Laufende externe Änderungen können den
+Auftrag anhalten; die Prüfungen stellen keine unveränderliche Dateisystemansicht
+oder vollständige Matrix konkurrierender Schreibzugriffe dar.
 
 Dateisuche
 17 zusätzliche Kernprüfungen decken mehrere Namensmuster, Ausschlüsse und

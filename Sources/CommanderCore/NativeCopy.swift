@@ -102,6 +102,15 @@ private final class NativeCopyContext {
     }
 }
 enum NativeCopy {
+    static func copyDescriptors(_ source: Int32,to destination: Int32,token: CancellationToken,progress: @escaping (Int64)->Void) throws {
+        try token.check();let context = NativeCopyContext(token,progress)
+        let result = zc_copy_fd(source,destination,{ raw,bytes in
+            guard let raw else { return 1 }
+            return Unmanaged<NativeCopyContext>.fromOpaque(raw).takeUnretainedValue().update(bytes)
+        },Unmanaged.passUnretained(context).toOpaque())
+        if let error = context.error { throw error }
+        guard result == 0 else { throw NSError(domain:NSPOSIXErrorDomain,code:Int(result)) };try token.check()
+    }
     static func copy(_ source: URL,to destination: URL,metadataOnly: Bool = false,token: CancellationToken,progress: @escaping (Int64) -> Void) throws {
         try token.check()
         let context = NativeCopyContext(token,progress)

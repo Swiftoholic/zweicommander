@@ -25,7 +25,8 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let workspaceSmoke = args.firstIndex(of:"--workspace-smoke")
         let renameSmoke = args.firstIndex(of:"--rename-smoke")
         let searchSmoke = args.firstIndex(of:"--search-smoke")
-        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke].compactMap { $0 }.first
+        let compareSmoke = args.firstIndex(of:"--compare-smoke")
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke].compactMap { $0 }.first
         Preferences.testMode = testIndex != nil
         if Preferences.testMode { setvbuf(stdout,nil,_IOLBF,0) }
         if Preferences.testMode { Preferences.state = SavedState() }
@@ -44,6 +45,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         }
         if searchSmoke != nil,let index = args.firstIndex(of:"--search-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
             Preferences.searchTestDefaults = UserDefaults(suiteName:args[index+1])
+        }
+        if compareSmoke != nil,let index = args.firstIndex(of:"--compare-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
+            Preferences.compareTestDefaults = UserDefaults(suiteName:args[index+1])
         }
         if let index = args.firstIndex(of:"--import-settings"),args.indices.contains(index+1) {
             do {
@@ -99,6 +103,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if let workspaceSmoke,args.indices.contains(workspaceSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runWorkspaceSmoke(root:root,prefix:args[workspaceSmoke+2],reload:restoringWorkspace) }
         }
+        if let compareSmoke,args.indices.contains(compareSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runCompareSmoke(root:root,prefix:args[compareSmoke+2],reload:args.contains("--reload-compare")) }
+        }
         if let searchSmoke,args.indices.contains(searchSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runSearchSmoke(root:root,prefix:args[searchSmoke+2],reload:args.contains("--reload-search")) }
         }
@@ -152,6 +159,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
     @objc func dispatch(_ sender:NSMenuItem) { if let id = sender.representedObject as? String { main.command(id) } }
     func validateMenuItem(_ item:NSMenuItem)->Bool {
         guard let id = item.representedObject as? String else { return true }
+        if let compare = main?.keyCompareController { return compare.canPerformCommand(id) }
         if let search = main?.keySearchController { return search.canPerformCommand(id) }
         if let mode = ["details":PaneDisplayMode.details,"thumbnails":.thumbnails,"icons":.icons][id] { item.state = main?.active.displayMode == mode ? .on : .off }
         if id == "tree" { item.state = main?.active.treeVisible == true ? .on : .off }
@@ -160,9 +168,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if item.keyEquivalentModifierMask.isEmpty, item.keyEquivalent == " ", NSApp.keyWindow?.firstResponder is NSTextView { return false }
         return true
     }
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:"0.11.0",.version:"11",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:"0.12.0",.version:"12",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
     func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply {
-        if main?.canTerminate == false { _ = dialog("Dateivorgänge laufen",message:"Laufende Vorgänge einschließlich Suchen und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return .terminateCancel }
+        if main?.canTerminate == false { _ = dialog("Dateivorgänge laufen",message:"Laufende Vorgänge einschließlich Suchen, vorgemerkte Synchronisationen und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return .terminateCancel }
         main?.saveState(); return .terminateNow
     }
     func applicationShouldHandleReopen(_ sender:NSApplication,hasVisibleWindows flag:Bool) -> Bool { main.showWindow(nil); return true }

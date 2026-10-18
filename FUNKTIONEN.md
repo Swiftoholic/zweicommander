@@ -1,4 +1,4 @@
-# Funktionsstand 0.11.0
+# Funktionsstand 0.12.0
 
 ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet implementiert; die tatsächlich geprüften Bereiche und verbleibenden Grenzen sind separat aufgeführt.
 
@@ -28,8 +28,8 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 | Duplikate | Vorhanden | Gruppierung nach Größe und SHA-256; keine automatische Löschung |
 | Prüfsummen | Vorhanden | SHA-256, SHA-512, SHA-1, MD5; Listen erstellen und prüfen |
 | Ordnergrößen | Vorhanden | Rekursive Größen-/Dateizählung; tatsächlicher belegter Speicher wird nicht berechnet |
-| Vergleich | Vorhanden | Rekursiv; Inhalte oder Größe/Zeit; Unterschiede und Typkonflikte |
-| Synchronisation | Teilweise | Links→rechts oder rechts→links, Vorschau, Änderungen seit Vorschau erkennen; keine Löschspiegelung/automatische Konfliktzusammenführung |
+| Vergleich | Vorhanden | Eigener Arbeitsbereich mit SHA-256, Größe/Zeit oder Größe, Toleranz, Namens-/Ordnerfiltern, Gegenüberstellung, Listenfilter und Sortierung, Entscheidungen je Zeile, 50 lokalen Profilen; Links, Spezialdateien, Typ-/Schreibweisenkonflikte und betroffene Nachfahren gesperrt |
+| Synchronisation | Teilweise | Gemischte Richtungen pro Datei, Vorschläge nach Seite/Alter/Fehlen, vollständige Planprüfung, neue Elternordner, Byte-Fortschritt, Pause, eigener Abbruch, Sitzungsvormerkung, Sicherungen und Datei-Rücknahme; Prüfungen vor Ausführung und Veröffentlichung. Keine Löschung zusätzlicher Dateien, dauerhafte Zweiwege-Beziehung oder automatische Gesamtrücksetzung |
 | Archive schreiben | Teilweise | ZIP, 7z und TAR-GZip; ZIP-/7z-Kompressionsstufe aus Import; keine Verschlüsselung, Links, Resource Forks oder erweiterten Metadaten |
 | Archive lesen | Teilweise | macOS-libarchive; ZIP/TAR/7z geprüft, RAR je nach System-Codec noch nicht mit Formatvarianten geprüft; Passwortfeld beim Entpacken |
 | Verschachtelte Archive | Vorhanden | Temporäre schreibgeschützte Ansichten; neu entpacken beim Öffnen |
@@ -58,9 +58,9 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 
 ## Prüfung
 
-176 Dateikern- und Integrationstests prüfen unter anderem Ordnerregeln, Favoriten und strukturierte Programmaufrufe, das lokale Auftragsjournal, Wiederanlauf ohne automatische Ausführung, Speichergrenzen und Dateirechte, Kopierfortschritt, Pause/Abbruch, Metadaten, Dateifilter, Zusammenführen, Konfliktentscheidungen, Sicherungen, Rückgängig, veränderte Quellen und Ziele, symbolische Verknüpfungen, Umbenennungszyklen, Suche, Hashwerte, Archive, Pfadmanipulationen und einen lokalen FTP-Server.
+200 Dateikern- und Integrationstests prüfen unter anderem Ordnerregeln, Favoriten und strukturierte Programmaufrufe, das lokale Auftragsjournal, Wiederanlauf ohne automatische Ausführung, Speichergrenzen und Dateirechte, Kopierfortschritt, Pause/Abbruch, Metadaten, Dateifilter, Zusammenführen, Konfliktentscheidungen, Sicherungen, Rückgängig, veränderte Quellen und Ziele, symbolische Verknüpfungen, Umbenennungszyklen, Suche, Hashwerte, Archive, Pfadmanipulationen und einen lokalen FTP-Server.
 
-Die zwanzig nativen Oberflächendurchläufe mit 371 Prüfungen kontrollieren Suche und lokale Suchprofile, laufende/abgebrochene Treffer und Aktionen aus Ergebnissen, Mehrfachumbenennen und Profile, Dateifenster und Import, Symbolansicht und Dateikopie, Tabs, Favoriten und Ordnerregeln, Warteschlange, Kopierfilter, Zusammenführen, Kopierprofile, relative Altersregeln sowie gespeicherte und unterbrochene Dateiübertragungen über getrennte App-Prozesse. Sie bedienen die tatsächlichen Auswahlfelder und Konfliktmenüs und vergleichen das Ergebnis mit dem geplanten Bestand. Details stehen in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+Die zweiundzwanzig nativen Oberflächendurchläufe mit 425 Prüfungen kontrollieren Ordnervergleich, gemischte Synchronisation und Vergleichsprofile, Suche und lokale Suchprofile, laufende/abgebrochene Treffer und Aktionen aus Ergebnissen, Mehrfachumbenennen und Profile, Dateifenster und Import, Symbolansicht und Dateikopie, Tabs, Favoriten und Ordnerregeln, Warteschlange, Kopierfilter, Zusammenführen, Kopierprofile, relative Altersregeln sowie gespeicherte und unterbrochene Dateiübertragungen über getrennte App-Prozesse. Sie bedienen die tatsächlichen Auswahlfelder und Konfliktmenüs und vergleichen das Ergebnis mit dem geplanten Bestand. Details stehen in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 FTPS und SFTP sind bisher nicht Ende zu Ende gegen einen Server geprüft. Große Bestände, Cloud-Platzhalter, ACL-Sonderfälle, externe Datenträger, lange Alltagssitzungen sowie Apple Silicon und ältere macOS-Versionen benötigen weitere Laufzeitprüfungen.
 

@@ -37,29 +37,27 @@ extension MainWindow {
         })
     }
     func compare() {
-        let l = left.currentURL,r = right.currentURL
-        guard !left.readOnly,!right.readOnly else { showFailure(CommanderError.message("Zum Synchronisieren bitte normale Ordner verwenden.")); return }
-        let content = checkbox("Dateiinhalte mit SHA-256 vergleichen",on:true)
-        guard dialog("Ordner vergleichen",message:"Links: \(l.path)\nRechts: \(r.path)\nOhne Inhaltsprüfung werden Größe und Änderungszeit verglichen.",accessory:form([("Prüfung",content)]),buttons:["Vergleichen","Abbrechen"]) == 0 else { return }
-        let checkContent = content.state == .on
-        jobs.submit("Ordnervergleich",work:{ token,progress in try CompareService.compare(l,r,content:checkContent,token:token,progress:progress) },completion:{ [weak self] result in
-            guard let self else { return }
-            switch result {
-            case .failure(let e): showFailure(e)
-            case .success(let items):
-                let different = items.filter { $0.state != .equal }
-                let report = different.map { "\($0.state.rawValue.padding(toLength:15,withPad:" ",startingAt:0)) \($0.relativePath)" }.joined(separator:"\n")
-                let answer = dialog("Vergleich: \(different.count) Unterschiede",message:"Links: \(l.path)\nRechts: \(r.path)\nDie gewählte Richtung ergänzt und ersetzt Dateien. Zusätzliche Dateien im Ziel bleiben erhalten. Ersetzte Dateien werden als versteckte Sicherungen aufbewahrt.",accessory:self.reportView(report.isEmpty ? "Alle verglichenen Dateien stimmen überein." : report),buttons:["Links → Rechts","Rechts → Links","Nur Bericht","Abbrechen"])
-                if answer == 2 { self.showText("Ordnervergleich",report); return }
-                guard answer == 0 || answer == 1 else { return }
-                do {
-                    let plan = try CompareService.plan(items,left:l,right:r,leftToRight:answer == 0)
-                    guard !plan.isEmpty else { _ = dialog("Keine Änderungen nötig",buttons:["OK"]); return }
-                    guard dialog("Synchronisierung ausführen?",message:"\(plan.count) Schritte. Bitte die Zielpfade prüfen.",accessory:self.reportView(plan.map { ($0.destinationStamp == nil ? "NEU       " : "ERSETZEN  ")+$0.destination.path }.joined(separator:"\n")),buttons:["Synchronisieren","Abbrechen"]) == 0 else { return }
-                    self.jobs.submit("Synchronisieren",work:{ token,progress in CompareService.synchronize(plan,token:token,progress:progress) },completion:{ [weak self] in self?.complete($0) })
-                } catch { showFailure(error) }
-            }
-        })
+        guard !left.readOnly,!right.readOnly,left.tab.collection == nil,right.tab.collection == nil else { showFailure(CommanderError.message("Zum Vergleichen bitte zwei normale Ordner verwenden."));return }
+        let controller = CompareController(left:left.currentURL,right:right.currentURL),cache = self.cache
+        controller.validatePaths = { l,r in guard !FileSystem.isInside(l,cache),!FileSystem.isInside(r,cache) else { throw CommanderError.message("Temporäre Archivordner sind schreibgeschützt.") } }
+        controller.onPreview = { [weak self] in self?.preview([$0]) }
+        controller.onReveal = { [weak self] url,isLeft in guard let self else { return };(isLeft ? self.left : self.right).reveal(url);self.window?.makeKeyAndOrderFront(nil) }
+        controller.onReport = { [weak self] in self?.showText("Synchronisation · Bericht",$0) }
+        controller.onCancel = { [weak self] id in self?.jobs.scheduler.cancel(id) }
+        controller.onSubmit = { [weak self,weak controller] plan,start in
+            guard let self else { return UUID() }
+            return self.jobs.submitReported("Ordner synchronisieren",start:start,items:plan.initialItems,notifyQueuedCancellation:true,body:{ token,reporter in
+                FolderSyncEngine.execute(plan,token:token,progress:{ value in
+                    reporter.transfer(value)
+                    DispatchQueue.main.async { controller?.updateProgress(value.detail) }
+                })
+            },completion:{ [weak self,weak controller] result in
+                controller?.finished(result)
+                if case .success(let report) = result { self?.undoSteps = report.undo;self?.renameUndo = nil;self?.jobs.log.append("Synchronisierung: \(report.completed.count) Schritte · \(report.errors.count) Fehler") }
+                self?.refresh()
+            })
+        }
+        secondaryWindows.append(controller);controller.showWindow(nil)
     }
     func pack() {
         guard let urls = requireSelection(),ensureWritable(other) else { return }

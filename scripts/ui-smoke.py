@@ -33,7 +33,7 @@ def preview_png(color):
 
 
 def fixtures(base):
-    main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search = [base / name for name in ("main", "operations", "filters", "merge", "profiles", "journal", "damaged", "age", "workspace", "rename", "search")]
+    main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare = [base / name for name in ("main", "operations", "filters", "merge", "profiles", "journal", "damaged", "age", "workspace", "rename", "search", "compare")]
     for name in ("Archiv", "Dokumente", "Fotos", "Projekte"):
         (main / "Links" / name).mkdir(parents=True)
     for name, text in (("Besprechung.txt", "Besprechung\n"), ("Grüße aus Wien.txt", "Hallo Wien\n"),
@@ -134,7 +134,15 @@ def fixtures(base):
     write(search, "Archive/kaputt.zip", "synthetischer Archivfehler")
     with zipfile.ZipFile(search / "Links/Office/Termin.docx", "w") as archive:
         archive.writestr("word/document.xml", "<document><p>Finanzplanung im Herbst</p></document>")
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search
+    for name, text in (("Bericht.txt", "neu"), ("Gleich.txt", "gleich"), ("Neu.txt", "neu links"),
+                       ("Unterordner/Kind.txt", "Kind"), ("Konflikt.txt", "Datei"),
+                       ("Cache42/off.txt", "Cache"), ("Weglassen.txt", "ausgelassen"), (".notiz.txt", "verborgen")):
+        write(compare, "Links/" + name, text)
+    for name, text in (("Bericht.txt", "alt"), ("Gleich.txt", "gleich"), ("Nur rechts.txt", "rechts"), ("Konflikt.txt/Kind.txt", "behalten")):
+        write(compare, "Rechts/" + name, text)
+    os.utime(compare / "Links/Bericht.txt", (1700000200, 1700000200))
+    os.utime(compare / "Rechts/Bericht.txt", (1700000000, 1700000000))
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare
 
 
 def main():
@@ -175,12 +183,15 @@ def main():
             ("rename-reload", "--rename-smoke", roots[9], str(prefix), "RENAME UI PASS ", "RENAME SMOKE PASS 27 checks", 27),
             ("search-save", "--search-smoke", roots[10], str(prefix), "SEARCH UI PASS ", "SEARCH SMOKE PASS 22 checks", 22),
             ("search-reload", "--search-smoke", roots[10], str(prefix), "SEARCH UI PASS ", "SEARCH SMOKE PASS 25 checks", 25),
+            ("compare-save", "--compare-smoke", roots[11], str(prefix), "COMPARE UI PASS ", "COMPARE SMOKE PASS 24 checks", 24),
+            ("compare-reload", "--compare-smoke", roots[11], str(prefix), "COMPARE UI PASS ", "COMPARE SMOKE PASS 30 checks", 30),
         ]
         suite = "local.zweicommander.tests." + str(uuid.uuid4())
         age_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         workspace_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         rename_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         search_suite = "local.zweicommander.tests." + str(uuid.uuid4())
+        compare_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         try:
             for name, flag, root, image, pass_prefix, marker, expected in cases:
                 command = [str(binary), flag, str(root), image]
@@ -208,6 +219,10 @@ def main():
                     command += ["--search-test-suite", search_suite]
                     if name == "search-reload":
                         command += ["--reload-search"]
+                if name.startswith("compare-"):
+                    command += ["--compare-test-suite", compare_suite]
+                    if name == "compare-reload":
+                        command += ["--reload-compare"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
                         result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=45)
@@ -224,6 +239,7 @@ def main():
             subprocess.run(["defaults", "delete", workspace_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", rename_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", search_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["defaults", "delete", compare_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

@@ -33,3 +33,19 @@ int zc_copy(const char *source, const char *destination, int metadata_only,
     copyfile_state_free(state);
     return error;
 }
+
+int zc_copy_fd(int source_fd, int destination_fd, zc_copy_progress callback, void *context) {
+    copyfile_state_t state = copyfile_state_alloc();
+    if (!state) return ENOMEM;
+    struct zc_context bridge = {callback, context};
+    uint32_t block_size = 1024 * 1024;
+    if (copyfile_state_set(state, COPYFILE_STATE_STATUS_CB, status_callback) ||
+        copyfile_state_set(state, COPYFILE_STATE_STATUS_CTX, &bridge) ||
+        copyfile_state_set(state, COPYFILE_STATE_BSIZE, &block_size)) {
+        int error = errno; copyfile_state_free(state); return error ? error : EIO;
+    }
+    int result = fcopyfile(source_fd, destination_fd, state, COPYFILE_ALL);
+    int error = result == 0 ? 0 : (errno ? errno : EIO);
+    copyfile_state_free(state);
+    return error;
+}

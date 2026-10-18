@@ -3,6 +3,7 @@ import CommanderCore
 
 extension MainWindow {
     func command(_ id:String) {
+        if let compare = keyCompareController,!["help","settings","operations"].contains(id) { compare.command(id);return }
         if let search = keySearchController,!["help","settings","operations"].contains(id) { search.command(id);return }
         if id == "closeTab",let key = NSApp.keyWindow,key !== window { key.performClose(nil); return }
         do {
