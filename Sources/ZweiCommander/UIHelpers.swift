@@ -212,7 +212,7 @@ final class JobQueue {
             return try work(token,{ detail in guard Date().timeIntervalSince(last) >= 0.1 else { return };last = Date();reporter.report(detail) })
         },completion:completion)
     }
-    @discardableResult func submitReported<T>(_ title: String,id: UUID = UUID(),start: Bool = true,items: [TransferItemProgress] = [],body: @escaping (CancellationToken,WorkReporter) throws -> T,completion: @escaping (Result<T,Error>) -> Void) -> UUID {
+    @discardableResult func submitReported<T>(_ title: String,id: UUID = UUID(),start: Bool = true,items: [TransferItemProgress] = [],notifyQueuedCancellation: Bool = false,body: @escaping (CancellationToken,WorkReporter) throws -> T,completion: @escaping (Result<T,Error>) -> Void) -> UUID {
         let box = JobResult<T>()
         return scheduler.enqueue(title,id:id,start:start,items:items,body:{ token,reporter in
             let result = Result { try body(token,reporter) }; box.value = result
@@ -225,6 +225,7 @@ final class JobQueue {
             DispatchQueue.main.async {
                 self?.log.append(title+": "+snapshot.state.german+" · "+snapshot.detail)
                 if let result = box.value { completion(result) }
+                else if notifyQueuedCancellation { completion(.failure(CommanderError.cancelled)) }
                 self?.publish()
             }
         })

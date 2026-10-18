@@ -33,7 +33,7 @@ def preview_png(color):
 
 
 def fixtures(base):
-    main, operations, filters, merge, profiles, journal, damaged, age, workspace = [base / name for name in ("main", "operations", "filters", "merge", "profiles", "journal", "damaged", "age", "workspace")]
+    main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename = [base / name for name in ("main", "operations", "filters", "merge", "profiles", "journal", "damaged", "age", "workspace", "rename")]
     for name in ("Archiv", "Dokumente", "Fotos", "Projekte"):
         (main / "Links" / name).mkdir(parents=True)
     for name, text in (("Besprechung.txt", "Besprechung\n"), ("Grüße aus Wien.txt", "Hallo Wien\n"),
@@ -113,7 +113,13 @@ def fixtures(base):
     for name, color in (("Berge.png", (130, 150, 180)), ("Wald.png", (60, 160, 100)), ("Wasser.png", (60, 160, 220))):
         (workspace / "Links/Fotos" / name).write_bytes(preview_png(color))
     write(workspace, "Links/Fotos/Aufnahme.txt", "Bildnotizen\n")
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace
+    for name in ("Rechts", "Links/Bilder"):
+        (rename / name).mkdir(parents=True)
+    for name, contents in (("Äpfel.TXT", "fruit-A"), ("Birne.txt", "fruit-B"), ("Kirsche.txt", "fruit-C")):
+        write(rename, "Links/" + name, contents)
+    (rename / "Links/Bilder/Bild.png").write_bytes(preview_png((80, 160, 220)))
+    (rename / "Links/Bilder/Bild-Link.png").symlink_to("Bild.png")
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename
 
 
 def main():
@@ -150,10 +156,13 @@ def main():
             ("age-reload", "--age-smoke", roots[7], str(prefix), "AGE UI PASS ", "AGE SMOKE PASS 19 checks", 19),
             ("workspace-save", "--workspace-smoke", roots[8], str(prefix), "WORKSPACE UI PASS ", "WORKSPACE SMOKE PASS 44 checks", 44),
             ("workspace-reload", "--workspace-smoke", roots[8], str(prefix), "WORKSPACE UI PASS ", "WORKSPACE SMOKE PASS 16 checks", 16),
+            ("rename-save", "--rename-smoke", roots[9], str(prefix), "RENAME UI PASS ", "RENAME SMOKE PASS 20 checks", 20),
+            ("rename-reload", "--rename-smoke", roots[9], str(prefix), "RENAME UI PASS ", "RENAME SMOKE PASS 27 checks", 27),
         ]
         suite = "local.zweicommander.tests." + str(uuid.uuid4())
         age_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         workspace_suite = "local.zweicommander.tests." + str(uuid.uuid4())
+        rename_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         try:
             for name, flag, root, image, pass_prefix, marker, expected in cases:
                 command = [str(binary), flag, str(root), image]
@@ -173,6 +182,10 @@ def main():
                     command += ["--workspace-test-suite", workspace_suite]
                     if name == "workspace-reload":
                         command += ["--reload-workspace"]
+                if name.startswith("rename-"):
+                    command += ["--rename-test-suite", rename_suite]
+                    if name == "rename-reload":
+                        command += ["--reload-rename"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
                         result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=45)
@@ -187,6 +200,7 @@ def main():
             subprocess.run(["defaults", "delete", suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", age_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", workspace_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["defaults", "delete", rename_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

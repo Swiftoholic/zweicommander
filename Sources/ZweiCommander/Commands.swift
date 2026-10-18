@@ -33,7 +33,7 @@ extension MainWindow {
             case "rename":
                 guard ensureWritable(active),let url = requireSelection()?.first,let name = prompt("Umbenennen",value:url.lastPathComponent) else { return }
                 var rule = RenameRule(); rule.pattern = name; if !url.pathExtension.isEmpty { rule.pattern = "{full}"; rule.search = url.lastPathComponent; rule.replacement = name }
-                let items = try RenameEngine.preview([url],rule:rule); try RenameEngine.apply(items); renameUndo = RenameEngine.reversed(items); undoSteps = []; refresh()
+                let items = try RenameEngine.preview([url],rule:rule); renameUndo = try RenameEngine.apply(items); undoSteps = []; refresh()
             case "batchRename": batchRename()
             case "search": search()
             case "duplicates": duplicates()
@@ -119,7 +119,17 @@ extension MainWindow {
             case "editFavorites": showFavorites()
             case "undo":
                 if let editor = NSApp.keyWindow?.firstResponder as? NSTextView { editor.undoManager?.undo(); return }
-                if let items = renameUndo { try RenameEngine.apply(items); renameUndo = nil; refresh() }
+                if let items = renameUndo {
+                    jobs.submitReported("Umbenennung zurücknehmen",notifyQueuedCancellation:true,body:{ token,reporter in
+                        try RenameEngine.apply(items,token:token) { progress in if progress.completed == 0 || progress.completed == progress.total { reporter.report("Namen zurücknehmen · "+progress.name) } }
+                    },completion:{ [weak self] result in
+                        switch result {
+                        case .success: self?.renameUndo = nil
+                        case .failure(let error): if case CommanderError.cancelled = error {} else { showFailure(error) }
+                        }
+                        self?.refresh()
+                    })
+                }
                 else if !undoSteps.isEmpty {
                     let steps = undoSteps
                     jobs.submit("Rückgängig",work:{ _,_ in FileOperations.undo(steps) },completion:{ [weak self] result in
@@ -150,20 +160,27 @@ extension MainWindow {
     }
     func batchRename() {
         guard ensureWritable(active),let urls = requireSelection() else { return }
-        let pattern = input("{name}"), search = input(), replacement = input(), start = input("1"), digits = input(String(Preferences.state.importedProfile?.renameCounterDigits ?? 3))
-        let regex = checkbox("Suchen als regulärer Ausdruck"), letterCase = NSPopUpButton(); letterCase.addItems(withTitles:["Unverändert","kleinbuchstaben","GROSSBUCHSTABEN"])
-        while dialog("Mehrfachumbenennen",message:"\(urls.count) Objekte · {name} Name ohne Endung · {ext} Endung · {full} vollständiger Name · {n} Zähler · {date} Änderungsdatum. Ohne {ext}/{full} bleibt die Endung erhalten.",accessory:form([("Namensmuster",pattern),("Suchen",search),("Ersetzen",replacement),("",regex),("Zähler ab",start),("Zählerstellen",digits),("Schreibweise",letterCase)]),buttons:["Vorschau","Abbrechen"]) == 0 {
-            do {
-                var rule = RenameRule(); rule.pattern = pattern.stringValue; rule.search = search.stringValue; rule.replacement = replacement.stringValue; rule.regex = regex.state == .on
-                guard let n = Int(start.stringValue),let d = Int(digits.stringValue),n >= 0,n < Int.max-urls.count else { throw CommanderError.message("Zähler muss eine gültige nichtnegative Ganzzahl sein.") }
-                rule.start = n; rule.digits = d; rule.letterCase = letterCase.indexOfSelectedItem
-                let items = try RenameEngine.preview(urls,rule:rule)
-                let preview = items.map { $0.source.lastPathComponent+"  →  "+$0.target.lastPathComponent }.joined(separator:"\n")
-                let answer = dialog("Umbenennung prüfen",message:"\(items.filter(\.changed).count) Namen werden geändert.",accessory:reportView(preview),buttons:["Anwenden","Ändern","Abbrechen"])
-                if answer == 0 { try RenameEngine.apply(items); renameUndo = RenameEngine.reversed(items); undoSteps = []; refresh(); return }
-                if answer == 2 { return }
-            } catch { showFailure(error) }
+        guard urls.count <= RenameEngine.maximumItems else { showFailure(CommanderError.message("Höchstens 10.000 Objekte auswählen."));return }
+        let controller = RenameController(sources:urls,digits:Preferences.state.importedProfile?.renameCounterDigits ?? 3)
+        controller.onSubmit = { [weak self,weak controller] items in
+            guard let self else { return UUID() }
+            return self.jobs.submitReported("Mehrfachumbenennen",notifyQueuedCancellation:true,body:{ token,reporter in
+                var last = Date.distantPast
+                return try RenameEngine.apply(items,token:token) { update in
+                    guard Date().timeIntervalSince(last) >= 0.08 || update.completed == update.total else { return };last = Date()
+                    let phase = update.phase == .staging ? "Bereite vor" : update.phase == .publishing ? "Benenne um" : "Stelle wieder her"
+                    let text = "\(phase) · \(update.completed)/\(update.total) · "+update.name
+                    let fraction = update.total == 0 ? 1 : (update.phase == .staging ? 0 : 0.5)+Double(update.completed)/Double(update.total)*0.5
+                    reporter.report(text,fraction:fraction);DispatchQueue.main.async { controller?.updateProgress(text) }
+                }
+            },completion:{ [weak self,weak controller] result in
+                if case .success(let undo) = result { self?.renameUndo = undo;self?.undoSteps = [] }
+                controller?.finished(result);self?.refresh()
+            })
         }
+        controller.onCancel = { [weak self] id in self?.jobs.scheduler.cancel(id);self?.jobs.publish() }
+        controller.onReport = { [weak self] text in self?.showText("Umbenennungsbericht",text) }
+        secondaryWindows.append(controller);controller.showWindow(nil)
     }
     func reportView(_ text:String) -> NSScrollView {
         let scroll = NSScrollView(frame:NSRect(x:0,y:0,width:650,height:260)); scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true

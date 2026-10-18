@@ -1,8 +1,8 @@
-ZweiCommander 0.9.0 — Prüfung vom 18. Oktober 2026
+ZweiCommander 0.10.0 — Prüfung vom 18. Oktober 2026
 
 Ergebnis
-- 137/137 Dateikern- und Integrationstests bestanden.
-- 277/277 native UI-Prüfungen am universellen Release-Build bestanden:
+- 159/159 Dateikern- und Integrationstests bestanden.
+- 324/324 native UI-Prüfungen am universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, Warteschlange 14,
   Kopierfilter 22, Ordner zusammenführen 29, Profile speichern 19,
   Profile nach erneutem App-Start laden und verwenden 16,
@@ -10,12 +10,14 @@ Ergebnis
   abruptes Prozessende während Kopie 7, Wiederanlauf mit neuem Plan 13,
   Speicherfehler während Kopie 10, beschädigte Auftragsablage 5,
   relative Altersregeln und Speichern 12, Altersregeln nach Neustart 19,
-  Ansichten/Tabs/Favoriten und Speichern 44, Arbeitsbereich nach Neustart 16.
+  Ansichten/Tabs/Favoriten und Speichern 44, Arbeitsbereich nach Neustart 16,
+  Mehrfachumbenennen und Profile speichern 20, nach Neustart verwenden 27.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
 - App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
 - Debug-Pfadverweise vor Signierung entfernt; Release-Binärdatei auf lokale
   Benutzerpfade und persönliche Namen geprüft, ohne Treffer.
-- Regulärer App-Start mit den bisherigen Benutzereinstellungen geprüft:
+- Regulärer App-Start aus dem Benutzer-Programmeordner mit den bisherigen
+  Benutzereinstellungen geprüft:
   gespeicherte Tabs, Favoriten, Anzeige, Tastenkürzel und Importprofil erhalten;
   keine künstlichen Testpfade oder Test-Arbeitsbereiche gespeichert.
 
@@ -23,6 +25,61 @@ Testsystem
 Intel-Mac, macOS 26.7.1, Swift 6.3.3. Apple Silicon und ältere macOS-Versionen
 wurden kompiliert, aber nicht zur Laufzeit geprüft. Keine Developer-ID-Signatur
 oder Notarisierung.
+
+Startort
+Ein Start aus dem Entwicklungsordner blieb im macOS-Fensteraufbau vor der
+Anwendungsinitialisierung hängen. Derselbe unveränderte Build startete aus
+dem Benutzer-Programmeordner regulär. Die genaue Ursache des ersten Hängers
+ist nicht abschließend bestimmt; die Verwendung aus Programme wird empfohlen.
+
+Mehrfachumbenennen
+22 neue Funktionsprüfungen decken Namensvorlagen, wörtliche Klammern,
+Unicode-Ausschnitte ohne Zeichenzerlegung, getrennte Endungen, gezielte
+Text-/RegEx-Ersetzung und Schreibweise, auf-/absteigende Schrittzähler,
+Ordnerzähler und Überläufe, Datum/UTC, echte JPEG-Abmessungen und EXIF-Daten
+sowie fehlende oder ungeeignete Metadaten ab. Profile werden mit sämtlichen
+Regeln gespeichert und nach JSON-/Versions-/Namens-/Größenprüfung geladen.
+Beschädigte Daten, doppelte Namen, unbekannte Versionen und Überschreiten
+der Profilanzahl ersetzen keine vorhandenen gespeicherten Regeln.
+
+Weitere Szenarien ändern Quellen nach der Vorschau, auch mit gleicher Größe
+und wiederhergestelltem Änderungsdatum. Dateiidentität, Änderungszeit und
+Statusänderungszeit werden erneut geprüft. Ersetzte Elternordner verhindern
+die Ausführung. Alle ausgewählten Quellen/Ziele werden vor jeder Mutation
+vorab geprüft; zusätzlich wird vor jedem einzelnen Schritt geprüft.
+Namenszyklen, reine Schreibweise und unveränderte Zeilen werden ausgeführt.
+Links bleiben Links; Bildmetadaten werden nicht durch Links gelesen.
+Gemeinsam ausgewählte Vorfahren/Nachfahren und mehrere Namen desselben
+Dateiobjekts werden vorab abgewiesen.
+
+Abbruch während Vorbereitung und nach erster Veröffentlichung stellt die
+ursprünglichen Namen wieder her. Ein während Veröffentlichung neu erzeugtes
+fremdes Ziel bleibt unangetastet. Blockiert eine fremde Datei den Rückweg,
+bleiben fremde und eigene Daten erhalten; der Bericht nennt die Zwischenablage.
+Ein während Vorbereitung verschobener Elternordner wird erkannt; die aktuelle
+Wiederherstellungsadresse wird über den gehaltenen Ordnerdeskriptor ermittelt.
+Eine Änderung über einen schon geöffneten Dateihandle wird erkannt und der
+veränderte Inhalt bei der Rücksetzung erhalten. Rückgängig verweigert
+veränderte Dateien und inzwischen belegte ursprüngliche Namen.
+
+Zwei getrennte native App-Prozesse bedienen Livevorschau, ungültige Regeln,
+Kollisionszeilen, Auswahl, Reihenfolge, Nummerierung, separate Endung, Ersetzen
+und Schreibweise sowie Speichern/Laden/Aktualisieren/Löschen von Profilen.
+Andere offene Fenster behalten ungespeicherte Eingaben. Echte Umbenennung
+über den Hintergrundauftrag und Cmd+Z werden anhand erwarteter Namen und
+Dateiinhalte geprüft. Ein veralteter Plan wird abgewiesen, ohne Namen zu ändern.
+Ein wartender Umbenennungsauftrag lässt sich abbrechen, während ein anderer
+Auftrag ungestört fertig wird. Der Abbruch wird auch vor Arbeitsbeginn an das
+Auftragsfenster zurückgemeldet. Bildregeln zeigen fehlendes EXIF und Links als
+Zeilenfehler; Abwählen ermöglicht die übrige Auswahl.
+Beschädigte Profile einschließlich falschem Speichertyp bleiben erhalten.
+Die Tests verwenden einen eigenen, anschließend entfernten Einstellungsbereich.
+
+Grenzen: keine exklusive Sperre gegen andere Dateischreiber; keine garantierte
+Gesamttransaktion bei äußeren Dateisystemänderungen. Eine blockierte Rücksetzung
+benötigt die Prüfung der erhaltenen Zwischenablagen. Kein Wiederanlauf oder
+dauerhaftes Rückgängig nach abruptem Prozessende. Externe Dateisysteme und
+Netzwerkvolumes sind für die neue Umbenennungsoperation nicht gesondert geprüft.
 
 Ansichten, Tabs, Ordnerregeln und Favoriten
 Acht neue Kerntests prüfen die speziellste passende Ordnerregel, Unterordner-

@@ -23,7 +23,8 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let journalSmoke = args.firstIndex(of:"--journal-smoke")
         let ageSmoke = args.firstIndex(of:"--age-smoke")
         let workspaceSmoke = args.firstIndex(of:"--workspace-smoke")
-        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke].compactMap { $0 }.first
+        let renameSmoke = args.firstIndex(of:"--rename-smoke")
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke].compactMap { $0 }.first
         Preferences.testMode = testIndex != nil
         if Preferences.testMode { setvbuf(stdout,nil,_IOLBF,0) }
         if Preferences.testMode { Preferences.state = SavedState() }
@@ -36,6 +37,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if workspaceSmoke != nil,let index = args.firstIndex(of:"--workspace-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
             Preferences.workspaceTestDefaults = UserDefaults(suiteName:args[index+1])
             if args.contains("--reload-workspace"),let data = Preferences.workspaceTestDefaults?.data(forKey:"session"),let state = Preferences.decode(data) { Preferences.state = state }
+        }
+        if renameSmoke != nil,let index = args.firstIndex(of:"--rename-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
+            Preferences.renameTestDefaults = UserDefaults(suiteName:args[index+1])
         }
         if let index = args.firstIndex(of:"--import-settings"),args.indices.contains(index+1) {
             do {
@@ -91,6 +95,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if let workspaceSmoke,args.indices.contains(workspaceSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runWorkspaceSmoke(root:root,prefix:args[workspaceSmoke+2],reload:restoringWorkspace) }
         }
+        if let renameSmoke,args.indices.contains(renameSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runRenameSmoke(root:root,prefix:args[renameSmoke+2],reload:args.contains("--reload-rename")) }
+        }
     }
     static func parseShortcut(_ text:String) -> (String,NSEvent.ModifierFlags)? {
         if text.isEmpty { return ("",[]) }
@@ -145,7 +152,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if item.keyEquivalentModifierMask.isEmpty, item.keyEquivalent == " ", NSApp.keyWindow?.firstResponder is NSTextView { return false }
         return true
     }
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:"0.9.0",.version:"9",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:"0.10.0",.version:"10",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
     func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply {
         if main?.canTerminate == false { _ = dialog("Dateivorgänge laufen",message:"Laufende Vorgänge und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return .terminateCancel }
         main?.saveState(); return .terminateNow

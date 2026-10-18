@@ -96,7 +96,18 @@ public final class WorkScheduler: @unchecked Sendable {
     }
     public func pause() { lock.lock(); let work = records.first { $0.snapshot.id == active }; held = true; work?.token.pause(); lock.unlock(); onChange?() }
     public func resume() { lock.lock(); held = false; records.first { $0.snapshot.id == active }?.token.resume(); lock.unlock(); onChange?(); schedule() }
-    public func cancel() { lock.lock(); records.first { $0.snapshot.id == active }?.token.cancel(); lock.unlock(); onChange?() }
+    public func cancel(_ id: UUID? = nil) {
+        lock.lock()
+        let work = records.first { $0.snapshot.id == (id ?? active) && $0.snapshot.isPending }
+        work?.token.cancel()
+        var finish: ((WorkSnapshot)->Void)?
+        if let work,work.snapshot.state == .waiting {
+            work.snapshot.state = .cancelled;work.snapshot.detail = "Aus Warteschlange entfernt";work.body = nil
+            finish = work.completion;work.completion = nil
+        }
+        let snapshot = work?.visible;lock.unlock()
+        if let snapshot { finish?(snapshot) };onChange?()
+    }
     @discardableResult public func clearFinished() -> [UUID] {
         lock.lock();let ids = records.filter { $0.snapshot.isFinished }.map { $0.snapshot.id }
         records.removeAll { $0.snapshot.isFinished };lock.unlock();onChange?();return ids

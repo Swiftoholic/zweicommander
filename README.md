@@ -2,7 +2,7 @@
 
 ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Tabs und Tastaturbedienung. Er wird in Swift und AppKit entwickelt und verwendet Systembibliotheken für Dateivorgänge, Vorschau und Archive.
 
-**Version 0.9.0 ist eine frühe, ausführbare Version.** Neu sind eine Symbolansicht, erweiterte Tab-Verwaltung, automatische Ordneransichten sowie bearbeitbare Ordner- und Programmfavoriten. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+**Version 0.10.0 ist eine frühe, ausführbare Version.** Neu ist ein vollständiger Arbeitsbereich fürs Mehrfachumbenennen mit Livevorschau, lokalen Profilen, erweiterten Namensregeln, Bilddaten sowie geprüfter Ausführung und Rücknahme im Hintergrund. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 ## Funktionen
 
@@ -13,7 +13,8 @@ ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Ta
 - Kopieren und Verschieben mit Vorschau, Warteschlange, Pause, Abbruch und Sicherung beim Ersetzen.
 - Lokal gespeicherte Dateiübertragungen und letzter gemeldeter Fortschritt; neue Dateiprüfung nach Neustart.
 - Gespeicherte Kopierprofile, Namens-/Größen-/Datumsfilter, reine Ordnerstruktur und Zusammenführen mit Einzelentscheidungen.
-- Mehrfachumbenennen, Suche einschließlich Office-XML-Text, Duplikate und Prüfsummen.
+- Mehrfachumbenennen mit Livevorschau, Reihenfolge, Profilen, Namensausschnitten, Bilddaten und Versionsprüfung.
+- Suche einschließlich Office-XML-Text, Duplikate und Prüfsummen.
 - Ordnervergleich und Synchronisieren in einer Richtung ohne Löschen zusätzlicher Zieldateien.
 - ZIP-, 7z- und TAR-Archive, Quick Look sowie Text-, Hex- und Binärvorschau.
 - Eingebundene Netzwerkvolumes und ein Fenster für FTP-, FTPS- und SFTP-Einzeldateitransfers.
@@ -25,8 +26,9 @@ Voraussetzung: macOS und Apple Command Line Tools mit Swift 5.9 oder neuer. Für
 
 ```bash
 ./build.sh
-open ../ZweiCommander.app
 ```
+
+Die erzeugte App liegt im Ausgabeordner. Für die Verwendung in den Programme-Ordner kopieren (systemweit oder im Benutzerordner unter ~/Applications) und von dort starten.
 
 Das Buildskript erzeugt eine universelle App für Intel und Apple Silicon; das Buildziel ist macOS 13 oder neuer. `ZWEI_BUILD_DIR` und `ZWEI_OUTPUT_DIR` erlauben andere Build- und Ausgabeordner. `Package.swift` lässt sich auch mit Xcode öffnen.
 
@@ -67,6 +69,31 @@ Tabs lassen sich innerhalb eines Dateifensters ziehen oder über Menübefehle ve
 **Gehe zu → Favoriten bearbeiten …** oder der letzte Eintrag im Favoritenmenü verwaltet Ordner und vorhandene macOS-Programme. Name und Ziel werden mit **Übernehmen** gespeichert; Reihenfolge und Entfernen wirken sofort. Bei Programmen kann **Ausgewählte Dateien öffnen** aktiviert werden. Der Aufruf benötigt dann eine Auswahl und übergibt deren Datei-URLs über macOS; es wird kein Shell-Befehl zusammengesetzt. Ohne diese Option startet das Programm.
 
 Favoriten und Ordnerregeln bleiben lokal in den macOS-Benutzereinstellungen. Vorhandene Ordnerfavoriten werden übernommen. Vorgesehen sind höchstens 200 Favoriten, 500 Ordnerregeln und zusammen 2 MiB. Unlesbare oder unbekannte Daten sperren Änderungen und werden nicht automatisch ersetzt. Eine frei programmierbare Werkzeugleiste gehört noch nicht zum Umfang.
+
+## Mehrfachumbenennen
+
+**Cmd+Shift+M** öffnet den Arbeitsbereich. Nur angehakte Zeilen werden verarbeitet und gezählt. Reihenfolge per Pfeilen, Name/Änderungsdatum oder Umkehren einstellen; die Nummerierung folgt dieser Reihenfolge. Jede Änderung verwirft sofort die ausführbare Vorschau. Die neue Vorschau entsteht im Hintergrund. Zeilenfehler und doppelte oder belegte Ziele sperren die gesamte Ausführung.
+
+| Platzhalter | Bedeutung |
+|---|---|
+| {name}, {full}, {ext} | Name ohne Endung, vollständiger Name, Endung |
+| {name:2:5} | Fünf Zeichen ab Position 2; Unicode-Zeichen bleiben zusammen |
+| {n} | Zähler mit Start, positivem/negativem Schritt und 1–20 Stellen |
+| {parent} | Tatsächlicher Elternordner |
+| {date} | Änderungs- oder Erstellungsdatum im gewählten Format |
+| {width}, {height} | Bildabmessungen |
+| {taken} | EXIF-Originalaufnahmedatum ohne Zeitzonenumrechnung |
+| {{ und }} | Wörtliche Klammern |
+
+Ohne {full}/{ext} bleibt die ursprüngliche Endung erhalten. **Endung separat bearbeiten** erlaubt ein eigenes Muster ohne Punkt; leer entfernt die Endung. Im Namensmuster dann {name} verwenden. Ordner erhalten keine zusätzliche Endung. Eingesetzte Dateinamen werden nicht nochmals als Platzhalter gelesen. Suchen/Ersetzen, reguläre Ausdrücke mit Gruppen wie $1 und Schreibweise lassen sich auf Namen oder Endung beschränken. Der Zähler kann je Ordner neu beginnen.
+
+Das Datumsformat verwendet etwa yyyy-MM-dd oder yyyyMMdd_HHmmss; Dateidaten erscheinen lokal oder in UTC. Bilddaten werden ohne Dekodieren der Bildpixel aus regulären Dateien bis 64 MiB gelesen. Links werden dabei nicht verfolgt. Fehlende Abmessungen oder ein fehlendes EXIF-Originalaufnahmedatum erzeugen einen Zeilenfehler; betroffene Dateien lassen sich abwählen.
+
+Bis zu 50 Profile mit zusammen höchstens 1 MiB bleiben in den lokalen Benutzereinstellungen. Profile speichern Regeln, keine Quellpfade oder Dateiauswahl. Sie werden ausdrücklich geladen. Andere offene Fenster übernehmen Änderungen an der Profilliste, behalten jedoch ihre ungespeicherten Felder. Unlesbare Daten sperren Profiländerungen und werden nicht ersetzt.
+
+Umbenennen und **Cmd+Z** laufen als Hintergrundaufträge. Vor Beginn werden alle ausgewählten Quellen, Elternordner und Zielnamen erneut geprüft; vor jeder Namensänderung erfolgen weitere Prüfungen. Die Prüfung erfasst auch Dateiänderungen mit gleicher Größe und zurückgesetztem Änderungsdatum. Zwischenablagen und Ziele werden ausschließlich mit einer Dateisystemoperation angelegt, die bestehende Namen nicht ersetzt. Namenszyklen und reine Änderungen der Schreibweise werden unterstützt.
+
+Bei kontrolliertem Abbruch oder Fehler werden bereits vorbereitete Namen möglichst zurückgesetzt. Blockieren äußere Änderungen diese Wiederherstellung, bleiben eigene Dateien erhalten; **Bericht** nennt die betroffenen Orte, auch bei einem inzwischen verschobenen Elternordner. Es gibt keine exklusive Sperre gegen fremde Dateischreiber. Gemeinsam ausgewählte Ordner und enthaltene Dateien sowie mehrere Namen desselben Dateiobjekts werden abgewiesen und müssen getrennt verarbeitet werden. Höchstens 10.000 Objekte je Auftrag; Umbenennung und Rückgängig werden nach einem abrupten Prozessende nicht rekonstruiert.
 
 ## Kopieren und Zusammenführen
 
@@ -128,7 +155,7 @@ python3 scripts/ui-smoke.py --app ../ZweiCommander.app --results /tmp/ZweiComman
 python3 scripts/check-public.py
 ```
 
-Die 137 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die sechzehn nativen Oberflächendurchläufe verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil; sie verändern keine persönlichen Benutzereinstellungen. Profil-, Alters- und Arbeitsbereichsprüfungen verwenden eigene, anschließend entfernte Einstellungsbereiche. Weitere Prozesse prüfen Aufträge nach regulärem Beenden, ein abruptes Prozessende während einer Kopie, den erneuten Start mit neuem Plan und beschädigte oder während der Arbeit geänderte Auftragsdaten. Die Journaltests verwenden ausschließlich eine eigene temporäre Ablage. Zwei Prozesse prüfen relative Altersregeln, Profil-/Auftragsspeicherung, erneute Vorschau und Ausführung nach einem Neustart. Zwei weitere prüfen Symbolauswahl und Dateikopie, Tab-Verwaltung, Favoriten, Ordnerregeln und das Laden nach Neustart. Programmaufrufe werden an der macOS-Aufrufschnittstelle abgefangen und lösen keinen externen Programmstart aus. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
+Die 159 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die achtzehn nativen Oberflächendurchläufe verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil; sie verändern keine persönlichen Benutzereinstellungen. Profil-, Umbenennungs-, Alters- und Arbeitsbereichsprüfungen verwenden eigene, anschließend entfernte Einstellungsbereiche. Weitere Prozesse prüfen Aufträge nach regulärem Beenden, ein abruptes Prozessende während einer Kopie, den erneuten Start mit neuem Plan und beschädigte oder während der Arbeit geänderte Auftragsdaten. Die Journaltests verwenden ausschließlich eine eigene temporäre Ablage. Zwei Prozesse prüfen relative Altersregeln, Profil-/Auftragsspeicherung, erneute Vorschau und Ausführung nach einem Neustart. Zwei weitere prüfen Symbolauswahl und Dateikopie, Tab-Verwaltung, Favoriten, Ordnerregeln und das Laden nach Neustart. Zwei weitere Prozesse prüfen Livevorschau und Profilspeicherung beim Mehrfachumbenennen, tatsächliche Umbenennung und Rückgängig, veränderte Quellen sowie den Abbruch eines wartenden Auftrags. Programmaufrufe werden an der macOS-Aufrufschnittstelle abgefangen und lösen keinen externen Programmstart aus. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
 
 `check-public.py` prüft die im Git-Index enthaltenen Dateien vor einer Veröffentlichung. Erlaubt sind die Projektdateien, Quellcode, Werkzeuge und künstlichen Testdaten. Lokale Protokolle, Buildprodukte und Arbeitsunterlagen gehören nicht ins Repository.
 

@@ -61,7 +61,7 @@ extension MainWindow {
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.9.0
+        ZWEICOMMANDER · Version 0.10.0
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -80,6 +80,14 @@ extension MainWindow {
         Tabs lassen sich innerhalb eines Dateifensters ziehen oder über das Tabs-Menü verschieben. Das Kontextmenü bietet Duplizieren, Benennen, Sperren und Schließen. „Andere Tabs schließen“ erhält gesperrte Tabs. Cmd+Option+Pfeil rechts/links wechselt Tabs. Normale Tabs speichern Reihenfolge, ausgewählten Tab und ihre manuell gewählte Ansicht; Archive und Sammlungen bleiben sitzungsbezogen.
         „Ansicht → Ordneransicht merken …“ speichert Darstellung, Sortierung, Ordnerbaum und Spalten für den aktuellen Ordner, auf Wunsch mit Unterordnern. Die speziellste passende Regel hat Vorrang. Unter „Gespeicherte Ordneransichten …“ lassen sich der Geltungsbereich ändern und Regeln entfernen. Ohne passende Regel gilt wieder die manuelle Ansicht des Tabs. Die Regeln beziehen sich auf vollständige Pfadnamen; symbolische Ordnerverknüpfungen haben ihre eigenen Pfade.
         „Gehe zu → Favoriten bearbeiten …“ oder der letzte Eintrag im Favoritenmenü öffnet die Verwaltung für Ordner und macOS-Programme. Name und Ziel mit Übernehmen speichern; Pfeile und Entfernen wirken sofort. Bei Programmen kann „Ausgewählte Dateien öffnen“ aktiviert werden. Dann benötigt der Aufruf eine Dateiauswahl. Ohne diese Option startet das Programm. Alle Angaben bleiben in den lokalen Benutzereinstellungen. Beschädigte Daten werden nicht automatisch ersetzt.
+
+        MEHRFACHUMBENENNEN
+        Cmd+Shift+M öffnet einen Arbeitsbereich mit Livevorschau. Nur angehakte Dateien werden verarbeitet und gezählt. Die Pfeile sowie das Reihenfolgemenü ordnen die Auswahl vor der Nummerierung. Zeilenfehler und doppelte oder belegte Ziele sperren den gesamten Auftrag. Änderungen an Regeln verwerfen sofort den ausführbaren Plan.
+        Platzhalter: {name} ohne Endung, {full} vollständiger Name, {ext} Endung, {n} Zähler, {parent} tatsächlicher Elternordner, {date} Änderungs- oder Erstellungsdatum. {name:2:5} nimmt fünf Zeichen ab Position 2; Unicode-Zeichen bleiben zusammen. {{ und }} schreiben Klammern. Eingesetzte Dateinamen werden nicht nochmals als Platzhalter ausgewertet.
+        Ohne {full}/{ext} bleibt die Endung erhalten. „Endung separat bearbeiten“ verwendet das Endungsmuster ohne Punkt; leer entfernt die Endung. Im Namensmuster dann {name} verwenden. Ordner erhalten keine zusätzliche Endung. Zähler unterstützen positive und negative Schritte ungleich null, 1–20 Stellen und einen Neustart je Ordner. Suchen/Ersetzen und Schreibweise können auf den ganzen Namen, den Namen ohne Endung oder die Endung beschränkt werden. RegEx-Ersetzungen unterstützen Gruppen wie $1.
+        Das Datumsformat ist frei wählbar, etwa yyyyMMdd_HHmmss. Dateidaten verwenden die lokale Zeitzone oder UTC. {width}/{height} lesen Bildabmessungen, {taken} das EXIF-Originalaufnahmedatum ohne Zeitzonenumrechnung. Fehlende Metadaten sind Zeilenfehler; einzelne Dateien lassen sich abwählen. Bilddaten werden nur aus regulären Dateien bis 64 MiB gelesen, nicht aus Verknüpfungen.
+        Bis zu 50 benannte Umbenennungsprofile bleiben lokal gespeichert. Sie enthalten Regeln, keine ausgewählten Pfade. Profile werden ausdrücklich geladen; andere offene Fenster behalten ungespeicherte Eingaben. Beschädigte Profildaten werden nicht ersetzt.
+        „Umbenennen“ führt den geprüften Plan als Hintergrundauftrag aus. Der Abbruchknopf betrifft diesen Auftrag; Rückgängig über Cmd+Z läuft ebenfalls im Hintergrund und prüft die Dateiversionen. Quellen und Elternordner werden erneut geprüft; bestehende Ziele werden nicht überschrieben. Bei kontrolliertem Abbruch werden vorbereitete Namen möglichst zurückgesetzt. Blockiert ein fremdes Objekt die Wiederherstellung, bleiben eigene Zwischenablagen erhalten und der Bericht nennt ihre Orte. Mehrfachnamen desselben Dateiobjekts sowie gemeinsam ausgewählte Ordner und enthaltene Objekte müssen getrennt verarbeitet werden. Umbenennungen und Rückgängig bleiben sitzungsbezogen.
 
         DATEIEN UND KONFLIKTE
         Dateiaktionen arbeiten mit der Auswahl des aktiven Fensters. Das andere Fenster wird als Ziel vorgeschlagen. Drag-and-drop kopiert und öffnet die Ziel-/Konfliktauswahl. Verschieben oder Ersetzen erfordert eine bewusste Auswahl im Dialog.
@@ -118,7 +126,7 @@ extension MainWindow {
         Systemeinstellungen → Datenschutz & Sicherheit regelt den Zugriff auf geschützte Ordner. Diese App umgeht die macOS-Zugriffskontrollen nicht. Eingebundene Netzwerkvolumes werden wie lokale Ordner angezeigt. Der FTP/FTPS/SFTP-Dialog kann Serverordner anzeigen und einzelne Dateien hoch-/herunterladen. SFTP setzt einen eingerichteten SSH-Schlüssel/ssh-agent und geprüfte Hostschlüssel voraus. Rekursive SFTP-Transfers und Passwortanmeldung sind über den Terminalclient möglich. Remote-Transfers überschreiben keine bei der Vorprüfung vorhandenen Namen. Ein unterbrochener Upload kann eine unvollständige Remote-Datei hinterlassen.
 
         STAND DIESER VERSION
-        Dies ist eine frühe Version. Unter anderem fehlen rekursive Remote-Transfers im Fenster, Windows-Plug-ins, MTP-/iPhone-Geräteprotokolle, Metadaten-Plug-ins, automatische Ansichtsprofile, Secure Wipe und das Fortsetzen großer Dateien an Bytepositionen. Eine vollständige Liste liegt beim Quellcode.
+        Dies ist eine frühe Version. Unter anderem fehlen rekursive Remote-Transfers im Fenster, Windows-Plug-ins, MTP-/iPhone-Geräteprotokolle, frei programmierbare Metadaten-Spalten, ID3-Regeln, Secure Wipe und das Fortsetzen großer Dateien an Bytepositionen. Eine vollständige Liste liegt beim Quellcode.
 
         TASTENKÜRZEL-BEFEHLE
         """ + AppDelegate.menuDefinitions.flatMap { $0.1 }.map { "\($0.1) = \($0.0)  [\($0.2)]" }.joined(separator:"\n")

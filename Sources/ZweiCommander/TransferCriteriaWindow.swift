@@ -98,12 +98,12 @@ final class CopyProfileNameController: NSWindowController {
     let save = ActionButton("Speichern",action:{})
     let cancel = ActionButton("Abbrechen",action:{})
     var onSave: ((String) throws -> Void)?
-    init() {
+    init(title: String = "Kopierprofil speichern",message: String = "Aktuelle Kopierregeln speichern") {
         let w = NSWindow(contentRect:NSRect(x:0,y:0,width:520,height:195),styleMask:[.titled,.closable],backing:.buffered,defer:false)
-        w.title = "Kopierprofil speichern";w.isReleasedWhenClosed = false
+        w.title = title;w.isReleasedWhenClosed = false
         super.init(window:w)
         let root = OperationContent(frame:w.contentView!.bounds);w.contentView = root
-        let title = label("Aktuelle Kopierregeln speichern",size:18,weight:.semibold);title.frame = NSRect(x:22,y:150,width:476,height:28);root.addSubview(title)
+        let title = label(message,size:18,weight:.semibold);title.frame = NSRect(x:22,y:150,width:476,height:28);root.addSubview(title)
         name.frame = NSRect(x:22,y:108,width:476,height:26);root.addSubview(name)
         info.frame = NSRect(x:22,y:59,width:476,height:40);root.addSubview(info)
         cancel.frame = NSRect(x:22,y:17,width:120,height:30);root.addSubview(cancel);cancel.perform = { [weak self] in self?.close() }
