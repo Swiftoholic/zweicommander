@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleExecutable</key><string>ZweiCommander</string>
+  <key>CFBundleIdentifier</key><string>local.zweicommander.app</string>
+  <key>CFBundleName</key><string>ZweiCommander</string>
+  <key>CFBundleDisplayName</key><string>ZweiCommander</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>0.5.0</string>
+  <key>CFBundleVersion</key><string>5</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>NSHumanReadableCopyright</key><string>ZweiCommander · Dateimanager für macOS.</string>
+  <key>NSDesktopFolderUsageDescription</key><string>ZweiCommander zeigt und verwaltet die von dir ausgewählten Dateien auf dem Schreibtisch.</string>
+  <key>NSDocumentsFolderUsageDescription</key><string>ZweiCommander zeigt und verwaltet die von dir ausgewählten Dokumente.</string>
+  <key>NSDownloadsFolderUsageDescription</key><string>ZweiCommander zeigt und verwaltet deine Downloads.</string>
+  <key>NSRemovableVolumesUsageDescription</key><string>ZweiCommander verwaltet Dateien auf den von dir geöffneten externen Datenträgern.</string>
+  <key>NSNetworkVolumesUsageDescription</key><string>ZweiCommander verwaltet Dateien auf den von dir geöffneten Netzwerkvolumes.</string>
+</dict></plist>

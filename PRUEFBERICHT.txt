@@ -1,0 +1,62 @@
+ZweiCommander 0.5.0 — Prüfung vom 18. Oktober 2026
+
+Ergebnis
+- 85/85 Dateikern- und Integrationstests bestanden.
+- 85/85 native UI-Prüfungen am universellen Release-Build bestanden:
+  Hauptfenster/INI-Import/Profilübernahme 20, Warteschlange 14,
+  Kopierfilter 22, Ordner zusammenführen 29.
+- Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
+- App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
+
+Testsystem
+Intel-Mac, macOS 26.7.1, Swift 6.3.3. Apple Silicon und ältere macOS-Versionen
+wurden kompiliert, aber nicht zur Laufzeit geprüft. Keine Developer-ID-Signatur
+oder Notarisierung.
+
+Zusammenführen und Konflikte
+Die Tests prüfen den Erhalt zusätzlicher Zieldateien und bestehender Ordnerrechte,
+Sperren bei offenen Entscheidungen, Überspringen, feste Alternativnamen,
+Ersetzen mit Sicherung, veraltete Quellen/Ziele, während des Kopierens ersetzte
+Zielordner, Links ohne Traversierung, Änderungen während der Übertragung,
+Abbruch nach fertigen Teilschritten, neue schreibgeschützte Ordner mit Datum und
+erweitertem Attribut, Rückgängig für Einzeldateien sowie abgewählte Teilpläne.
+Die UI-Prüfung bedient die tatsächlichen Konfliktmenüs und Auswahlfelder,
+führt den vorgemerkten Auftrag aus und vergleicht Dateien, Sicherung und Bytes.
+
+Weitere Prüfungen
+Kopierfortschritt und Pause innerhalb einer Datei; Abbruch auch aus Pause;
+Bereinigung unveröffentlichter Kopien bei unverändertem Zielordner;
+Filter/RegEx, Rekursion, leere Ordner und Ordnerstruktur; Metadaten und Symlinks;
+Umbenennungszyklen und Unicode; Text-/Office-XML-Suche; bekannte Hash-Testwerte;
+Vergleich und Synchronisieren ohne Löschen; Archive und Pfadmanipulationen;
+Teilen/Zusammenfügen; INI-Kodierungen, Einstellungsimport und künstliche Werte,
+die nicht in exportierte Profile gelangen dürfen.
+
+Netzwerk
+Ein echter FTP-Test prüft Auflisten, Download, Upload und belegte Zielnamen
+gegen einen ausschließlich lokalen Server auf 127.0.0.1. FTPS und SFTP wurden
+nicht Ende zu Ende gegen einen Server geprüft. Parser- und Eingabetests sind
+kein Nachweis vollständiger Serverkompatibilität.
+
+Grenzen
+Zusammenführen veröffentlicht einzelne Dateien. Bei Abbruch bleiben fertige
+Schritte und neue Ordner erhalten; es gibt keinen vollständigen Rollback.
+Neue Ordner können bis zum Abschluss vorläufig private Zugriffsrechte behalten.
+Wird der Zielordner während der Arbeit ersetzt oder umbenannt, kann eine
+versteckte Staging-Datei im vorherigen Ordnerobjekt zurückbleiben.
+Typkonflikte mit Ordnern können nur übersprungen werden. Zusammenführen und
+Filter sind beim Verschieben gesperrt. Die Warteschlange ist sitzungsbezogen.
+Namen werden beim Zusammenführen vorsorglich ohne Beachtung der Schreibweise
+auf Kollisionen geprüft. Keine vollständige ACL-/Cloud-/Dateisystem-Matrix.
+
+Reproduzieren
+./scripts/test.sh
+python3 scripts/ui-smoke.py --app ../ZweiCommander.app --results /tmp/ZweiCommander-Tests --screenshots /tmp/ZweiCommander-Bilder
+python3 scripts/check-public.py
+
+Veröffentlichung
+Das Git-Repository enthält eine neue, ausschließlich aus geprüften Projektdateien
+aufgebaute Historie. Die INI-Dateien unter Tests/fixtures sind künstliche Daten.
+Lokale Einstellungen, Zugänge, persönliche Pfade, Protokolle, Arbeitsunterlagen
+und Buildprodukte werden nicht versioniert. Der Git-Index wird über eine
+Dateifreigabeliste und eine zusätzliche Textprüfung kontrolliert.

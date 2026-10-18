@@ -1,0 +1,12 @@
+; Artificial shortcut fixture; contains no user settings.
+[ShortCuts]
+actFileView=Space
+actViewTabNewFileCart=Ctrl+Alt+T
+actViewTabFileCartRemoveItem=Alt+Del
+
+[TfcViewerForm_ShortCuts]
+actViewModeText=T
+actViewModeTextHex=H
+actViewModeBinText=B
+actViewModeImages=I
+actFileClose=Esc

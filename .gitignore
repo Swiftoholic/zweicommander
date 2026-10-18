@@ -1,0 +1,29 @@
+# Build products and local workspace material
+.build/
+.DS_Store
+*.xcuserstate
+*.app/
+*.zip
+*.dmg
+*.log
+*.png
+__pycache__/
+/docs/
+/work/
+/outputs/
+/private/
+/local/
+
+# Personal settings and credentials
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.mobileprovision
+*.ini
+*.shc
+*profile*.json
+!Tests/fixtures/INISettings.sample.ini
+!Tests/fixtures/INISettings.sample.shc
