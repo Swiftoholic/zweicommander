@@ -58,19 +58,30 @@ extension MainWindow {
                 }.joined(separator:"\n\n") },completion:{ [weak self] result in switch result { case .success(let s): self?.showText("Ordnergrößen",s); case .failure(let e): showFailure(e) } })
             case "refresh": refresh()
             case "hidden": Preferences.state.showHidden.toggle(); left.showHidden = Preferences.state.showHidden; right.showHidden = Preferences.state.showHidden; saveState(); refresh()
-            case "tree": active.treeVisible.toggle()
-            case "thumbnails": active.thumbnails.toggle()
+            case "tree": active.treeVisible.toggle();active.rememberTabView()
+            case "details": active.changeDisplay(.details)
+            case "thumbnails": active.changeDisplay(.thumbnails)
+            case "icons": active.changeDisplay(.icons)
+            case "rememberView": try rememberFolderView()
+            case "folderViews": showFolderViews()
             case "orientation": content.split.isVertical.toggle(); content.firstLayout = true; content.needsLayout = true; saveState()
             case "onePane": right.isHidden.toggle(); content.split.adjustSubviews(); left.focus()
             case "linked": linked.toggle(); content.status.stringValue = linked ? "Verknüpftes Navigieren aktiv" : "Verknüpftes Navigieren aus"
             case "swap":
                 let tabs = left.tabs,index = left.tabIndex; left.tabs = right.tabs; left.tabIndex = right.tabIndex; right.tabs = tabs; right.tabIndex = index
+                left.restoreTabView();right.restoreTabView()
                 left.rebuildTabs(); right.rebuildTabs(); refresh()
             case "sameFolder": other.navigate(active.currentURL); active.focus()
             case "flat":
                 let root = active.currentURL, pane = active
                 jobs.submit("Flache Ansicht",work:{ token,_ in var urls:[URL] = []; try FileSystem.walk(root,showHidden:Preferences.state.showHidden,token:token) { urls.append($0) }; return urls },completion:{ [weak pane] result in switch result { case .success(let urls): pane?.showCollection(urls,title:"Flach · "+root.lastPathComponent); case .failure(let e): showFailure(e) } })
             case "newTab": active.newTab()
+            case "duplicateTab": active.duplicateTab()
+            case "closeOtherTabs": active.closeOtherTabs()
+            case "nextTab": active.stepTab(1)
+            case "previousTab": active.stepTab(-1)
+            case "moveTabLeft": active.moveTab(active.tab.id,to:active.tabIndex-1)
+            case "moveTabRight": active.moveTab(active.tab.id,to:active.tabIndex+1)
             case "closeTab": if active.tabs.count > 1 { active.closeTab() } else { window?.performClose(nil) }
             case "lockTab": active.tab.locked.toggle(); active.rebuildTabs()
             case "nameTab": if let name = prompt("Tab benennen",value:active.tab.title ?? active.currentURL.lastPathComponent) { active.tab.title = name.isEmpty ? nil : name; active.rebuildTabs() }
@@ -89,8 +100,8 @@ extension MainWindow {
             case "back": active.history(-1)
             case "forward": active.history(1)
             case "home": active.navigate(FileManager.default.homeDirectoryForCurrentUser)
-            case "selectAll": if let editor = NSApp.keyWindow?.firstResponder as? NSTextView { editor.selectAll(nil) } else { active.table.selectAll(nil) }
-            case "invertSelection": active.table.selectRowIndexes(IndexSet(active.visibleEntries.indices).subtracting(active.table.selectedRowIndexes),byExtendingSelection:false)
+            case "selectAll": if let editor = NSApp.keyWindow?.firstResponder as? NSTextView { editor.selectAll(nil) } else { active.selectionIndexes = IndexSet(active.visibleEntries.indices) }
+            case "invertSelection": active.selectionIndexes = IndexSet(active.visibleEntries.indices).subtracting(active.selectionIndexes)
             case "selectPattern":
                 if let pattern = prompt("Nach Muster auswählen",value:"*.pdf",message:"* steht für beliebig viele Zeichen, ? für ein Zeichen.") { let filter = try NameFilter(pattern); active.select(Set(active.visibleEntries.filter { filter.matches($0.name) }.map(\.url))) }
             case "clipboardCopy", "clipboardCut":
@@ -104,10 +115,8 @@ extension MainWindow {
                 transfer(urls,to:active.currentURL,kind:move ? .move : .copy); cutURLs = []
             case "copyPath": NSPasteboard.general.clearContents(); NSPasteboard.general.setString((active.selectedURLs.isEmpty ? [active.currentURL] : active.selectedURLs).map(\.path).joined(separator:"\n"),forType:.string)
             case "reveal": NSWorkspace.shared.activateFileViewerSelecting(active.selectedURLs.isEmpty ? [active.currentURL] : active.selectedURLs)
-            case "favorite":
-                let path = active.currentURL.path
-                if Preferences.state.favorites.contains(path) { Preferences.state.favorites.removeAll { $0 == path } }
-                else { Preferences.state.favorites.append(path) }; Preferences.save(); refreshLocations()
+            case "favorite": try toggleFavorite()
+            case "editFavorites": showFavorites()
             case "undo":
                 if let editor = NSApp.keyWindow?.firstResponder as? NSTextView { editor.undoManager?.undo(); return }
                 if let items = renameUndo { try RenameEngine.apply(items); renameUndo = nil; refresh() }

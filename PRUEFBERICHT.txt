@@ -1,24 +1,66 @@
-ZweiCommander 0.8.0 — Prüfung vom 18. Oktober 2026
+ZweiCommander 0.9.0 — Prüfung vom 18. Oktober 2026
 
 Ergebnis
-- 129/129 Dateikern- und Integrationstests bestanden.
-- 217/217 native UI-Prüfungen am universellen Release-Build bestanden:
+- 137/137 Dateikern- und Integrationstests bestanden.
+- 277/277 native UI-Prüfungen am universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, Warteschlange 14,
   Kopierfilter 22, Ordner zusammenführen 29, Profile speichern 19,
   Profile nach erneutem App-Start laden und verwenden 16,
   Aufträge speichern 8, nach Neustart neu prüfen und ausführen 23,
   abruptes Prozessende während Kopie 7, Wiederanlauf mit neuem Plan 13,
   Speicherfehler während Kopie 10, beschädigte Auftragsablage 5,
-  relative Altersregeln und Speichern 12, Altersregeln nach Neustart 19.
+  relative Altersregeln und Speichern 12, Altersregeln nach Neustart 19,
+  Ansichten/Tabs/Favoriten und Speichern 44, Arbeitsbereich nach Neustart 16.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
 - App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
 - Debug-Pfadverweise vor Signierung entfernt; Release-Binärdatei auf lokale
   Benutzerpfade und persönliche Namen geprüft, ohne Treffer.
+- Regulärer App-Start mit den bisherigen Benutzereinstellungen geprüft:
+  gespeicherte Tabs, Favoriten, Anzeige, Tastenkürzel und Importprofil erhalten;
+  keine künstlichen Testpfade oder Test-Arbeitsbereiche gespeichert.
 
 Testsystem
 Intel-Mac, macOS 26.7.1, Swift 6.3.3. Apple Silicon und ältere macOS-Versionen
 wurden kompiliert, aber nicht zur Laufzeit geprüft. Keine Developer-ID-Signatur
 oder Notarisierung.
+
+Ansichten, Tabs, Ordnerregeln und Favoriten
+Acht neue Kerntests prüfen die speziellste passende Ordnerregel, Unterordner-
+und Pfadgrenzen, Wurzelpfad, Unicode, Normalisierung, stabile Regelkennungen,
+Speichern/Laden, Reihenfolge, Namens-/Pfad-/Spaltenvalidierung, doppelte
+Kennungen, Größenlimits und unbekannte/beschädigte Daten. Programmfavoriten
+erzeugen strukturierte Anwendung-/Datei-URLs; Sonderzeichen in Dateinamen
+bleiben Bestandteil der Argumente, es wird kein Shell-Text erzeugt.
+
+Zwei native Prozesse prüfen Auswahl zwischen Details, Vorschauliste und
+Symbolen, echte verkleinerte Bilddekodierung, Sortierung, Filter, native
+Pfeiltastennavigation, Leertasten-/Quick-Look-Vorschau sowie Drop-Verarbeitung.
+Eine Kopie wird aus der Symbolauswahl über den echten Auftragsdialog gestartet;
+Zieldateien werden bytegenau mit der Auswahl verglichen. Sammlungen behalten
+Verweis-Drops, Archivansichten lehnen eingehende Datei-Drops ab.
+
+Weitere Prüfungen bedienen Tab-Kontextbefehle, Umordnen, Duplizieren,
+zyklischen Wechsel und Schließen unter Erhalt gesperrter Tabs. Ein Neustart
+lädt Reihenfolge, aktiven Tab, Namen, Sperren und getrennte Ansichten beider
+Dateifenster. Gleiche Tab-Pfade und fehlende frühere Ordner werden separat
+geprüft. Alte Sitzungsdaten und unbekannte optionale Ansichtsangaben erhalten
+die gespeicherten Ordner.
+
+Die Favoritenverwaltung wird zum Hinzufügen, Benennen, Umordnen und Ändern
+der Programmoption bedient. Ordneraufrufe wenden passende Ansichten an;
+Programmanforderungen werden an der macOS-Aufrufschnittstelle abgefangen,
+ohne externe Programme zu öffnen. Beschädigte lokale Daten sperren das
+Übernehmen und bleiben bytegenau erhalten. Die Ordneransichtsverwaltung wird
+zum Entfernen und Ändern der Unterordnergeltung bedient. Ein weiterer Wechsel
+prüft das Zurückfallen auf die manuelle Tab-Ansicht. Der Testbereich wird
+anschließend gelöscht; persönliche Einstellungen werden nicht gespeichert.
+
+Ein bei diesen Prüfungen gefundener Auswahlverlust wurde behoben: Das
+Aktivieren eines Dateifensters mit importierten Farben lud die Tabelle neu.
+Die Farbanpassung erfolgt jetzt ohne Löschen der Auswahl.
+Physisches Ziehen von Tabs und ein tatsächlicher externer Programmstart sind
+nicht Ende zu Ende automatisiert. Die Tab-Umordnung und Programmübergabe
+werden über dieselben verwendeten Methoden geprüft.
 
 Relative Altersfilter
 Neue Tests prüfen Minuten/Stunden/Tage/Wochen, exakte Umrechnung, leere und

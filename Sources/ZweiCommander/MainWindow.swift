@@ -70,6 +70,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     let cache: URL
     var onRebuildMenus: (() -> Void)?
     var operationWindow: OperationQueueController?
+    var programLauncher: ((ProgramLaunchRequest) -> Void)?
     var pendingWork:Int { jobs.pending + secondaryWindows.compactMap { $0 as? RemoteWindow }.reduce(0) { $0+$1.jobs.pending } }
     var canTerminate: Bool {
         jobs.canClose && secondaryWindows.compactMap { $0 as? RemoteWindow }.allSatisfy { $0.jobs.pending == 0 } &&
@@ -93,6 +94,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         for pane in [left,right] {
             pane.showHidden = Preferences.state.showHidden
             if let profile = Preferences.state.importedProfile { pane.configure(profile:profile,isLeft:pane === left) }
+            pane.initializeView()
             pane.onActivate = { [weak self] p in self?.setActive(p) }
             pane.onSwitch = { [weak self] in self?.other.focus() }
             pane.onPreview = { [weak self] urls in self?.preview(urls) }
@@ -181,10 +183,22 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         }
         for (name,url) in places { locationsMenu.addItem(withTitle:name); locationsMenu.lastItem?.representedObject = url }
         favoriteMenu.removeAllItems(); favoriteMenu.addItem(withTitle:"Favoriten")
-        for path in Preferences.state.favorites { favoriteMenu.addItem(withTitle:URL(fileURLWithPath:path).lastPathComponent); favoriteMenu.lastItem?.representedObject = path; favoriteMenu.lastItem?.toolTip = path }
+        do {
+            for item in try Preferences.workspaceLibrary().favorites {
+                favoriteMenu.addItem(withTitle:item.title);favoriteMenu.lastItem?.representedObject = item.id.uuidString
+                favoriteMenu.lastItem?.toolTip = item.path+(item.opensSelection ? " · Ausgewählte Dateien öffnen" : "")
+                favoriteMenu.lastItem?.image = NSImage(systemSymbolName:item.kind == .folder ? "folder" : "app",accessibilityDescription:nil)
+            }
+        } catch { favoriteMenu.addItem(withTitle:"Favoriten nicht lesbar");favoriteMenu.lastItem?.isEnabled = false;favoriteMenu.lastItem?.toolTip = error.localizedDescription }
+        favoriteMenu.menu?.addItem(.separator());favoriteMenu.addItem(withTitle:"Favoriten bearbeiten …");favoriteMenu.lastItem?.representedObject = "editFavorites"
     }
     @objc func locationChosen() { if let url = locationsMenu.selectedItem?.representedObject as? URL { active.navigate(url) } }
-    @objc func favoriteChosen() { if let path = favoriteMenu.selectedItem?.representedObject as? String { active.navigate(URL(fileURLWithPath:path)) }; favoriteMenu.selectItem(at:0) }
+    @objc func favoriteChosen() {
+        defer { favoriteMenu.selectItem(at:0) }
+        guard let value = favoriteMenu.selectedItem?.representedObject as? String else { return }
+        if value == "editFavorites" { showFavorites() }
+        else if let id = UUID(uuidString:value) { do { try openFavorite(id) } catch { showFailure(error) } }
+    }
     func setActive(_ pane:PaneView) { active = pane; left.isActive = pane === left; right.isActive = pane === right; window?.subtitle = (pane === left ? "Links" : "Rechts")+" · "+pane.currentURL.path }
     func saveState() { Preferences.state.left = left.savedTabs; Preferences.state.right = right.savedTabs; Preferences.state.vertical = content.split.isVertical; Preferences.save() }
     func applyTheme() { NSApp.appearance = Preferences.state.theme == 1 ? NSAppearance(named:.aqua) : Preferences.state.theme == 2 ? NSAppearance(named:.darkAqua) : nil }

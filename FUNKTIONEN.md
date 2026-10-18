@@ -1,4 +1,4 @@
-# Funktionsstand 0.8.0
+# Funktionsstand 0.9.0
 
 ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet implementiert; die tatsächlich geprüften Bereiche und verbleibenden Grenzen sind separat aufgeführt.
 
@@ -6,11 +6,11 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 |---|---|---|
 | Zwei Dateifenster | Vorhanden | Nebeneinander, übereinander, Einzelansicht, Tausch und gemeinsamer Ordner |
 | Navigation | Vorhanden | Pfadfeld, vor/zurück, übergeordnet, Benutzerordner, eingebundene Volumes |
-| Tabs | Vorhanden | Neu, schließen, benennen, sperren, Sitzungswiederherstellung |
+| Tabs | Vorhanden | Neu, schließen, benennen, sperren, duplizieren, Reihenfolge per Ziehen/Menü, Wechsel mit Tastatur; andere ungesperrte Tabs schließen; Reihenfolge, ausgewählten Tab und manuelle Ansicht wiederherstellen |
 | Ordnerbaum | Vorhanden | Pro Dateifenster zuschaltbar, Unterordner bei Bedarf geladen |
 | Dateilisten | Vorhanden | Mehrfachauswahl, Sortierung, Ordner zuerst, konfigurierbare sichtbare Spalten |
 | Schnellfilter | Vorhanden | Teiltext, Wildcards, regulärer Ausdruck |
-| Ansichten | Teilweise | Details und große Bildvorschauen in einer Liste; kein freies Symbolraster |
+| Ansichten | Vorhanden | Details, Vorschauliste und automatisch angeordnetes Symbolraster; gemeinsame Auswahl, Filter, Sortierung, Vorschau, Dateiaktionen und Datei-URLs per Drag-and-drop; keine freie Symbolplatzierung |
 | Vorschau | Vorhanden | Quick Look, Text, Hex, Binär, PE-/Mach-O-Dateistruktur; große Dateien werden als markierter Auszug gelesen |
 | Eingebettete Vorschau | Vorhanden | Zuschaltbares Quick-Look-Fenster rechts |
 | Dateiaktionen | Vorhanden | Kopieren, Verschieben, neue Dateien/Ordner, Umbenennen, Papierkorb |
@@ -37,7 +37,7 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 | Dateisammlungen | Vorhanden | Leer oder aus Auswahl/Suchergebnis, Verweise per Drop/Kopieren hinzufügen, entfernen ohne Löschen, speichern/laden |
 | Flache Ansicht | Vorhanden | Unterordner als gemeinsame Liste |
 | Verknüpftes Navigieren | Teilweise | Gleiche Unterordner-/Elternschritte auf beiden Seiten |
-| Favoriten | Teilweise | Ordnerfavoriten; noch keine frei belegbare Programmleiste |
+| Favoriten | Teilweise | Lokale Ordner- und Programmfavoriten mit Namen, Ziel, Reihenfolge und Entfernen; Programme starten oder ausgewählte Datei-URLs öffnen; noch keine frei programmierbare Werkzeugleiste |
 | Teilen / Zusammenfügen | Vorhanden | Eigene Teileliste mit SHA-256 je Teil; keine fremden Split-Formate |
 | Export | Vorhanden | Aktuelle Dateiliste als TSV |
 | Kommandozeile | Vorhanden | zsh-Befehl mit Ausgabefenster und Terminal im aktuellen Ordner |
@@ -51,16 +51,16 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 | Windows-Plug-ins | Offen | Keine Windows-DLL-/WCX-/WLX-Kompatibilität |
 | Mobile Geräte | Offen | Gemountete Volumes funktionieren; keine eigene MTP-/iOS-Protokollanbindung |
 | Metadaten-Plug-ins | Offen | Keine EXIF-/ID3-gesteuerte Umbenennung oder frei programmierbare Spalten |
-| Automatische Ansichtsprofile | Offen | Noch nicht implementiert |
+| Automatische Ordneransichten | Vorhanden | Darstellung, Sortierung, Ordner zuerst, Baum und Spalten pro Pfad; optional Unterordner, speziellste passende Regel hat Vorrang; Verwaltung zum Entfernen und Ändern des Geltungsbereichs |
 | Sicheres Überschreiben | Nicht angeboten | Kein Secure-Wipe-Versprechen für APFS, SSDs oder Snapshots |
 | Bildschirmfoto | Offen | Keine eigene Aufnahmefunktion |
 | Vollständige Lokalisierung | Offen | Oberfläche deutsch; macOS-Fehlermeldungen folgen der Systemsprache |
 
 ## Prüfung
 
-129 Dateikern- und Integrationstests prüfen unter anderem das lokale Auftragsjournal, Wiederanlauf ohne automatische Ausführung, Speichergrenzen und Dateirechte, Kopierfortschritt, Pause/Abbruch, Metadaten, Dateifilter, Zusammenführen, Konfliktentscheidungen, Sicherungen, Rückgängig, veränderte Quellen und Ziele, symbolische Verknüpfungen, Umbenennungszyklen, Suche, Hashwerte, Archive, Pfadmanipulationen und einen lokalen FTP-Server.
+137 Dateikern- und Integrationstests prüfen unter anderem Ordnerregeln, Favoriten und strukturierte Programmaufrufe, das lokale Auftragsjournal, Wiederanlauf ohne automatische Ausführung, Speichergrenzen und Dateirechte, Kopierfortschritt, Pause/Abbruch, Metadaten, Dateifilter, Zusammenführen, Konfliktentscheidungen, Sicherungen, Rückgängig, veränderte Quellen und Ziele, symbolische Verknüpfungen, Umbenennungszyklen, Suche, Hashwerte, Archive, Pfadmanipulationen und einen lokalen FTP-Server.
 
-Die vierzehn nativen Oberflächendurchläufe mit 217 Prüfungen kontrollieren Dateifenster und Import, Warteschlange, Kopierfilter, Zusammenführen, Kopierprofile, relative Altersregeln sowie gespeicherte und unterbrochene Dateiübertragungen über getrennte App-Prozesse. Sie bedienen die tatsächlichen Auswahlfelder und Konfliktmenüs und vergleichen das Ergebnis mit dem geplanten Bestand. Details stehen in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+Die sechzehn nativen Oberflächendurchläufe mit 277 Prüfungen kontrollieren Dateifenster und Import, Symbolansicht und Dateikopie, Tabs, Favoriten und Ordnerregeln, Warteschlange, Kopierfilter, Zusammenführen, Kopierprofile, relative Altersregeln sowie gespeicherte und unterbrochene Dateiübertragungen über getrennte App-Prozesse. Sie bedienen die tatsächlichen Auswahlfelder und Konfliktmenüs und vergleichen das Ergebnis mit dem geplanten Bestand. Details stehen in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 FTPS und SFTP sind bisher nicht Ende zu Ende gegen einen Server geprüft. Große Bestände, Cloud-Platzhalter, ACL-Sonderfälle, externe Datenträger, lange Alltagssitzungen sowie Apple Silicon und ältere macOS-Versionen benötigen weitere Laufzeitprüfungen.
 
@@ -69,5 +69,5 @@ FTPS und SFTP sind bisher nicht Ende zu Ende gegen einen Server geprüft. Große
 1. Fortsetzen großer Dateien an geprüften Bytepositionen, erweiterte Auftrags-/Sicherungsverwaltung und gefiltertes Verschieben.
 2. Remote-Profile mit Keychain, rekursive Übertragungen, Fortsetzen und Remote-Umbenennen/Löschen.
 3. Archivbearbeitung, weitere Codec-Prüfungen sowie zusätzliche Metadaten- und EXIF-/ID3-Regeln.
-4. Symbolraster, Tab-Reihenfolge, automatische Ansichtsprofile, Programmfavoriten und weitere Lokalisierung.
+4. Frei belegbare Werkzeugleiste, weitergehende Ansichtsregeln und weitere Lokalisierung.
 5. Geräteprotokolle, weitere Plattformtests und signierte, notarisierte Auslieferung.

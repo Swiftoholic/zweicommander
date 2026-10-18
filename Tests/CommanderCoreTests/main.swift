@@ -424,6 +424,14 @@ func XCTAssertThrowsError<T>(_ expression: @autoclosure () throws -> T, file: St
 }
 
 let tests: [(String, (CoreTests) throws -> Void)] = [
+    ("testFolderViewsRespectScopeAndSpecificity", { try $0.testFolderViewsRespectScopeAndSpecificity() }),
+    ("testFolderViewsRootUnicodeAndNormalizedPaths", { try $0.testFolderViewsRootUnicodeAndNormalizedPaths() }),
+    ("testWorkspaceRoundTripPreservesOrderAndRules", { try $0.testWorkspaceRoundTripPreservesOrderAndRules() }),
+    ("testWorkspaceRejectsDamagedAndFutureDocuments", { try $0.testWorkspaceRejectsDamagedAndFutureDocuments() }),
+    ("testWorkspaceValidationNeverReplacesGoodValues", { try $0.testWorkspaceValidationNeverReplacesGoodValues() }),
+    ("testWorkspaceValidatesColumnsAndUniqueEntries", { try $0.testWorkspaceValidatesColumnsAndUniqueEntries() }),
+    ("testLegacyFolderFavoritesMigrateWithoutPrograms", { try $0.testLegacyFolderFavoritesMigrateWithoutPrograms() }),
+    ("testProgramFavoritesUseStructuredFileArguments", { try $0.testProgramFavoritesUseStructuredFileArguments() }),
     ("testAgeUnitsParsingAndOverflowAreExact", { try $0.testAgeUnitsParsingAndOverflowAreExact() }),
     ("testAgeValidationRejectsMixedModesAndReversedUnits", { try $0.testAgeValidationRejectsMixedModesAndReversedUnits() }),
     ("testAgeRangeIncludesBothBoundariesAndExcludesFuture", { try $0.testAgeRangeIncludesBothBoundariesAndExcludesFuture() }),

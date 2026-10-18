@@ -6,6 +6,7 @@ extension MainWindow {
         Preferences.apply(profile)
         left.showHidden = profile.showHidden; right.showHidden = profile.showHidden
         left.configure(profile:profile,isLeft:true); right.configure(profile:profile,isLeft:false)
+        for pane in [left,right] { pane.defaultView = pane.viewSettings;pane.tab.view = pane.viewSettings;pane.restoreTabView() }
         content.split.isVertical = profile.verticalPanels; content.firstLayout = true; content.needsLayout = true
         applyTheme(); updateFunctionLabels(); onRebuildMenus?(); refresh()
         content.status.stringValue = "INI-Einstellungen übernommen · "+profile.colorScheme
@@ -46,6 +47,7 @@ extension MainWindow {
         for pane in [left,right] {
             pane.restoreConfigurationBeforeImport()
             pane.showHidden = Preferences.state.showHidden
+            pane.defaultView = pane.viewSettings;pane.tab.view = pane.viewSettings;pane.restoreTabView()
         }
         content.split.isVertical = Preferences.state.vertical; content.firstLayout = true; content.needsLayout = true
         applyTheme(); updateFunctionLabels(); onRebuildMenus?(); refresh()

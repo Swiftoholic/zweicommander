@@ -2,11 +2,14 @@
 
 ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Tabs und Tastaturbedienung. Er wird in Swift und AppKit entwickelt und verwendet Systembibliotheken für Dateivorgänge, Vorschau und Archive.
 
-**Version 0.8.0 ist eine frühe, ausführbare Version.** Neu sind relative Altersfilter für Kopien, Profile und die erneute Prüfung gespeicherter Aufträge. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+**Version 0.9.0 ist eine frühe, ausführbare Version.** Neu sind eine Symbolansicht, erweiterte Tab-Verwaltung, automatische Ordneransichten sowie bearbeitbare Ordner- und Programmfavoriten. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 ## Funktionen
 
 - Zwei Dateifenster, Ordnerbaum, Tabs, Schnellfilter und Dateisammlungen.
+- Details, Vorschauliste und Symbolraster mit gemeinsamer Auswahl und Sortierung.
+- Tabs umordnen und duplizieren, ausgewählten Tab und Ansicht wiederherstellen.
+- Ordneransichten mit optionaler Vererbung sowie Ordner- und Programmfavoriten.
 - Kopieren und Verschieben mit Vorschau, Warteschlange, Pause, Abbruch und Sicherung beim Ersetzen.
 - Lokal gespeicherte Dateiübertragungen und letzter gemeldeter Fortschritt; neue Dateiprüfung nach Neustart.
 - Gespeicherte Kopierprofile, Namens-/Größen-/Datumsfilter, reine Ordnerstruktur und Zusammenführen mit Einzelentscheidungen.
@@ -41,6 +44,8 @@ Das aktive Dateifenster ist blau markiert. Das andere Fenster dient als vorgesch
 | F5 / F6 | Kopieren / Verschieben |
 | F7 / F8 | Neuer Ordner / Papierkorb |
 | Cmd+T / Cmd+W | Tab öffnen / schließen |
+| Cmd+Option+Pfeil rechts / links | Nächster / vorheriger Tab |
+| Cmd+1 / 2 / 3 | Details / Vorschauliste / Symbole |
 | Cmd+L | Pfad bearbeiten |
 | Cmd+F / Cmd+Shift+F | Suche / Schnellfilter |
 | Cmd+C / X / V | Dateizwischenablage |
@@ -50,6 +55,18 @@ Das aktive Dateifenster ist blau markiert. Das andere Fenster dient als vorgesch
 | Cmd+Shift+J | Warteschlange |
 
 Auf manchen Tastaturen benötigen F-Tasten zusätzlich `fn`. Tastenkürzel können angepasst werden. F1 öffnet die Hilfe.
+
+## Ansichten, Tabs und Favoriten
+
+Über der Dateiliste stehen Darstellung, Sortierspalte und Richtung bereit. Das Symbolraster unterstützt Mehrfachauswahl, Pfeiltasten, Öffnen, Schnellfilter, Vorschau, Dateizwischenablage und Kopieren/Verschieben wie die Liste. Kleine Bildvorschauen werden auf höchstens 144 Pixel verkleinert dekodiert; Links erhalten keine Bildvorschau. Die Anordnung folgt der Sortierung, einzelne Symbole lassen sich nicht frei platzieren.
+
+Tabs lassen sich innerhalb eines Dateifensters ziehen oder über Menübefehle verschieben. Ihr Kontextmenü bietet Duplizieren, Benennen, Sperren und Schließen. **Andere Tabs schließen** erhält gesperrte Tabs. Duplikate übernehmen Pfad, Verlauf und Ansicht, bleiben aber entsperrt. Normale Tabs speichern Reihenfolge, Auswahl und manuelle Darstellung einschließlich Sortierung, Ordnerbaum und Spalten. Sammlungen und temporäre Archive werden nicht als dauerhafte Tabs gespeichert.
+
+**Ansicht → Ordneransicht merken …** speichert die aktuelle Ansicht für einen Ordner, auf Wunsch einschließlich Unterordnern. Die speziellste passende Regel hat Vorrang; gleiche Namensanfänge gelten nicht als Unterordner. Ohne passende Regel gilt die manuelle Ansicht des Tabs. Unter **Gespeicherte Ordneransichten …** lassen sich Regeln entfernen und ihr Geltungsbereich ändern. Regeln beziehen sich auf normalisierte vollständige Pfade; symbolische Ordnerverknüpfungen haben eigene Regeln.
+
+**Gehe zu → Favoriten bearbeiten …** oder der letzte Eintrag im Favoritenmenü verwaltet Ordner und vorhandene macOS-Programme. Name und Ziel werden mit **Übernehmen** gespeichert; Reihenfolge und Entfernen wirken sofort. Bei Programmen kann **Ausgewählte Dateien öffnen** aktiviert werden. Der Aufruf benötigt dann eine Auswahl und übergibt deren Datei-URLs über macOS; es wird kein Shell-Befehl zusammengesetzt. Ohne diese Option startet das Programm.
+
+Favoriten und Ordnerregeln bleiben lokal in den macOS-Benutzereinstellungen. Vorhandene Ordnerfavoriten werden übernommen. Vorgesehen sind höchstens 200 Favoriten, 500 Ordnerregeln und zusammen 2 MiB. Unlesbare oder unbekannte Daten sperren Änderungen und werden nicht automatisch ersetzt. Eine frei programmierbare Werkzeugleiste gehört noch nicht zum Umfang.
 
 ## Kopieren und Zusammenführen
 
@@ -111,7 +128,7 @@ python3 scripts/ui-smoke.py --app ../ZweiCommander.app --results /tmp/ZweiComman
 python3 scripts/check-public.py
 ```
 
-Die Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die vierzehn nativen Oberflächendurchläufe verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil; sie verändern keine persönlichen Benutzereinstellungen. Die Profilprüfung verwendet einen eigenen, anschließend entfernten Einstellungsbereich. Weitere Prozesse prüfen Aufträge nach regulärem Beenden, ein abruptes Prozessende während einer Kopie, den erneuten Start mit neuem Plan und beschädigte oder während der Arbeit geänderte Auftragsdaten. Die Journaltests verwenden ausschließlich eine eigene temporäre Ablage. Zwei zusätzliche Prozesse prüfen relative Altersregeln, Profil-/Auftragsspeicherung, erneute Vorschau und Ausführung nach einem Neustart. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
+Die 137 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die sechzehn nativen Oberflächendurchläufe verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil; sie verändern keine persönlichen Benutzereinstellungen. Profil-, Alters- und Arbeitsbereichsprüfungen verwenden eigene, anschließend entfernte Einstellungsbereiche. Weitere Prozesse prüfen Aufträge nach regulärem Beenden, ein abruptes Prozessende während einer Kopie, den erneuten Start mit neuem Plan und beschädigte oder während der Arbeit geänderte Auftragsdaten. Die Journaltests verwenden ausschließlich eine eigene temporäre Ablage. Zwei Prozesse prüfen relative Altersregeln, Profil-/Auftragsspeicherung, erneute Vorschau und Ausführung nach einem Neustart. Zwei weitere prüfen Symbolauswahl und Dateikopie, Tab-Verwaltung, Favoriten, Ordnerregeln und das Laden nach Neustart. Programmaufrufe werden an der macOS-Aufrufschnittstelle abgefangen und lösen keinen externen Programmstart aus. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
 
 `check-public.py` prüft die im Git-Index enthaltenen Dateien vor einer Veröffentlichung. Erlaubt sind die Projektdateien, Quellcode, Werkzeuge und künstlichen Testdaten. Lokale Protokolle, Buildprodukte und Arbeitsunterlagen gehören nicht ins Repository.
 

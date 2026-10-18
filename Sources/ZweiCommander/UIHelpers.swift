@@ -77,7 +77,19 @@ final class TextWindow: NSWindowController, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) { onClose?() }
 }
 
-struct SavedTab: Codable { var path: String; var title: String?; var locked: Bool }
+struct SavedTab: Codable {
+    var path: String;var title: String?;var locked: Bool;var view: FolderViewSettings?;var selected: Bool?
+    enum CodingKeys: String,CodingKey { case path,title,locked,view,selected }
+}
+extension SavedTab {
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy:CodingKeys.self)
+        path = try values.decode(String.self,forKey:.path);title = try values.decodeIfPresent(String.self,forKey:.title);locked = try values.decode(Bool.self,forKey:.locked)
+        view = try? values.decode(FolderViewSettings.self,forKey:.view)
+        if let value = view,(try? value.validate()) == nil { view = nil }
+        selected = try? values.decode(Bool.self,forKey:.selected)
+    }
+}
 struct SavedState: Codable {
     var left: [SavedTab] = []
     var right: [SavedTab] = []

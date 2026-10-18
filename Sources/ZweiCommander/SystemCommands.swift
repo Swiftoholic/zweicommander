@@ -61,7 +61,7 @@ extension MainWindow {
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.8.0
+        ZWEICOMMANDER · Version 0.9.0
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -74,6 +74,12 @@ extension MainWindow {
         Cmd+C Kopieren · Cmd+X Ausschneiden · Cmd+V Einfügen · Cmd+Z Rückgängig
         Cmd+Shift+M Mehrfachumbenennen · Cmd+Shift+. Versteckte Dateien
         Cmd+Shift+J Aufträge anzeigen
+
+        ANSICHTEN, TABS UND FAVORITEN
+        Cmd+1 zeigt Details, Cmd+2 eine Vorschauliste, Cmd+3 Symbole. Darstellung, Sortierspalte und Richtung lassen sich auch direkt über der Dateiliste wählen. Auswahl, Schnellfilter, Vorschau, Zwischenablage und Dateiaktionen gelten in allen drei Darstellungen. Bildvorschauen werden verkleinert geladen; andere Dateien behalten ihr Programmsymbol.
+        Tabs lassen sich innerhalb eines Dateifensters ziehen oder über das Tabs-Menü verschieben. Das Kontextmenü bietet Duplizieren, Benennen, Sperren und Schließen. „Andere Tabs schließen“ erhält gesperrte Tabs. Cmd+Option+Pfeil rechts/links wechselt Tabs. Normale Tabs speichern Reihenfolge, ausgewählten Tab und ihre manuell gewählte Ansicht; Archive und Sammlungen bleiben sitzungsbezogen.
+        „Ansicht → Ordneransicht merken …“ speichert Darstellung, Sortierung, Ordnerbaum und Spalten für den aktuellen Ordner, auf Wunsch mit Unterordnern. Die speziellste passende Regel hat Vorrang. Unter „Gespeicherte Ordneransichten …“ lassen sich der Geltungsbereich ändern und Regeln entfernen. Ohne passende Regel gilt wieder die manuelle Ansicht des Tabs. Die Regeln beziehen sich auf vollständige Pfadnamen; symbolische Ordnerverknüpfungen haben ihre eigenen Pfade.
+        „Gehe zu → Favoriten bearbeiten …“ oder der letzte Eintrag im Favoritenmenü öffnet die Verwaltung für Ordner und macOS-Programme. Name und Ziel mit Übernehmen speichern; Pfeile und Entfernen wirken sofort. Bei Programmen kann „Ausgewählte Dateien öffnen“ aktiviert werden. Dann benötigt der Aufruf eine Dateiauswahl. Ohne diese Option startet das Programm. Alle Angaben bleiben in den lokalen Benutzereinstellungen. Beschädigte Daten werden nicht automatisch ersetzt.
 
         DATEIEN UND KONFLIKTE
         Dateiaktionen arbeiten mit der Auswahl des aktiven Fensters. Das andere Fenster wird als Ziel vorgeschlagen. Drag-and-drop kopiert und öffnet die Ziel-/Konfliktauswahl. Verschieben oder Ersetzen erfordert eine bewusste Auswahl im Dialog.
