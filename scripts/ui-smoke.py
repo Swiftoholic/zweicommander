@@ -33,7 +33,7 @@ def preview_png(color):
 
 
 def fixtures(base):
-    main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename = [base / name for name in ("main", "operations", "filters", "merge", "profiles", "journal", "damaged", "age", "workspace", "rename")]
+    main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search = [base / name for name in ("main", "operations", "filters", "merge", "profiles", "journal", "damaged", "age", "workspace", "rename", "search")]
     for name in ("Archiv", "Dokumente", "Fotos", "Projekte"):
         (main / "Links" / name).mkdir(parents=True)
     for name, text in (("Besprechung.txt", "Besprechung\n"), ("Grüße aus Wien.txt", "Hallo Wien\n"),
@@ -119,7 +119,22 @@ def fixtures(base):
         write(rename, "Links/" + name, contents)
     (rename / "Links/Bilder/Bild.png").write_bytes(preview_png((80, 160, 220)))
     (rename / "Links/Bilder/Bild-Link.png").symlink_to("Bild.png")
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename
+    for folder in ("Rechts", "Archive", "Links/Office/word", "Viele"):
+        (search / folder).mkdir(parents=True)
+    for name, text in (("Notizen.txt", "Projekt Wiese\nGrüße aus Wien\n"), ("Bericht.md", "# Projekt\n"),
+                       ("Unterordner/Plan.TXT", "Projektplan\n"), ("Nicht.txt", "Projekt auslassen"),
+                       ("Cache42/off.txt", "Projekt Cache"), (".secret.txt", "Projekt versteckt")):
+        write(search, "Links/Projekt/" + name, text)
+    for index in range(400):
+        write(search, "Viele/" + str(index) + ".txt", "synthetischer Suchtest")
+    import zipfile
+    with zipfile.ZipFile(search / "Archive/Paket.zip", "w") as archive:
+        archive.writestr("Dokumente/eins.txt", "eins")
+        archive.writestr("Dokumente/zwei.txt", "zwei")
+    write(search, "Archive/kaputt.zip", "synthetischer Archivfehler")
+    with zipfile.ZipFile(search / "Links/Office/Termin.docx", "w") as archive:
+        archive.writestr("word/document.xml", "<document><p>Finanzplanung im Herbst</p></document>")
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search
 
 
 def main():
@@ -158,11 +173,14 @@ def main():
             ("workspace-reload", "--workspace-smoke", roots[8], str(prefix), "WORKSPACE UI PASS ", "WORKSPACE SMOKE PASS 16 checks", 16),
             ("rename-save", "--rename-smoke", roots[9], str(prefix), "RENAME UI PASS ", "RENAME SMOKE PASS 20 checks", 20),
             ("rename-reload", "--rename-smoke", roots[9], str(prefix), "RENAME UI PASS ", "RENAME SMOKE PASS 27 checks", 27),
+            ("search-save", "--search-smoke", roots[10], str(prefix), "SEARCH UI PASS ", "SEARCH SMOKE PASS 22 checks", 22),
+            ("search-reload", "--search-smoke", roots[10], str(prefix), "SEARCH UI PASS ", "SEARCH SMOKE PASS 25 checks", 25),
         ]
         suite = "local.zweicommander.tests." + str(uuid.uuid4())
         age_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         workspace_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         rename_suite = "local.zweicommander.tests." + str(uuid.uuid4())
+        search_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         try:
             for name, flag, root, image, pass_prefix, marker, expected in cases:
                 command = [str(binary), flag, str(root), image]
@@ -186,6 +204,10 @@ def main():
                     command += ["--rename-test-suite", rename_suite]
                     if name == "rename-reload":
                         command += ["--reload-rename"]
+                if name.startswith("search-"):
+                    command += ["--search-test-suite", search_suite]
+                    if name == "search-reload":
+                        command += ["--reload-search"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
                         result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=45)
@@ -201,6 +223,7 @@ def main():
             subprocess.run(["defaults", "delete", age_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", workspace_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", rename_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["defaults", "delete", search_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

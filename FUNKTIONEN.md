@@ -1,4 +1,4 @@
-# Funktionsstand 0.10.0
+# Funktionsstand 0.11.0
 
 ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet implementiert; die tatsächlich geprüften Bereiche und verbleibenden Grenzen sind separat aufgeführt.
 
@@ -23,8 +23,8 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 | Aufträge nach Neustart | Teilweise | Privates lokales Journal für Kopier-/Verschiebeabsichten, Regeln, Reihenfolge und letzten gemeldeten Fortschritt. Wiederanlauf nur mit neuem Dateiplan und erneuten Einzelentscheidungen. Bis zu 200 Aufträge/16 MiB und 200 Fortschrittszeilen pro Auftrag. Kein Fortsetzen an Bytepositionen, kein dauerhaftes Rückgängig; andere Hintergrundvorgänge bleiben sitzungsbezogen |
 | Rückgängig | Teilweise | Unveränderte Einzeldateien und letzte Mehrfachumbenennung in der Sitzung; Umbenennungen mit Versionsprüfung als Hintergrundauftrag; keine automatische Ordner-Rücksetzung |
 | Mehrfachumbenennen | Vorhanden | Nativer Arbeitsbereich mit Livevorschau und Zeilenfehlern, Auswahl/Reihenfolge, Teilnamen, getrennten Endungen, Schrittzählern je Ordner, gezieltem RegEx-/Textersetzen und Schreibweise, Datumsformat, 50 lokalen Profilen; Hintergrundausführung/Abbruch/Rücknahme, Schutz vor veränderten Quellen/Zielen, Namenszyklen und reine Schreibweise |
-| Dateisuche | Teilweise | Rekursiv, Namen, Text bis 32 MB, Office-XML aus DOCX/XLSX/PPTX/ODT, Größenbereich, Alter und versteckte Dateien; keine PDF-Inhaltsextraktion oder alten DOC-/XLS-Formate |
-| Archivsuche | Teilweise | Dateinamen im Archiv; keine Textsuche innerhalb der Archive |
+| Dateisuche | Teilweise | Eigenes Fenster mit laufenden Treffern, Abbruch mit Teilergebnissen, Namens-/Ordnerausschlüssen, Rekursion, Größen-/Datums-/Altersregeln, Textfundstellen und Kodierungswahl bis 32 MiB, Office-XML, 50 lokalen Suchprofilen; Öffnen/Vorschau, Markieren im Dateifenster, Kopieren und Sammlung aus Ergebnissen. Keine PDF-Inhalte oder alten DOC-/XLS-Formate |
+| Archivsuche | Teilweise | Namen und Größen mit Ausschlüssen, eigenständigen Trefferzeilen und begrenzter Eintragsprüfung; Öffnen des Containers, keine Textsuche oder direkte Dateiaktionen auf Mitgliedspfaden |
 | Duplikate | Vorhanden | Gruppierung nach Größe und SHA-256; keine automatische Löschung |
 | Prüfsummen | Vorhanden | SHA-256, SHA-512, SHA-1, MD5; Listen erstellen und prüfen |
 | Ordnergrößen | Vorhanden | Rekursive Größen-/Dateizählung; tatsächlicher belegter Speicher wird nicht berechnet |
@@ -58,9 +58,9 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 
 ## Prüfung
 
-159 Dateikern- und Integrationstests prüfen unter anderem Ordnerregeln, Favoriten und strukturierte Programmaufrufe, das lokale Auftragsjournal, Wiederanlauf ohne automatische Ausführung, Speichergrenzen und Dateirechte, Kopierfortschritt, Pause/Abbruch, Metadaten, Dateifilter, Zusammenführen, Konfliktentscheidungen, Sicherungen, Rückgängig, veränderte Quellen und Ziele, symbolische Verknüpfungen, Umbenennungszyklen, Suche, Hashwerte, Archive, Pfadmanipulationen und einen lokalen FTP-Server.
+176 Dateikern- und Integrationstests prüfen unter anderem Ordnerregeln, Favoriten und strukturierte Programmaufrufe, das lokale Auftragsjournal, Wiederanlauf ohne automatische Ausführung, Speichergrenzen und Dateirechte, Kopierfortschritt, Pause/Abbruch, Metadaten, Dateifilter, Zusammenführen, Konfliktentscheidungen, Sicherungen, Rückgängig, veränderte Quellen und Ziele, symbolische Verknüpfungen, Umbenennungszyklen, Suche, Hashwerte, Archive, Pfadmanipulationen und einen lokalen FTP-Server.
 
-Die achtzehn nativen Oberflächendurchläufe mit 324 Prüfungen kontrollieren Mehrfachumbenennen und Profile, Dateifenster und Import, Symbolansicht und Dateikopie, Tabs, Favoriten und Ordnerregeln, Warteschlange, Kopierfilter, Zusammenführen, Kopierprofile, relative Altersregeln sowie gespeicherte und unterbrochene Dateiübertragungen über getrennte App-Prozesse. Sie bedienen die tatsächlichen Auswahlfelder und Konfliktmenüs und vergleichen das Ergebnis mit dem geplanten Bestand. Details stehen in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+Die zwanzig nativen Oberflächendurchläufe mit 371 Prüfungen kontrollieren Suche und lokale Suchprofile, laufende/abgebrochene Treffer und Aktionen aus Ergebnissen, Mehrfachumbenennen und Profile, Dateifenster und Import, Symbolansicht und Dateikopie, Tabs, Favoriten und Ordnerregeln, Warteschlange, Kopierfilter, Zusammenführen, Kopierprofile, relative Altersregeln sowie gespeicherte und unterbrochene Dateiübertragungen über getrennte App-Prozesse. Sie bedienen die tatsächlichen Auswahlfelder und Konfliktmenüs und vergleichen das Ergebnis mit dem geplanten Bestand. Details stehen in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 FTPS und SFTP sind bisher nicht Ende zu Ende gegen einen Server geprüft. Große Bestände, Cloud-Platzhalter, ACL-Sonderfälle, externe Datenträger, lange Alltagssitzungen sowie Apple Silicon und ältere macOS-Versionen benötigen weitere Laufzeitprüfungen.
 

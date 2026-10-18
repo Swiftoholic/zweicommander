@@ -2,7 +2,7 @@
 
 ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Tabs und Tastaturbedienung. Er wird in Swift und AppKit entwickelt und verwendet Systembibliotheken für Dateivorgänge, Vorschau und Archive.
 
-**Version 0.10.0 ist eine frühe, ausführbare Version.** Neu ist ein vollständiger Arbeitsbereich fürs Mehrfachumbenennen mit Livevorschau, lokalen Profilen, erweiterten Namensregeln, Bilddaten sowie geprüfter Ausführung und Rücknahme im Hintergrund. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+**Version 0.11.0 ist eine frühe, ausführbare Version.** Neu ist ein eigener Sucharbeitsbereich mit laufenden Treffern, Textfundstellen, lokalen Suchprofilen, Ausschluss- und Metadatenfiltern sowie direkten Aktionen aus den Ergebnissen. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 ## Funktionen
 
@@ -14,7 +14,8 @@ ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Ta
 - Lokal gespeicherte Dateiübertragungen und letzter gemeldeter Fortschritt; neue Dateiprüfung nach Neustart.
 - Gespeicherte Kopierprofile, Namens-/Größen-/Datumsfilter, reine Ordnerstruktur und Zusammenführen mit Einzelentscheidungen.
 - Mehrfachumbenennen mit Livevorschau, Reihenfolge, Profilen, Namensausschnitten, Bilddaten und Versionsprüfung.
-- Suche einschließlich Office-XML-Text, Duplikate und Prüfsummen.
+- Dateisuche mit laufenden Ergebnissen, Office-XML-Text, Archivnamen, lokalen Profilen und Dateiaktionen.
+- Duplikate und Prüfsummen.
 - Ordnervergleich und Synchronisieren in einer Richtung ohne Löschen zusätzlicher Zieldateien.
 - ZIP-, 7z- und TAR-Archive, Quick Look sowie Text-, Hex- und Binärvorschau.
 - Eingebundene Netzwerkvolumes und ein Fenster für FTP-, FTPS- und SFTP-Einzeldateitransfers.
@@ -69,6 +70,20 @@ Tabs lassen sich innerhalb eines Dateifensters ziehen oder über Menübefehle ve
 **Gehe zu → Favoriten bearbeiten …** oder der letzte Eintrag im Favoritenmenü verwaltet Ordner und vorhandene macOS-Programme. Name und Ziel werden mit **Übernehmen** gespeichert; Reihenfolge und Entfernen wirken sofort. Bei Programmen kann **Ausgewählte Dateien öffnen** aktiviert werden. Der Aufruf benötigt dann eine Auswahl und übergibt deren Datei-URLs über macOS; es wird kein Shell-Befehl zusammengesetzt. Ohne diese Option startet das Programm.
 
 Favoriten und Ordnerregeln bleiben lokal in den macOS-Benutzereinstellungen. Vorhandene Ordnerfavoriten werden übernommen. Vorgesehen sind höchstens 200 Favoriten, 500 Ordnerregeln und zusammen 2 MiB. Unlesbare oder unbekannte Daten sperren Änderungen und werden nicht automatisch ersetzt. Eine frei programmierbare Werkzeugleiste gehört noch nicht zum Umfang.
+
+## Dateisuche
+
+**Cmd+F** öffnet ein eigenes Fenster für den aktuellen Ordner. Mehrere Namensmuster mit Semikolon trennen, beispielsweise *.txt;*.md. Ohne Platzhalter wird ein Namensteil gesucht; alternativ ist ein regulärer Ausdruck möglich. Ausgeschlossene Dateinamen und ganze Unterordner verwenden * und ?. Unterordner, versteckte Einträge sowie Dateien/Ordner sind getrennt wählbar. **Größe und Datum …** bietet die Größen-, Datums- und Altersregeln des Kopierdialogs; die Bezugszeit für relatives Alter wird bei jeder Suche einmal festgelegt.
+
+Treffer erscheinen während der Arbeit. **Abbrechen** behält die bereits gefundenen Ergebnisse. Das Limit beträgt standardmäßig 10.000 und ist von 1 bis 50.000 einstellbar; ein erreichtes Limit wird ausdrücklich als Teilergebnis markiert. Die Ergebnisliste lässt sich nach Name, Pfad und Fundstelle filtern und über die Spalten sortieren. Die Suchregeln bleiben während des Laufs gesperrt. Escape fordert einen Abbruch an. Das Schließen des Suchfensters fordert einen Abbruch an. Suchen warten nicht hinter Dateiübertragungen.
+
+Die Inhaltssuche verwendet wörtlichen Text mit optionaler Groß-/Kleinschreibung und ganzen Wörtern. UTF-8 und UTF-16 mit BOM werden automatisch erkannt; UTF-16 ohne BOM und Windows-1252 sind ausdrücklich wählbar. Reguläre Textdateien sind auf 32 MiB begrenzt; binäre Daten werden ausgelassen. Die Office-Option liest DOCX, XLSX, PPTX und ODT mit höchstens 32 MiB relevanten XML-Daten. Eine Fundstelle erscheint je Datei. Aktive Größengrenzen schließen Ordner aus; rekursive Ordnergrößen werden nicht berechnet. Die Suche öffnet die letzte Pfadkomponente ohne Linkverfolgung und prüft Dateiidentität und Änderungsstände nach dem Lesen. Symbolische Links werden für Inhalte und Unterordner nicht verfolgt. PDF-Inhalte und alte DOC-/XLS-Formate sind noch offen.
+
+**Im Dateifenster** zeigt den Treffer im ursprünglichen Dateifenster und markiert ihn nach dem Laden des Ordners. **Kopieren …** verwendet die Auswahl der Suchliste und öffnet den regulären Dateiplan mit dem gegenüberliegenden Dateifenster als Ziel. Öffnen, Vorschau, Pfade kopieren und mehrere Treffer als Sammlung stehen ebenfalls bereit. Dateivorgänge prüfen die zum Ausführungszeitpunkt vorhandenen Pfade erneut; Suchergebnisse sind keine festgehaltenen Dateiversionen.
+
+Archivsuche durchsucht Namen und Größen, ohne Inhalte zu entpacken; sie wird getrennt von Inhalts- und Datumssuche verwendet. Rekursion, versteckte Einträge und Ausschlüsse gelten auch für Archiveinträge. Pro Archiv werden höchstens 100.000 Einträge geprüft. Archivtreffer zeigen Container und Mitgliedspfad und können das Archiv öffnen. Sie lassen sich nicht direkt als normale Dateien kopieren oder als Dateisammlung übernehmen. Beschädigte oder während der Prüfung veränderte Archive erzeugen Hinweise. Insgesamt werden höchstens 200 Hinweistexte gespeichert; der Gesamtzähler bleibt erhalten.
+
+**Speichern als …** legt eines von bis zu 50 lokalen Suchprofilen an (zusammen höchstens 1 MiB). Profile speichern Suchregeln, weder Suchordner noch Trefferlisten. Laden, Aktualisieren und Löschen verändern keine offenen ungespeicherten Suchregeln anderer Fenster. Beschädigte oder unbekannte Profildaten werden nicht automatisch ersetzt. Ergebnisse bleiben nur in der Sitzung.
 
 ## Mehrfachumbenennen
 
@@ -155,7 +170,7 @@ python3 scripts/ui-smoke.py --app ../ZweiCommander.app --results /tmp/ZweiComman
 python3 scripts/check-public.py
 ```
 
-Die 159 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die achtzehn nativen Oberflächendurchläufe verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil; sie verändern keine persönlichen Benutzereinstellungen. Profil-, Umbenennungs-, Alters- und Arbeitsbereichsprüfungen verwenden eigene, anschließend entfernte Einstellungsbereiche. Weitere Prozesse prüfen Aufträge nach regulärem Beenden, ein abruptes Prozessende während einer Kopie, den erneuten Start mit neuem Plan und beschädigte oder während der Arbeit geänderte Auftragsdaten. Die Journaltests verwenden ausschließlich eine eigene temporäre Ablage. Zwei Prozesse prüfen relative Altersregeln, Profil-/Auftragsspeicherung, erneute Vorschau und Ausführung nach einem Neustart. Zwei weitere prüfen Symbolauswahl und Dateikopie, Tab-Verwaltung, Favoriten, Ordnerregeln und das Laden nach Neustart. Zwei weitere Prozesse prüfen Livevorschau und Profilspeicherung beim Mehrfachumbenennen, tatsächliche Umbenennung und Rückgängig, veränderte Quellen sowie den Abbruch eines wartenden Auftrags. Programmaufrufe werden an der macOS-Aufrufschnittstelle abgefangen und lösen keinen externen Programmstart aus. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
+Die 176 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die zwanzig nativen Oberflächendurchläufe verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil; sie verändern keine persönlichen Benutzereinstellungen. Such-, Profil-, Umbenennungs-, Alters- und Arbeitsbereichsprüfungen verwenden eigene, anschließend entfernte Einstellungsbereiche. Weitere Prozesse prüfen Aufträge nach regulärem Beenden, ein abruptes Prozessende während einer Kopie, den erneuten Start mit neuem Plan und beschädigte oder während der Arbeit geänderte Auftragsdaten. Die Journaltests verwenden ausschließlich eine eigene temporäre Ablage. Zwei Prozesse prüfen relative Altersregeln, Profil-/Auftragsspeicherung, erneute Vorschau und Ausführung nach einem Neustart. Zwei weitere prüfen Symbolauswahl und Dateikopie, Tab-Verwaltung, Favoriten, Ordnerregeln und das Laden nach Neustart. Zwei weitere Prozesse prüfen Livevorschau und Profilspeicherung beim Mehrfachumbenennen, tatsächliche Umbenennung und Rückgängig, veränderte Quellen sowie den Abbruch eines wartenden Auftrags. Zwei Suchprozesse prüfen Profile nach Neustart, laufende Treffer und Teilabbruch, echte Dateikopie aus Suchauswahl, Markierung im Dateifenster, Sammlungen, Office-Text, Archivnamen und beschädigte Profildaten. Programmaufrufe werden an der macOS-Aufrufschnittstelle abgefangen und lösen keinen externen Programmstart aus. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
 
 `check-public.py` prüft die im Git-Index enthaltenen Dateien vor einer Veröffentlichung. Erlaubt sind die Projektdateien, Quellcode, Werkzeuge und künstlichen Testdaten. Lokale Protokolle, Buildprodukte und Arbeitsunterlagen gehören nicht ins Repository.
 

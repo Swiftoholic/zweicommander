@@ -1,8 +1,8 @@
-ZweiCommander 0.10.0 — Prüfung vom 18. Oktober 2026
+ZweiCommander 0.11.0 — Prüfung vom 18. Oktober 2026
 
 Ergebnis
-- 159/159 Dateikern- und Integrationstests bestanden.
-- 324/324 native UI-Prüfungen am universellen Release-Build bestanden:
+- 176/176 Dateikern- und Integrationstests bestanden.
+- 371/371 native UI-Prüfungen am universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, Warteschlange 14,
   Kopierfilter 22, Ordner zusammenführen 29, Profile speichern 19,
   Profile nach erneutem App-Start laden und verwenden 16,
@@ -11,7 +11,8 @@ Ergebnis
   Speicherfehler während Kopie 10, beschädigte Auftragsablage 5,
   relative Altersregeln und Speichern 12, Altersregeln nach Neustart 19,
   Ansichten/Tabs/Favoriten und Speichern 44, Arbeitsbereich nach Neustart 16,
-  Mehrfachumbenennen und Profile speichern 20, nach Neustart verwenden 27.
+  Mehrfachumbenennen und Profile speichern 20, nach Neustart verwenden 27,
+  Sucharbeitsbereich und Profile speichern 22, nach Neustart verwenden 25.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
 - App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
 - Debug-Pfadverweise vor Signierung entfernt; Release-Binärdatei auf lokale
@@ -27,10 +28,62 @@ wurden kompiliert, aber nicht zur Laufzeit geprüft. Keine Developer-ID-Signatur
 oder Notarisierung.
 
 Startort
-Ein Start aus dem Entwicklungsordner blieb im macOS-Fensteraufbau vor der
+Bei einer früheren Entwicklungsprüfung blieb ein Start aus dem Entwicklungsordner im macOS-Fensteraufbau vor der
 Anwendungsinitialisierung hängen. Derselbe unveränderte Build startete aus
 dem Benutzer-Programmeordner regulär. Die genaue Ursache des ersten Hängers
 ist nicht abschließend bestimmt; die Verwendung aus Programme wird empfohlen.
+
+Dateisuche
+17 zusätzliche Kernprüfungen decken mehrere Namensmuster, Ausschlüsse und
+abgeschnittene Ordnerbäume, flache/rekursive Suche, Eintragstypen, Links,
+Größen- und Zeitgrenzen, relatives Alter mit Ausschluss künftiger Daten,
+wörtlichen Text mit Groß-/Kleinschreibung und ganzen Unicode-Wörtern,
+Textfundstellen, UTF-8/UTF-16/Windows-1252, binäre und zu große Eingaben ab.
+Treffer werden portionsweise geliefert. Abbruch und Treffergrenze erhalten
+den bereits gemeldeten Stand und unterscheiden sich von einer vollständigen
+Suche ohne Treffer. Quellen bleiben unverändert.
+
+Archivtreffer behalten Container und Mitgliedspfad getrennt. Verdeckte Namen,
+Ordnerausschlüsse, Rekursion und Größen gelten auch innerhalb der Archive;
+ein ausgeschlossener Container wird nicht durchsucht. Die globale Treffergrenze
+umfasst Archivmitglieder. Defekte Archive werden gemeldet; andere Dateien
+werden weiter geprüft. Hinweistexte sind auf 200 begrenzt, der Gesamtzähler
+bleibt erhalten. Inhalts- und Datumsfilter werden für Archivnamenssuche vorab
+abgewiesen. Archiv-Inhaltssuche gehört nicht zum Umfang.
+
+Suchprofile halten Regeln ohne Ordner oder Ergebnisse fest. Die Prüfung umfasst
+Roundtrip mit sämtlichen Kriterien, relative Regeln, Namensbereinigung,
+Aktualisieren/Entfernen, doppelte Namen, fehlende Kennungen, unbekannte Versionen,
+beschädigte Daten und Anzahl-/Speichergrenzen. Die lokale Profilablage erhält
+beschädigte Bytes und falsche gespeicherte Datentypen.
+
+Zwei getrennte native App-Prozesse prüfen insgesamt 47 Fälle: Suchfenster aus
+dem aktiven Dateifenster öffnen, genau erwartete Texttreffer, Textfundstellen,
+Listenfilter und natürliche Sortierung, Markierung nach asynchronem Ordnerladen,
+echte Kopie mit Dateiplan und Bytevergleich trotz gewechseltem aktiven Fenster,
+Sammlung aus Mehrfachauswahl, Öffnen/Kopieren über das Hauptmenü und Sperre
+nicht angebotener Löschbefehle. Profile werden im nativen Namensdialog gespeichert,
+aktualisiert und nach Neustart geladen. Andere Fenster behalten ungespeicherte
+Eingaben. Größe/Datum werden über den gemeinsamen nativen Filterdialog geändert.
+Ungültige Regeln löschen keine vorhandenen Treffer. Löschen von Profilen wird
+abgebrochen und bestätigt; aktuelle Regeln und Ergebnisse bleiben erhalten.
+
+Ein Lauf bricht nach dem ersten tatsächlich eingetroffenen Trefferpaket über
+den nativen Abbrechen-Knopf ab. Die Teilergebnisse bleiben erhalten; alle
+Suchdateien bleiben vorhanden. Ein gleichzeitig blockierter fremder Auftrag
+hindert die Suche nicht und wird durch deren Abbruch nicht abgebrochen.
+Weitere Prüfungen bedienen Archivzeilen, gesperrte direkte Dateiaktionen,
+Öffnen des Containers, Hinweisbericht, sichtbare Treffergrenze und echte
+Office-XML-Textfundstellen. Die Fensteransichten wurden als native Bilddateien
+lokal gerendert und visuell kontrolliert.
+
+Die Inhaltsleser öffnen reguläre Dateien ohne Folgen des abschließenden Links
+und vergleichen Geräte-/Dateiidentität, Typ/Rechte, Größe, Änderungs- und
+Statusänderungszeit vor/nach dem Lesen. Archivkandidaten werden erst nach der
+Containerprüfung veröffentlicht. Das ist keine unveränderliche Dateisystemansicht;
+spätere Dateiaktionen verwenden einen eigenen aktuellen Dateiplan. Textdateien
+sind auf 32 MiB, relevante Office-XML-Daten ebenfalls auf 32 MiB beschränkt.
+Keine PDF-Extraktion, alten DOC-/XLS-Formate oder rekursive Ordnergrößen.
 
 Mehrfachumbenennen
 22 neue Funktionsprüfungen decken Namensvorlagen, wörtliche Klammern,

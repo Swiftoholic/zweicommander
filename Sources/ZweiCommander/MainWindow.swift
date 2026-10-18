@@ -71,9 +71,10 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     var onRebuildMenus: (() -> Void)?
     var operationWindow: OperationQueueController?
     var programLauncher: ((ProgramLaunchRequest) -> Void)?
-    var pendingWork:Int { jobs.pending + secondaryWindows.compactMap { $0 as? RemoteWindow }.reduce(0) { $0+$1.jobs.pending } }
+    var keySearchController: SearchController? { secondaryWindows.compactMap { $0 as? SearchController }.first { $0.window === NSApp.keyWindow } }
+    var pendingWork:Int { secondaryWindows.compactMap { $0 as? SearchController }.filter(\.isSearching).count + jobs.pending + secondaryWindows.compactMap { $0 as? RemoteWindow }.reduce(0) { $0+$1.jobs.pending } }
     var canTerminate: Bool {
-        jobs.canClose && secondaryWindows.compactMap { $0 as? RemoteWindow }.allSatisfy { $0.jobs.pending == 0 } &&
+        secondaryWindows.compactMap { $0 as? SearchController }.allSatisfy { !$0.isSearching } && jobs.canClose && secondaryWindows.compactMap { $0 as? RemoteWindow }.allSatisfy { $0.jobs.pending == 0 } &&
             !jobs.scheduler.snapshots.filter(\.isPending).contains { snapshot in jobs.journal?.entry(snapshot.id)?.intent.sources.contains { FileSystem.isInside($0,cache) } == true }
     }
 
@@ -277,7 +278,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         })
     }
     func windowShouldClose(_ sender:NSWindow) -> Bool {
-        if !canTerminate { _ = dialog("Dateiaufträge sind offen",message:"Laufende Vorgänge und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return false }
+        if !canTerminate { _ = dialog("Dateiaufträge sind offen",message:"Laufende Vorgänge einschließlich Suchen und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return false }
         saveState(); return true
     }
     func windowWillClose(_ notification:Notification) { saveState() }

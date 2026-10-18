@@ -3,8 +3,8 @@ import Foundation
 public enum DocumentText {
     public static let extensions: Set<String> = ["docx", "xlsx", "odt", "pptx"]
     public static func supports(_ url: URL) -> Bool { extensions.contains(url.pathExtension.lowercased()) }
-    public static func extract(_ url: URL, maxBytes: Int = 32*1024*1024, token: CancellationToken = .init()) throws -> String {
-        let type = url.pathExtension.lowercased()
+    public static func extract(_ url: URL, maxBytes: Int = 32*1024*1024, token: CancellationToken = .init(), fileExtension: String? = nil) throws -> String {
+        let type = (fileExtension ?? url.pathExtension).lowercased()
         guard extensions.contains(type) else { throw CommanderError.message("Kein unterstütztes Office-XML-Dokument.") }
         let members = try ArchiveService.readMembers(url, maxBytes: maxBytes, token: token) { name in
             let path = name.lowercased()

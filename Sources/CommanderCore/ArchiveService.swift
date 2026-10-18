@@ -37,6 +37,20 @@ public enum ArchiveService {
         }
         return result
     }
+    /// Visits headers without retaining an unbounded member list. Returning false stops reading.
+    public static func visitMembers(_ url: URL, token: CancellationToken = .init(), visit: (ArchiveMember) throws -> Bool) throws {
+        let a = try reader(url,password:nil);defer { archive_read_free(a) }
+        var entry: OpaquePointer?,count = 0
+        while true {
+            try token.check()
+            let code = archive_read_next_header(a,&entry)
+            if code == 1 { return }
+            guard code == 0,let e = entry,let p = archive_entry_pathname(e) else { throw failure(a) }
+            count += 1;guard count <= 100_000 else { throw CommanderError.message("Archivsuche: Grenze von 100.000 Einträgen erreicht.") }
+            let path = try safePath(String(cString:p))
+            if !path.isEmpty,try !visit(ArchiveMember(path:path,size:archive_entry_size(e),isDirectory:archive_entry_filetype(e) == 0o040000)) { return }
+        }
+    }
     // Extraction is only into a newly created staging directory. Links and special files are rejected.
     public static func extract(_ url: URL, to destination: URL, password: String? = nil, maxBytes: Int64 = 100 * 1024 * 1024 * 1024, token: CancellationToken = .init(), progress: (String) -> Void = { _ in }) throws {
         guard !FileSystem.exists(destination) else { throw CommanderError.message("Entpacken benötigt einen neuen Zielordner.") }

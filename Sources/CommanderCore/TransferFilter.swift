@@ -19,7 +19,7 @@ public struct TransferFilter: Codable, Equatable {
     public func validate() throws { _ = try CompiledTransferFilter(self) }
 }
 
-private struct TransferPatterns {
+struct TransferPatterns {
     let expressions: [NSRegularExpression]
     init(_ text: String, regex: Bool, emptyMatchesAll: Bool) throws {
         guard text.utf8.count <= 4096 else { throw CommanderError.message("Filter darf höchstens 4096 UTF-8-Bytes enthalten.") }

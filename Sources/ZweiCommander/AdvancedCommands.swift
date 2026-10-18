@@ -3,25 +3,26 @@ import CommanderCore
 
 extension MainWindow {
     func search() {
-        let name = input("",placeholder:"z. B. *.pdf"), content = input("",placeholder:"Text in UTF-8/UTF-16-Dateien"), minimum = input("0"), maximum = input(""), days = input("")
-        let regex = checkbox("Regulärer Ausdruck"), hidden = checkbox("Versteckte Dateien",on:Preferences.state.showHidden), archives = checkbox("Auch Dateinamen in Archiven")
-        let office = checkbox("DOCX, XLSX, ODT und PPTX lesen",on:Preferences.state.importedProfile?.officeContentSearch ?? true)
-        let root = active.currentURL, pane = active
-        guard dialog("Dateien suchen",message:"Rekursiv in \(root.path). Text und ausgewählte Office-XML-Inhalte bis 32 MB; Archivsuche prüft Dateinamen.",accessory:form([("Name / Muster",name),("",regex),("Enthaltener Text",content),("Office-Inhalte",office),("Mindestgröße (KB)",minimum),("Höchstgröße (KB)",maximum),("Letzte Tage",days),("",hidden),("",archives)]),buttons:["Suchen","Abbrechen"]) == 0 else { return }
-        var options = SearchOptions(); options.name = name.stringValue; options.regex = regex.state == .on; options.content = content.stringValue; options.showHidden = hidden.state == .on; options.searchArchives = archives.state == .on
-        options.searchOfficeDocuments = office.state == .on
-        guard let min = Int64(minimum.stringValue),min >= 0,min <= Int64.max/1024 else { showFailure(CommanderError.message("Ungültige Mindestgröße.")); return }; options.minimumSize = min*1024
-        if !maximum.stringValue.isEmpty { guard let max = Int64(maximum.stringValue),max >= min,max <= Int64.max/1024 else { showFailure(CommanderError.message("Ungültige Höchstgröße.")); return }; options.maximumSize = max*1024 }
-        if !days.stringValue.isEmpty { guard let d = Double(days.stringValue),d >= 0,d.isFinite else { showFailure(CommanderError.message("Ungültige Tageszahl.")); return }; options.modifiedAfter = Date().addingTimeInterval(-d*86400) }
-        jobs.submit("Suche",work:{ token,progress in try SearchService.search(root,options:options,token:token,progress:{ progress("\($0) Einträge geprüft") }) },completion:{ [weak self,weak pane] result in
-            switch result {
-            case .success(let report):
-                pane?.showCollection(report.urls,title:"Suche · "+(options.name.isEmpty ? "Ergebnisse" : options.name))
-                self?.content.status.stringValue = "\(report.urls.count) Treffer · \(report.scanned) Einträge geprüft"
-                if !report.warnings.isEmpty || !report.archiveMatches.isEmpty { self?.showText("Suchbericht","Treffer in Archiven:\n"+report.archiveMatches.joined(separator:"\n")+"\n\nHinweise:\n"+report.warnings.joined(separator:"\n")) }
-            case .failure(let error): showFailure(error)
-            }
-        })
+        let pane = active,target = other,controller = SearchController(root:pane.currentURL)
+        controller.onOpen = { [weak self,weak pane] hit in
+            guard let self,let pane else { return }
+            guard FileSystem.exists(hit.url) else { showFailure(CommanderError.message("Der Suchtreffer ist nicht mehr vorhanden."));return }
+            if hit.member != nil { self.openArchive(hit.url,in:pane) }
+            else if FileSystem.isDirectory(hit.url) { pane.navigate(hit.url);self.window?.makeKeyAndOrderFront(nil) }
+            else { NSWorkspace.shared.open(hit.url) }
+        }
+        controller.onPreview = { [weak self] url in self?.preview([url]) }
+        controller.onReveal = { [weak self,weak pane] url in
+            guard let self,let pane else { return }
+            guard FileSystem.exists(url) else { showFailure(CommanderError.message("Der Suchtreffer ist nicht mehr vorhanden."));return }
+            pane.reveal(url);self.window?.makeKeyAndOrderFront(nil)
+        }
+        controller.onCopy = { [weak self,weak target] urls in
+            guard let self,let target,self.ensureWritable(target) else { return };self.transfer(urls,to:target.currentURL,kind:.copy)
+        }
+        controller.onCollection = { [weak self,weak pane] urls in pane?.showCollection(urls,title:"Suchergebnisse");self?.window?.makeKeyAndOrderFront(nil) }
+        controller.onReport = { [weak self] report in self?.showText("Suchhinweise",report) }
+        secondaryWindows.append(controller);controller.showWindow(nil)
     }
     func duplicates() {
         let root = active.currentURL,pane = active

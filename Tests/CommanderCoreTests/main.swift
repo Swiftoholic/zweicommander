@@ -424,6 +424,23 @@ func XCTAssertThrowsError<T>(_ expression: @autoclosure () throws -> T, file: St
 }
 
 let tests: [(String, (CoreTests) throws -> Void)] = [
+    ("testSearchMultipleMasksExclusionsAndFolderPruning", { try $0.testSearchMultipleMasksExclusionsAndFolderPruning() }),
+    ("testSearchNonrecursiveTypesAndSymbolicLinks", { try $0.testSearchNonrecursiveTypesAndSymbolicLinks() }),
+    ("testSearchMetadataBoundsAndLinkExclusion", { try $0.testSearchMetadataBoundsAndLinkExclusion() }),
+    ("testSearchRelativeAgeSnapshotAndFutureExclusion", { try $0.testSearchRelativeAgeSnapshotAndFutureExclusion() }),
+    ("testSearchLiteralCaseWholeWordsAndSnippets", { try $0.testSearchLiteralCaseWholeWordsAndSnippets() }),
+    ("testSearchUTF16AndExplicitLegacyEncoding", { try $0.testSearchUTF16AndExplicitLegacyEncoding() }),
+    ("testSearchBinaryAndOversizeInputsStayUnchanged", { try $0.testSearchBinaryAndOversizeInputsStayUnchanged() }),
+    ("testSearchStreamingCancellationRetainsExactlyDeliveredResults", { try $0.testSearchStreamingCancellationRetainsExactlyDeliveredResults() }),
+    ("testSearchPrecancelledAndNoMatchesHaveDifferentReports", { try $0.testSearchPrecancelledAndNoMatchesHaveDifferentReports() }),
+    ("testSearchResultLimitIncludesArchiveMembers", { try $0.testSearchResultLimitIncludesArchiveMembers() }),
+    ("testSearchArchiveFoldersHiddenAndExcludedNames", { try $0.testSearchArchiveFoldersHiddenAndExcludedNames() }),
+    ("testSearchArchiveContentAndDatesRequireSeparateMode", { try $0.testSearchArchiveContentAndDatesRequireSeparateMode() }),
+    ("testSearchBadArchivesWarnAndContinueWithoutInventedPaths", { try $0.testSearchBadArchivesWarnAndContinueWithoutInventedPaths() }),
+    ("testSearchWarningStorageIsBounded", { try $0.testSearchWarningStorageIsBounded() }),
+    ("testSearchValidationRejectsInvalidRulesBeforeTraversal", { try $0.testSearchValidationRejectsInvalidRulesBeforeTraversal() }),
+    ("testSearchProfilesRoundTripRulesAndNoLocations", { try $0.testSearchProfilesRoundTripRulesAndNoLocations() }),
+    ("testSearchProfileLimitsDuplicateNamesAndDamagedData", { try $0.testSearchProfileLimitsDuplicateNamesAndDamagedData() }),
     ("testRenameParentRelocationReportsActualRecoveryLocation", { try $0.testRenameParentRelocationReportsActualRecoveryLocation() }),
     ("testRenameOpenHandleEditDuringStagingIsPreserved", { try $0.testRenameOpenHandleEditDuringStagingIsPreserved() }),
     ("testRenameTemplatesSlicesEscapesAndLiteralValues", { try $0.testRenameTemplatesSlicesEscapesAndLiteralValues() }),

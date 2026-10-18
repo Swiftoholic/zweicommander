@@ -61,7 +61,7 @@ extension MainWindow {
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.10.0
+        ZWEICOMMANDER · Version 0.11.0
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -116,7 +116,11 @@ extension MainWindow {
         Packen erzeugt ZIP, 7z oder mit der Endung .tar.gz ein TAR-GZip-Archiv. Entpacken benötigt einen neuen Zielordner. Absolute Pfade, ../, Links und Spezialdateien werden abgewiesen. Das Entpacklimit beträgt 100 GB. Archive bewahren in dieser Version keine Finder-Tags, Resource Forks oder erweiterten Attribute.
 
         SUCHE UND VERGLEICH
-        Suche durchläuft Unterordner. Inhaltssuche liest UTF-8/UTF-16-Textdateien bis 32 MB. Die Office-Option extrahiert Text aus DOCX, XLSX, PPTX und ODT; maximal 32 MB relevante XML-Daten pro Dokument. Größere Dateien werden im Bericht genannt. Die Archivsuche sucht Dateinamen, keine Inhalte. Gespeicherte Dateisammlungen enthalten Pfade, keine Dateikopien. In einer Dateisammlung fügt ein Drop nur Verweise hinzu; „Aus Sammlung entfernen“ löscht keine Originaldatei.
+        Cmd+F öffnet ein eigenes Suchfenster. Mehrere Namensmuster mit Semikolon trennen; ohne Platzhalter wird ein Namensteil gesucht. Namens-RegEx, ausgeschlossene Dateinamen und ganze Unterordner, Rekursion, versteckte Einträge und Dateien/Ordner sind einstellbar. „Größe und Datum …“ ergänzt Größenbereiche, feste Zeitpunkte oder relatives Alter mit einer gemeinsamen Bezugszeit je Suche. Namensausschlüsse und Ordnerausschlüsse verwenden * und ?. Die Ergebnisliste lässt sich zusätzlich filtern und nach Spalten sortieren.
+        Treffer erscheinen während der Suche. Abbrechen behält die bisherigen Ergebnisse; eine erreichte Treffergrenze wird als Teilergebnis markiert. Standard sind 10.000, höchstens 50.000 Treffer. „Im Dateifenster“ zeigt und markiert den ausgewählten Treffer im ursprünglichen Dateifenster. Kopieren verwendet die Suchauswahl und öffnet den regulären Dateiplan mit dem gegenüberliegenden Fenster als Ziel. Mehrere echte Dateitreffer lassen sich als Sammlung übernehmen. Archivtreffer öffnen das zugehörige Archiv; sie sind keine Dateipfade und können nicht direkt kopiert werden.
+        Inhaltssuche sucht wörtlichen Text, auf Wunsch mit Groß-/Kleinschreibung oder ganzen Wörtern. Automatisch erkannt werden UTF-8 und UTF-16 mit BOM. UTF-16 ohne BOM und Windows-1252 sind ausdrücklich wählbar. Reguläre Textdateien werden bis 32 MiB gelesen. Die Office-Option extrahiert bis 32 MiB relevante XML-Daten aus DOCX, XLSX, PPTX und ODT. Symbolische Links werden nicht für Inhalte verfolgt. Archivsuche prüft nur Namen und Größen; Inhalt und Datum sind ein getrennter Suchmodus. Hinweise nennen Leseprobleme und Limits; höchstens 200 Hinweistexte werden behalten.
+        Bis zu 50 Suchprofile mit zusammen höchstens 1 MiB speichern nur Regeln, keinen Suchordner oder Treffer. Sie bleiben lokal und werden ausdrücklich geladen. Beschädigte oder unbekannte Daten sperren Änderungen. Die Suche läuft unabhängig von Dateiübertragungen und wird beim Schließen ihres Fensters abgebrochen.
+        Gespeicherte Dateisammlungen enthalten Pfade, keine Dateikopien. In einer Dateisammlung fügt ein Drop nur Verweise hinzu; „Aus Sammlung entfernen“ löscht keine Originaldatei.
         Duplikate werden anhand von Größe und SHA-256 erkannt; es wird nichts automatisch gelöscht. Der Ordnervergleich kann ebenfalls SHA-256 verwenden. Synchronisieren ergänzt und ersetzt nur in der gewählten Richtung. Es löscht keine zusätzlichen Zieldateien. Typkonflikte und Verknüpfungen müssen zuerst manuell geklärt werden.
 
         INI-EINSTELLUNGEN

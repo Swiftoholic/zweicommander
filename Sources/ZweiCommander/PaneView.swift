@@ -299,9 +299,16 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         activate(); let path = (pathField.stringValue as NSString).expandingTildeInPath
         navigate(path.hasPrefix("/") ? URL(fileURLWithPath: path) : currentURL.appendingPathComponent(path))
     }
+    private var selectionRequest: (directory: URL,urls: Set<URL>)?
+    func reveal(_ url: URL) {
+        let parent = url.deletingLastPathComponent()
+        guard FileSystem.isDirectory(parent) else { return }
+        selectionRequest = (FileSystem.canonical(parent),[url]);navigate(parent)
+    }
     func refresh() {
         generation += 1; let g = generation, url = currentURL, hidden = showHidden, collection = tab.collection
-        let selected = Set(selectedURLs)
+        if let request = selectionRequest,request.directory != FileSystem.canonical(url) { selectionRequest = nil }
+        let selected = selectionRequest?.urls ?? Set(selectedURLs)
         pathField.stringValue = url.path; pathField.toolTip = readOnly ? "Temporäre Archivansicht · schreibgeschützt" : url.path
         status.stringValue = "Lese Ordner …"
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -309,7 +316,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
             DispatchQueue.main.async {
                 guard let self, self.generation == g else { return }
                 switch result {
-                case .success(let entries): self.entries = entries; self.applyFilter(); self.select(selected); self.watch(url)
+                case .success(let entries): self.selectionRequest = nil;self.entries = entries; self.applyFilter(); self.select(selected); self.watch(url)
                 case .failure(let error): self.entries = []; self.visibleEntries = []; self.table.reloadData();self.grid.reloadData(); self.status.stringValue = error.localizedDescription
                 }
             }
