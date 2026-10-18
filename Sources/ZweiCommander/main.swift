@@ -19,8 +19,12 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let operationsSmoke = args.firstIndex(of:"--operations-smoke")
         let filtersSmoke = args.firstIndex(of:"--filters-smoke")
         let mergeSmoke = args.firstIndex(of:"--merge-smoke")
-        Preferences.testMode = smoke != nil || operationsSmoke != nil || filtersSmoke != nil || mergeSmoke != nil
+        let profilesSmoke = args.firstIndex(of:"--profiles-smoke")
+        Preferences.testMode = smoke != nil || operationsSmoke != nil || filtersSmoke != nil || mergeSmoke != nil || profilesSmoke != nil
         if Preferences.testMode { Preferences.state = SavedState() }
+        if profilesSmoke != nil,let index = args.firstIndex(of:"--profile-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
+            Preferences.copyProfileTestDefaults = UserDefaults(suiteName:args[index+1])
+        }
         if let index = args.firstIndex(of:"--import-settings"),args.indices.contains(index+1) {
             do {
                 let profile = try INISettingsImport.load(directory:URL(fileURLWithPath:args[index+1]))
@@ -32,7 +36,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
                 print("INI-Einstellungen importiert: \(profile.columns.count) Spalten, \(profile.plugins.filter(\.enabled).count) aktive Plug-in-Einträge. Pfadzuordnungen ausgelassen.")
             } catch { fputs("Einstellungsimport fehlgeschlagen: \(error.localizedDescription)\n",stderr);exit(2) }
         }
-        let root = (smoke ?? operationsSmoke ?? filtersSmoke ?? mergeSmoke).flatMap { args.indices.contains($0+1) ? URL(fileURLWithPath:args[$0+1]) : nil }
+        let root = (smoke ?? operationsSmoke ?? filtersSmoke ?? mergeSmoke ?? profilesSmoke).flatMap { args.indices.contains($0+1) ? URL(fileURLWithPath:args[$0+1]) : nil }
         main = MainWindow(startLeft:root?.appendingPathComponent("Links"),startRight:root?.appendingPathComponent("Rechts"))
         main.onRebuildMenus = { [weak self] in self?.buildMenus(); self?.main.updateFunctionLabels() }
         buildMenus(); main.showWindow(nil); main.left.focus()
@@ -59,6 +63,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         }
         if let mergeSmoke,args.indices.contains(mergeSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runMergeSmoke(root:root,prefix:args[mergeSmoke+2]) }
+        }
+        if let profilesSmoke,args.indices.contains(profilesSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runProfilesSmoke(root:root,prefix:args[profilesSmoke+2],reload:args.contains("--reload-profiles")) }
         }
     }
     static func parseShortcut(_ text:String) -> (String,NSEvent.ModifierFlags)? {
@@ -111,7 +118,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if item.keyEquivalentModifierMask.isEmpty, item.keyEquivalent == " ", NSApp.keyWindow?.firstResponder is NSTextView { return false }
         return true
     }
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:"0.5.0",.version:"5",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:"0.6.0",.version:"6",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
     func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply {
         if main?.pendingWork ?? 0 > 0 { _ = dialog("Dateivorgänge laufen",message:"Bitte erst die laufenden Vorgänge abschließen oder abbrechen.",buttons:["OK"]); return .terminateCancel }
         main?.saveState(); return .terminateNow

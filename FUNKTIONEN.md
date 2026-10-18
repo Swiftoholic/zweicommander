@@ -1,4 +1,4 @@
-# Funktionsstand 0.5.0
+# Funktionsstand 0.6.0
 
 ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet implementiert; die tatsächlich geprüften Bereiche und verbleibenden Grenzen sind separat aufgeführt.
 
@@ -18,6 +18,7 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 | Drag-and-drop | Vorhanden | Datei-URLs hinein/heraus; interner Drop kopiert nach Dialog |
 | Zwischenablage | Vorhanden | Kopieren/Ausschneiden/Einfügen und Pfade kopieren |
 | Kopier-/Verschiebeplan | Teilweise | Ziel-/Konfliktvorschau, abwählbare Auswahlobjekte und vollständige Dateiliste; Kopien mit Einschluss/Ausschluss, RegEx, ausgeschlossenen Unterordnern, Rekursion, leeren Ordnern und Strukturkopie. Filter gelten pro Auftrag und nur für Kopien. Zusammenführen bestehender echter Zielordner, Metadatenvergleich und Einzelentscheidungen bei Dateikonflikten |
+| Kopierprofile und Metadatenfilter | Vorhanden | Bis zu 50 lokale Profile für Regeln und globale Konfliktvorgaben; Dateigröße und feste Änderungszeitpunkte. Keine Pfade oder Einzelentscheidungen; bei aktiven Grenzen werden Links ausgelassen |
 | Hintergrundvorgänge | Teilweise | Verwaltungsfenster mit Einzelstatus, Vormerken, Umordnen/Entfernen und als Nächstes starten; Kopien mit Byte-Fortschritt, Pause und Abbruch während der Übertragung. Verschieben nur an System-Prüfpunkten. Kein dauerhaftes Journal |
 | Rückgängig | Teilweise | Unveränderte Einzeldateien und letzte Mehrfachumbenennung in der Sitzung; keine automatische Ordner-Rücksetzung |
 | Mehrfachumbenennen | Vorhanden | Muster, Zähler, Datum, RegEx, Ersetzen, Schreibweise, Vorschau, Konfliktprüfung, zyklische Namenswechsel |
@@ -56,15 +57,15 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 
 ## Prüfung
 
-85 Dateikern- und Integrationstests prüfen unter anderem Kopierfortschritt, Pause/Abbruch, Metadaten, Dateifilter, Zusammenführen, Konfliktentscheidungen, Sicherungen, Rückgängig, veränderte Quellen und Ziele, symbolische Verknüpfungen, Umbenennungszyklen, Suche, Hashwerte, Archive, Pfadmanipulationen und einen lokalen FTP-Server.
+99 Dateikern- und Integrationstests prüfen unter anderem Kopierfortschritt, Pause/Abbruch, Metadaten, Dateifilter, Zusammenführen, Konfliktentscheidungen, Sicherungen, Rückgängig, veränderte Quellen und Ziele, symbolische Verknüpfungen, Umbenennungszyklen, Suche, Hashwerte, Archive, Pfadmanipulationen und einen lokalen FTP-Server.
 
-Die vier nativen Oberflächenprüfungen kontrollieren Dateifenster und Import, Warteschlange, Kopierfilter und das Zusammenführen. Sie bedienen die tatsächlichen Auswahlfelder und Konfliktmenüs und vergleichen das Ergebnis mit dem geplanten Bestand. Details stehen in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+Die sechs nativen Oberflächendurchläufe kontrollieren Dateifenster und Import, Warteschlange, Kopierfilter, Zusammenführen und Kopierprofile einschließlich eines zweiten App-Prozesses. Sie bedienen die tatsächlichen Auswahlfelder und Konfliktmenüs und vergleichen das Ergebnis mit dem geplanten Bestand. Details stehen in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 FTPS und SFTP sind bisher nicht Ende zu Ende gegen einen Server geprüft. Große Bestände, Cloud-Platzhalter, ACL-Sonderfälle, externe Datenträger, lange Alltagssitzungen sowie Apple Silicon und ältere macOS-Versionen benötigen weitere Laufzeitprüfungen.
 
 ## Weitere Entwicklung
 
-1. Dauerhaftes Auftragsjournal und Fortsetzen nach Neustart, gespeicherte Filter, zusätzliche Größen-/Zeitkriterien und gefiltertes Verschieben.
+1. Dauerhaftes Auftragsjournal und Fortsetzen nach Neustart, gleitende Altersregeln und gefiltertes Verschieben.
 2. Remote-Profile mit Keychain, rekursive Übertragungen, Fortsetzen und Remote-Umbenennen/Löschen.
 3. Archivbearbeitung, weitere Codec-Prüfungen sowie zusätzliche Metadaten- und EXIF-/ID3-Regeln.
 4. Symbolraster, Tab-Reihenfolge, automatische Ansichtsprofile, Programmfavoriten und weitere Lokalisierung.

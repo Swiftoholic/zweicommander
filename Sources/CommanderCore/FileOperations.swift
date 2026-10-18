@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ConflictPolicy: String, CaseIterable { case stop, skip, keepBoth, replace }
+public enum ConflictPolicy: String, CaseIterable, Codable { case stop, skip, keepBoth, replace }
 public enum TransferKind { case copy, move }
 public struct UndoStep {
     public let current: URL

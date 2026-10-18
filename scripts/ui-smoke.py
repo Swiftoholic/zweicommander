@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import uuid
 
 
 def write(root, name, contents):
@@ -14,7 +15,7 @@ def write(root, name, contents):
 
 
 def fixtures(base):
-    main, operations, filters, merge = [base / name for name in ("main", "operations", "filters", "merge")]
+    main, operations, filters, merge, profiles = [base / name for name in ("main", "operations", "filters", "merge", "profiles")]
     for name in ("Archiv", "Dokumente", "Fotos", "Projekte"):
         (main / "Links" / name).mkdir(parents=True)
     for name, text in (("Besprechung.txt", "Besprechung\n"), ("Grüße aus Wien.txt", "Hallo Wien\n"),
@@ -52,13 +53,25 @@ def fixtures(base):
         os.utime(merge / "Rechts/Projekt" / name, (946684800, 946684800))
     write(merge, "Privat/bestehend.txt", "privat\n")
     (merge / "Rechts/Projekt/Typkonflikt").symlink_to(merge / "Privat")
-    return main, operations, filters, merge
+    for name in ("Rechts", "Sicherung", "Links/Projekt/Leer"):
+        (profiles / name).mkdir(parents=True)
+    for name, text, second in (("mittel.txt", "abcd", 60), ("klein.txt", "x", 90),
+                               ("gross.txt", "123456789012", 90), ("alt.txt", "altalt", 0),
+                               ("ende.txt", "ende!!", 180), ("Unterordner/neu.md", "# neu", 120),
+                               ("Cache/off.txt", "cache", 90)):
+        write(profiles, "Links/Projekt/" + name, text)
+        os.utime(profiles / "Links/Projekt" / name, (1700006400 + second, 1700006400 + second))
+    write(profiles, "Privat/privat.txt", "synthetisch")
+    (profiles / "Links/Projekt/alias.txt").symlink_to(profiles / "Privat")
+    write(profiles, "Rechts/Projekt/mittel.txt", "alt")
+    write(profiles, "Rechts/Projekt/extra.txt", "extra")
+    return main, operations, filters, merge, profiles
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--app", required=True, type=Path, help="App-Bundle oder ausführbare Testdatei")
-    parser.add_argument("--results", required=True, type=Path, help="Ordner für die vier Testprotokolle")
+    parser.add_argument("--results", required=True, type=Path, help="Ordner für die sechs Testprotokolle")
     parser.add_argument("--screenshots", required=True, type=Path, help="Ordner für native Fensteransichten")
     parser.add_argument("--settings", type=Path, default=Path(__file__).resolve().parents[1] / "Tests/fixtures/INISettings.sample.ini", help="Nur gelesene INI-Datei oder Settings-Ordner; Standard: künstliches Testprofil")
     args = parser.parse_args()
@@ -77,21 +90,31 @@ def main():
             ("operations", "--operations-smoke", roots[1], str(prefix), "OPS UI PASS ", "OPS SMOKE PASS 14 checks", 14),
             ("filters", "--filters-smoke", roots[2], str(prefix), "FILTER UI PASS ", "FILTER SMOKE PASS 22 checks", 22),
             ("merge", "--merge-smoke", roots[3], str(prefix), "MERGE UI PASS ", "MERGE SMOKE PASS 29 checks", 29),
+            ("profiles-save", "--profiles-smoke", roots[4], str(prefix), "PROFILE UI PASS ", "PROFILE SMOKE PASS 19 checks", 19),
+            ("profiles-reload", "--profiles-smoke", roots[4], str(prefix), "PROFILE UI PASS ", "PROFILE SMOKE PASS 16 checks", 16),
         ]
-        for name, flag, root, image, pass_prefix, marker, expected in cases:
-            command = [str(binary), flag, str(root), image]
-            if args.settings:
-                command += ["--import-settings", str(args.settings.resolve())]
-            with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
-                try:
-                    result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=45)
-                except subprocess.TimeoutExpired:
-                    raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
-            output = (args.results / (name + ".log")).read_text(encoding="utf-8")
-            count = sum(line.startswith(pass_prefix) for line in output.splitlines())
-            if result.returncode or marker not in output or count != expected or " FAIL " in output:
-                raise SystemExit(name + ": fehlgeschlagen; Protokoll in " + str(args.results / (name + ".log")))
-            print(name + ": " + str(count) + " native UI-Prüfungen bestanden", flush=True)
+        suite = "local.zweicommander.tests." + str(uuid.uuid4())
+        try:
+            for name, flag, root, image, pass_prefix, marker, expected in cases:
+                command = [str(binary), flag, str(root), image]
+                if args.settings:
+                    command += ["--import-settings", str(args.settings.resolve())]
+                if name.startswith("profiles-"):
+                    command += ["--profile-test-suite", suite]
+                    if name == "profiles-reload":
+                        command += ["--reload-profiles"]
+                with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
+                    try:
+                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=45)
+                    except subprocess.TimeoutExpired:
+                        raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
+                output = (args.results / (name + ".log")).read_text(encoding="utf-8")
+                count = sum(line.startswith(pass_prefix) for line in output.splitlines())
+                if result.returncode or marker not in output or count != expected or " FAIL " in output:
+                    raise SystemExit(name + ": fehlgeschlagen; Protokoll in " + str(args.results / (name + ".log")))
+                print(name + ": " + str(count) + " native UI-Prüfungen bestanden", flush=True)
+        finally:
+            subprocess.run(["defaults", "delete", suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

@@ -424,6 +424,21 @@ func XCTAssertThrowsError<T>(_ expression: @autoclosure () throws -> T, file: St
 }
 
 let tests: [(String, (CoreTests) throws -> Void)] = [
+    ("testTransferSizeUnitsAndExactBoundaries", { try $0.testTransferSizeUnitsAndExactBoundaries() }),
+    ("testTransferFilterOldSchemaAndMetadataRoundTrip", { try $0.testTransferFilterOldSchemaAndMetadataRoundTrip() }),
+    ("testCopySizeBoundsIncludeBothEndsAndEmptyFiles", { try $0.testCopySizeBoundsIncludeBothEndsAndEmptyFiles() }),
+    ("testCopyDateBoundsUseInclusiveStartAndExclusiveEnd", { try $0.testCopyDateBoundsUseInclusiveStartAndExclusiveEnd() }),
+    ("testMetadataFiltersCombineWithNamesAndMergeDecisions", { try $0.testMetadataFiltersCombineWithNamesAndMergeDecisions() }),
+    ("testMetadataFiltersExcludeLinksWithoutCopyingTheirTargets", { try $0.testMetadataFiltersExcludeLinksWithoutCopyingTheirTargets() }),
+    ("testInvalidMetadataBoundsBlockBeforeAnyCopy", { try $0.testInvalidMetadataBoundsBlockBeforeAnyCopy() }),
+    ("testStructureCopyIgnoresFileMetadataConditions", { try $0.testStructureCopyIgnoresFileMetadataConditions() }),
+    ("testMetadataPlanRejectsExcludedFileEnteringRange", { try $0.testMetadataPlanRejectsExcludedFileEnteringRange() }),
+    ("testCopyProfilesRoundTripDropsUnknownPathFields", { try $0.testCopyProfilesRoundTripDropsUnknownPathFields() }),
+    ("testCopyProfileNamesNormalizeAndRejectDuplicatesWithoutMutation", { try $0.testCopyProfileNamesNormalizeAndRejectDuplicatesWithoutMutation() }),
+    ("testCopyProfileUpdatingKeepsIdentityAndOtherRecords", { try $0.testCopyProfileUpdatingKeepsIdentityAndOtherRecords() }),
+    ("testCopyProfileCapacityAndInvalidFilterKeepExistingData", { try $0.testCopyProfileCapacityAndInvalidFilterKeepExistingData() }),
+    ("testCopyProfileCorruptUnknownAndDuplicateDocumentsAreRejected", { try $0.testCopyProfileCorruptUnknownAndDuplicateDocumentsAreRejected() }),
+
     ("testMergePreservesExtraDestinationFilesAndDirectoryPermissions", { try $0.testMergePreservesExtraDestinationFilesAndDirectoryPermissions() }),
     ("testUnresolvedMergeConflictPreventsEveryDestinationChange", { try $0.testUnresolvedMergeConflictPreventsEveryDestinationChange() }),
     ("testMergeIndividualSkipKeepBothAndReplaceWithBackup", { try $0.testMergeIndividualSkipKeepBothAndReplaceWithBackup() }),

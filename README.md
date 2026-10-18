@@ -2,13 +2,13 @@
 
 ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Tabs und Tastaturbedienung. Er wird in Swift und AppKit entwickelt und verwendet Systembibliotheken für Dateivorgänge, Vorschau und Archive.
 
-**Version 0.5.0 ist eine frühe, ausführbare Version.** Neu sind das Zusammenführen von Ordnern und Entscheidungen für einzelne Dateikonflikte. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+**Version 0.6.0 ist eine frühe, ausführbare Version.** Neu sind benannte Kopierprofile sowie Filter für Dateigröße und Änderungsdatum. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 ## Funktionen
 
 - Zwei Dateifenster, Ordnerbaum, Tabs, Schnellfilter und Dateisammlungen.
 - Kopieren und Verschieben mit Vorschau, Warteschlange, Pause, Abbruch und Sicherung beim Ersetzen.
-- Kopierfilter, reine Ordnerstruktur und Zusammenführen bestehender Ordner mit Einzelentscheidungen.
+- Gespeicherte Kopierprofile, Namens-/Größen-/Datumsfilter, reine Ordnerstruktur und Zusammenführen mit Einzelentscheidungen.
 - Mehrfachumbenennen, Suche einschließlich Office-XML-Text, Duplikate und Prüfsummen.
 - Ordnervergleich und Synchronisieren in einer Richtung ohne Löschen zusätzlicher Zieldateien.
 - ZIP-, 7z- und TAR-Archive, Quick Look sowie Text-, Hex- und Binärvorschau.
@@ -54,13 +54,27 @@ Auf manchen Tastaturen benötigen F-Tasten zusätzlich `fn`. Tastenkürzel könn
 
 F5 öffnet den Auftragsplan. Ziel, Konfliktregel und Auswahl prüfen; unter **Geplante Objekte** erscheinen die enthaltenen Dateien, Ordner und Links. Änderungen an Ziel oder Filtern erfordern einen aktualisierten Plan.
 
-Kopien unterstützen Einschluss- und Ausschlussmuster (`*`, `?`, mehrere Muster mit `;`), reguläre Ausdrücke, ausgeschlossene Unterordner, Rekursion, leere Ordner und reine Ordnerstruktur. Diese Filter gelten pro Auftrag. Verschieben übernimmt die vollständige Auswahl.
+Kopien unterstützen Einschluss- und Ausschlussmuster (`*`, `?`, mehrere Muster mit `;`), reguläre Ausdrücke, ausgeschlossene Unterordner, Rekursion, leere Ordner und reine Ordnerstruktur. Diese Filter gelten pro Auftrag; benannte Kopierprofile können die Regeln wiederverwenden. Verschieben übernimmt die vollständige Auswahl.
 
 **Ordner zusammenführen** erhält vorhandene echte Zielordner und ergänzt ihren Inhalt. Dateikonflikte werden in der Objektliste einzeln entschieden: überspringen, beide behalten oder mit Sicherung ersetzen. Quell- und Zielgröße sowie Änderungsdatum stehen nebeneinander. Der Alternativname wird vorab angezeigt und reserviert. Starten und Vormerken sind gesperrt, solange Entscheidungen fehlen. Typkonflikte zwischen Ordnern und Dateien, Links oder Spezialdateien können nur übersprungen werden.
 
 Ohne Zusammenführen wird jedes Auswahlobjekt als Ganzes veröffentlicht. Beim Ersetzen eines ganzen Ordners entsteht eine Sicherung des bisherigen Zielordners; diese Betriebsart führt dessen Inhalt nicht zusammen.
 
 **Vormerken** hält eine zuvor leere Warteschlange an. **Starten** gibt sie frei. Wartende Aufträge können umgeordnet, entfernt oder als Nächstes gestartet werden. Die Warteschlange und Rückgängig gelten für die laufende Sitzung.
+
+## Kopierprofile und Größe / Datum
+
+Mit **Speichern als …** werden die aktuellen Kopierregeln unter einem Namen gespeichert. Das Profil umfasst Namens-/Unterordnerfilter, Rekursion, leere Ordner, Strukturkopie, Größen-/Datumsgrenzen, die globale Konfliktvorgabe und Zusammenführen. **Speichern** aktualisiert das ausgewählte Profil. Geänderte Felder werden als ungespeichert markiert. Profile lassen sich nach Bestätigung löschen; andere offene Kopierdialoge aktualisieren ihre Auswahl.
+
+Es werden höchstens 50 Profile lokal in den macOS-Benutzereinstellungen gespeichert. Quelle, Ziel, Auswahl und einzelne Konfliktentscheidungen gehören nicht zum Profil. Neue Aufträge beginnen mit eigenen Einstellungen; ein gespeichertes Profil muss ausdrücklich gewählt werden. Nicht lesbare Profildaten sperren das Speichern, damit vorhandene Daten erhalten bleiben.
+
+**Größe / Datum …** öffnet die zusätzlichen Dateifilter:
+
+- Minimale und maximale Dateigröße zählen die Grenze jeweils mit. Leer bedeutet unbeschränkt; ohne Einheit gilt Byte.
+- `KB`, `MB`, `GB` und `TB` verwenden 1000er-Schritte; `KiB`, `MiB`, `GiB` und `TiB` verwenden 1024er-Schritte. Beispiel: `1,5 MB` ergibt 1.500.000 Bytes. Punkt oder Komma ist als Dezimalzeichen erlaubt; Tausendertrennzeichen sind nicht vorgesehen.
+- **Geändert ab** zählt den Zeitpunkt mit, **Geändert vor** schließt ihn aus. Profile speichern feste Zeitpunkte, keine gleitenden Altersregeln. Die Anzeige folgt der aktuellen Zeitzone.
+- Namen, Größe und Datum müssen gemeinsam passen. Aktive Größen- oder Datumsgrenzen lassen symbolische Links aus; deren Ziele werden nicht verfolgt. Ordner folgen weiterhin den Regeln für Rekursion und leere Ordner.
+- **Nur Ordnerstruktur** setzt Dateigrößen und Datumsgrenzen aus. Beim Ausschalten kehrt die vorherige Auswahl für leere Ordner zurück. Verschieben unterstützt diese Filter und Profile noch nicht.
 
 ## Grenzen von Dateivorgängen
 
@@ -81,7 +95,7 @@ python3 scripts/ui-smoke.py --app ../ZweiCommander.app --results /tmp/ZweiComman
 python3 scripts/check-public.py
 ```
 
-Die Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die vier nativen Oberflächenprüfungen verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil; sie speichern keine Benutzereinstellungen. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
+Die Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die sechs nativen Oberflächendurchläufe verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil; sie verändern keine persönlichen Benutzereinstellungen. Die Profilprüfung verwendet einen eigenen, anschließend entfernten Einstellungsbereich und prüft Speichern und Laden in zwei getrennten App-Prozessen. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
 
 `check-public.py` prüft die im Git-Index enthaltenen Dateien vor einer Veröffentlichung. Erlaubt sind die Projektdateien, Quellcode, Werkzeuge und künstlichen Testdaten. Lokale Protokolle, Buildprodukte und Arbeitsunterlagen gehören nicht ins Repository.
 

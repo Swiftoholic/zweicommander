@@ -25,7 +25,9 @@ struct CopyTree: Equatable {
             if directory && !relative.isEmpty && (!filter.recursive || compiled.excludesFolder(entry.name)) { return .skip }
             if !directory && (filter.structureOnly || !compiled.includesFile(entry.name)) { return entry.isSymbolicLink ? .skip : .leaf }
             guard entry.isDirectory || entry.isSymbolicLink || entry.isRegularFile else { throw CommanderError.message("Spezialdatei wird nicht kopiert: \(url.path)") }
-            nodes.append(CopyNode(relative:relative,stamp:try FileStamp(url),directory:directory,link:entry.isSymbolicLink,bytes:entry.isRegularFile && !entry.isSymbolicLink ? entry.size : 0))
+            let stamp = try FileStamp(url)
+            if !directory && !compiled.includesMetadata(size:Int64(clamping:stamp.size),modified:stamp.date,isLink:entry.isSymbolicLink) { return entry.isSymbolicLink ? .skip : .leaf }
+            nodes.append(CopyNode(relative:relative,stamp:stamp,directory:directory,link:entry.isSymbolicLink,bytes:entry.isRegularFile && !entry.isSymbolicLink ? Int64(clamping:stamp.size) : 0))
             return directory ? .descend : entry.isSymbolicLink ? .skip : .leaf
         }
         let directory = try append(source,relative:"")

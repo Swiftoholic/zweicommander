@@ -3,7 +3,7 @@ import CommanderCore
 
 private let operationDate: DateFormatter = { let value = DateFormatter();value.dateFormat = "dd.MM.yyyy HH:mm";return value }()
 
-private final class OperationContent: NSView {
+final class OperationContent: NSView {
     override init(frame: NSRect) {
         super.init(frame:frame);wantsLayer = true;updateBackground()
     }
@@ -37,6 +37,21 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
     let structureOnly = checkbox("Nur Ordnerstruktur")
     let regex = checkbox("Dateimuster als RegEx")
     let resetButton = ActionButton("Filter zurücksetzen",action:{})
+    let profilePopup = NSPopUpButton()
+    let profileSave = ActionButton("Speichern",action:{})
+    let profileSaveAs = ActionButton("Speichern als …",action:{})
+    let profileRemove = ActionButton("Löschen …",action:{})
+    let profileStatus = label("Eigene Einstellungen",size:11,color:.secondaryLabelColor)
+    let criteriaButton = ActionButton("Größe / Datum …",symbol:"line.3.horizontal.decrease",action:{})
+    let criteriaInfo = label("Keine zusätzlichen Grenzen",size:11,color:.secondaryLabelColor)
+    var criteria = TransferFilter()
+    var criteriaWindow: TransferCriteriaController?
+    var profileNameWindow: CopyProfileNameController?
+    private(set) var selectedProfileID: UUID?
+    private var loadedProfiles = CopyProfileLibrary()
+    private var profileReadError: String?
+    private var profileObserver: NSObjectProtocol?
+    private var keepEmptyBeforeStructure: NSControl.StateValue?
     let tabs = NSTabView()
     let selectionButton = ActionButton("Auswahl",symbol:"checklist",action:{})
     let objectsButton = ActionButton("Geplante Objekte",symbol:"list.bullet",action:{})
@@ -66,7 +81,12 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
             view.frame = NSRect(x:x,y:y,width:width,height:height);view.autoresizingMask = stretch ? [.minYMargin,.width] : [.minYMargin];root.addSubview(view)
         }
         top(label(kind == .copy ? "Kopierauftrag" : "Verschiebeauftrag",size:20,weight:.semibold),22,712,1016,30,true)
-        top(label("Auswahl prüfen und unter „Geplante Objekte“ alle enthaltenen Dateien, Ordner und Links kontrollieren.",size:12,color:.secondaryLabelColor),22,683,1016,22,true)
+        top(label("Kopierprofil",weight:.medium),22,681,100)
+        top(profilePopup,125,680,285,28);profilePopup.target = self;profilePopup.action = #selector(chooseProfile)
+        top(profileSave,420,680,105,28);profileSave.perform = { [weak self] in self?.saveProfile() }
+        top(profileSaveAs,535,680,150,28);profileSaveAs.perform = { [weak self] in self?.saveProfileAs() }
+        top(profileRemove,695,680,100,28);profileRemove.perform = { [weak self] in self?.removeProfile() }
+        top(profileStatus,805,681,233,26,true)
         top(label("Zielordner",weight:.medium),22,642,100)
         top(self.destination,125,642,771,26,true);self.destination.delegate = self;self.destination.target = self;self.destination.action = #selector(rebuild)
         let choose = ActionButton("Wählen …",symbol:"folder",action:{ [weak self] in self?.chooseDestination() });top(choose,906,641,132,28);choose.autoresizingMask = [.minYMargin,.minXMargin]
@@ -89,6 +109,8 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
             let pane = NSView(frame:NSRect(x:0,y:0,width:990,height:270));let scroll = operationScroll(content);scroll.frame = pane.bounds;scroll.autoresizingMask = [.width,.height];pane.addSubview(scroll);item.view = pane;tabs.addTabViewItem(item)
         }
         top(selectionButton,22,382,130,28);top(objectsButton,160,382,190,28)
+        top(criteriaButton,500,382,185,28);criteriaButton.perform = { [weak self] in self?.showCriteria() }
+        top(criteriaInfo,695,384,343,24,true)
         for button in [selectionButton,objectsButton] { button.setButtonType(.pushOnPushOff) }
         selectionButton.perform = { [weak self] in self?.tabs.selectTabViewItem(at:0);self?.updateTabButtons() }
         objectsButton.perform = { [weak self] in self?.tabs.selectTabViewItem(at:1);self?.updateTabButtons() }
@@ -100,10 +122,11 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         resetButton.frame = NSRect(x:148,y:14,width:165,height:30);resetButton.perform = { [weak self] in self?.resetFilters() };root.addSubview(resetButton)
         queueButton.frame = NSRect(x:748,y:14,width:140,height:30);queueButton.autoresizingMask = [.minXMargin];queueButton.perform = { [weak self] in self?.submit(false) };root.addSubview(queueButton)
         startButton.frame = NSRect(x:898,y:14,width:140,height:30);startButton.autoresizingMask = [.minXMargin];startButton.perform = { [weak self] in self?.submit(true) };root.addSubview(startButton)
-        updateFilterControls();w.center();prepare()
+        profileObserver = NotificationCenter.default.addObserver(forName:Preferences.copyProfilesChanged,object:nil,queue:.main) { [weak self] _ in self?.refreshProfiles() }
+        refreshProfiles();updateFilterControls();w.center();prepare()
     }
     required init?(coder:NSCoder) { fatalError() }
-    deinit { preparation.cancel() }
+    deinit { preparation.cancel();if let profileObserver { NotificationCenter.default.removeObserver(profileObserver) } }
     func tabView(_ tabView: NSTabView,didSelect tabViewItem: NSTabViewItem?) { updateTabButtons() }
     private func updateTabButtons() {
         let index = tabs.selectedTabViewItem.map { tabs.indexOfTabViewItem($0) } ?? 0
@@ -111,8 +134,8 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
             button.state = position == index ? .on : .off;button.bezelColor = position == index ? .controlAccentColor : nil
         }
     }
-    func windowWillClose(_ notification: Notification) { preparation.cancel();generation += 1 }
-    func controlTextDidChange(_ obj: Notification) { invalidatePlan();info.stringValue = "Ziel oder Filter geändert · Plan aktualisieren oder Eingabetaste drücken" }
+    func windowWillClose(_ notification: Notification) { criteriaWindow?.close();profileNameWindow?.close();preparation.cancel();generation += 1 }
+    func controlTextDidChange(_ obj: Notification) { invalidatePlan();updateProfileState();info.stringValue = "Ziel oder Filter geändert · Plan aktualisieren oder Eingabetaste drücken" }
     private func invalidatePlan() {
         preparation.cancel();generation += 1;plan = nil;startButton.isEnabled = false;queueButton.isEnabled = false
         previewEntries = [];previewMerge = nil;previewOffsets = [];previewCount = 0;table.reloadData();filesTable.reloadData()
@@ -121,22 +144,106 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
     @objc func filterOptionChanged() { updateFilterControls();prepare() }
     func updateFilterControls() {
         let copy = kind == .copy,structure = structureOnly.state == .on
-        if structure { keepEmpty.state = .on }
+        if structure { if keepEmptyBeforeStructure == nil { keepEmptyBeforeStructure = keepEmpty.state };keepEmpty.state = .on }
+        else if let previous = keepEmptyBeforeStructure { keepEmpty.state = previous;keepEmptyBeforeStructure = nil }
         include.isEnabled = copy && !structure;exclude.isEnabled = include.isEnabled;regex.isEnabled = include.isEnabled
         excludedFolders.isEnabled = copy && recursive.state == .on
         recursive.isEnabled = copy;keepEmpty.isEnabled = copy && !structure;structureOnly.isEnabled = copy;resetButton.isEnabled = copy
         mergeFolders.isEnabled = copy
+        criteriaButton.isEnabled = copy && !structure
+        updateCriteriaInfo();updateProfileState()
         policy.item(at:0)?.title = mergeFolders.state == .on ? "Einzeln entscheiden" : "Abbrechen bei Konflikt"
         safety.stringValue = !copy ? "Verschieben nutzt die Systemoperation. Pause und Abbruch greifen am nächsten sicheren Prüfpunkt." : mergeFolders.state == .on ? "Dateien werden einzeln veröffentlicht. Fertige Schritte bleiben bei Abbruch erhalten; Ersetzen sichert jede vorherige Zieldatei." : "Jedes Auswahlobjekt wird vollständig veröffentlicht. Ersetzen sichert das bisherige Ziel; Zusammenführen ist ausgeschaltet."
     }
     func resetFilters() {
         include.stringValue = "*";exclude.stringValue = "";excludedFolders.stringValue = "";regex.state = .off
-        recursive.state = .on;keepEmpty.state = .on;structureOnly.state = .off;updateFilterControls();prepare()
+        recursive.state = .on;keepEmptyBeforeStructure = nil;keepEmpty.state = .on;structureOnly.state = .off;criteria = .init();updateFilterControls();prepare()
     }
     var filter: TransferFilter {
         guard kind == .copy else { return .init() }
         var value = TransferFilter();value.include = include.stringValue;value.exclude = exclude.stringValue;value.excludedFolders = excludedFolders.stringValue
-        value.regularExpressions = regex.state == .on;value.recursive = recursive.state == .on;value.keepEmptyFolders = keepEmpty.state == .on;value.structureOnly = structureOnly.state == .on;return value
+        value.regularExpressions = regex.state == .on;value.recursive = recursive.state == .on;value.keepEmptyFolders = keepEmpty.state == .on;value.structureOnly = structureOnly.state == .on
+        value.minimumSize = criteria.minimumSize;value.maximumSize = criteria.maximumSize;value.modifiedFrom = criteria.modifiedFrom;value.modifiedBefore = criteria.modifiedBefore;return value
+    }
+    func updateCriteriaInfo() {
+        var parts: [String] = []
+        if let value = criteria.minimumSize { parts.append("ab "+bytes(value)) }
+        if let value = criteria.maximumSize { parts.append("bis "+bytes(value)) }
+        if let value = criteria.modifiedFrom { parts.append("ab "+operationDate.string(from:value)) }
+        if let value = criteria.modifiedBefore { parts.append("vor "+operationDate.string(from:value)) }
+        let text = parts.joined(separator:" · ")
+        let hasDates = criteria.modifiedFrom != nil || criteria.modifiedBefore != nil,hasSizes = criteria.minimumSize != nil || criteria.maximumSize != nil
+        let caption = hasDates ? (hasSizes ? "Größe und Datum aktiv" : "Datumsbereich aktiv") : text
+        criteriaInfo.stringValue = kind != .copy ? "Nur für Kopien" : structureOnly.state == .on && !parts.isEmpty ? "Grenzen bei Strukturkopie ausgesetzt" : parts.isEmpty ? "Keine zusätzlichen Grenzen" : caption
+        criteriaInfo.toolTip = text.isEmpty ? "Dateigröße und Änderungsdatum sind nicht eingeschränkt." : text+"\nGilt für Dateien; symbolische Links werden bei aktiven Grenzen ausgelassen."
+    }
+    func showCriteria() {
+        guard kind == .copy,structureOnly.state == .off,let window,window.attachedSheet == nil else { return }
+        let controller = TransferCriteriaController(filter);criteriaWindow = controller
+        controller.onApply = { [weak self] value in self?.criteria = value;self?.updateFilterControls();self?.prepare() }
+        window.beginSheet(controller.window!)
+    }
+    func refreshProfiles() {
+        profilePopup.removeAllItems();profilePopup.addItem(withTitle:"Eigene Einstellungen")
+        do {
+            loadedProfiles = try Preferences.copyProfiles();profileReadError = nil
+            for profile in loadedProfiles.profiles { profilePopup.addItem(withTitle:profile.name);profilePopup.lastItem?.representedObject = profile.id.uuidString;profilePopup.lastItem?.toolTip = profile.name }
+            if let selectedProfileID,let index = profilePopup.itemArray.firstIndex(where: { $0.representedObject as? String == selectedProfileID.uuidString }) { profilePopup.selectItem(at:index) }
+            else { selectedProfileID = nil }
+        } catch { profileReadError = error.localizedDescription }
+        updateProfileState()
+    }
+    func updateProfileState() {
+        let available = kind == .copy && profileReadError == nil
+        profilePopup.isEnabled = available;profileSaveAs.isEnabled = available
+        let saved = selectedProfileID.flatMap { loadedProfiles.profile($0) }
+        profileSave.isEnabled = available && saved != nil;profileRemove.isEnabled = profileSave.isEnabled
+        if let profileReadError { profileStatus.stringValue = "Profile nicht lesbar";profileStatus.toolTip = profileReadError;profileStatus.textColor = .systemOrange;return }
+        profileStatus.textColor = .secondaryLabelColor
+        let matches = saved.map { $0.filter == filter && $0.policy == ConflictPolicy.allCases[policy.indexOfSelectedItem] && $0.mergeFolders == (mergeFolders.state == .on) } ?? false
+        profileStatus.stringValue = kind != .copy ? "Nur für Kopien" : saved == nil ? "Eigene Einstellungen" : matches ? "Gespeichert" : "Ungespeicherte Änderungen"
+        profileStatus.toolTip = "Profile speichern Regeln und die globale Konfliktvorgabe, keine Pfade, Auswahl oder Einzelentscheidungen."
+    }
+    @objc func chooseProfile() {
+        guard kind == .copy else { return }
+        guard let raw = profilePopup.selectedItem?.representedObject as? String,let id = UUID(uuidString:raw) else { selectedProfileID = nil;updateProfileState();return }
+        do {
+            guard let value = try Preferences.copyProfiles().profile(id) else { refreshProfiles();return }
+            selectedProfileID = id
+            keepEmptyBeforeStructure = nil
+            include.stringValue = value.filter.include;exclude.stringValue = value.filter.exclude;excludedFolders.stringValue = value.filter.excludedFolders
+            regex.state = value.filter.regularExpressions ? .on : .off;recursive.state = value.filter.recursive ? .on : .off
+            keepEmpty.state = value.filter.keepEmptyFolders ? .on : .off;structureOnly.state = value.filter.structureOnly ? .on : .off
+            mergeFolders.state = value.mergeFolders ? .on : .off;policy.selectItem(at:ConflictPolicy.allCases.firstIndex(of:value.policy)!)
+            criteria = value.filter;updateFilterControls();prepare()
+        } catch { profileStatus.stringValue = error.localizedDescription;profileStatus.toolTip = error.localizedDescription }
+    }
+    func saveProfile() {
+        guard kind == .copy,let id = selectedProfileID else { return }
+        do {
+            let value = filter,choice = ConflictPolicy.allCases[policy.indexOfSelectedItem],merge = mergeFolders.state == .on
+            try Preferences.editCopyProfiles { library in
+                guard let old = library.profile(id) else { throw CommanderError.message("Profil wurde inzwischen entfernt.") }
+                try library.save(name:old.name,filter:value,policy:choice,mergeFolders:merge,replacing:id)
+            }
+            refreshProfiles()
+        } catch { profileStatus.stringValue = error.localizedDescription;profileStatus.toolTip = error.localizedDescription }
+    }
+    func saveProfileAs() {
+        guard kind == .copy,profileReadError == nil,let window,window.attachedSheet == nil else { return }
+        let controller = CopyProfileNameController();profileNameWindow = controller
+        controller.onSave = { [weak self] name in
+            guard let self else { return }
+            let value = self.filter,choice = ConflictPolicy.allCases[self.policy.indexOfSelectedItem],merge = self.mergeFolders.state == .on
+            let id = try Preferences.editCopyProfiles { try $0.save(name:name,filter:value,policy:choice,mergeFolders:merge) }
+            self.selectedProfileID = id;self.refreshProfiles()
+        }
+        window.beginSheet(controller.window!)
+    }
+    func removeProfile() {
+        guard kind == .copy,let id = selectedProfileID,let profile = loadedProfiles.profile(id),dialog("Kopierprofil löschen",message:"„\(profile.name)“ aus den gespeicherten Kopierregeln entfernen?",buttons:["Entfernen","Abbrechen"]) == 0 else { return }
+        do { try Preferences.editCopyProfiles { try $0.remove(id) };refreshProfiles() }
+        catch { profileStatus.stringValue = error.localizedDescription;profileStatus.toolTip = error.localizedDescription }
     }
     func chooseDestination() {
         let panel = NSOpenPanel();panel.canChooseFiles = false;panel.canChooseDirectories = true;panel.allowsMultipleSelection = false
@@ -145,6 +252,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
     }
     func prepare() {
         invalidatePlan();preparation = CancellationToken();let token = preparation,current = generation
+        updateProfileState()
         info.stringValue = "Erfasse Dateien und prüfe Ziele …"
         let target = URL(fileURLWithPath:(destination.stringValue as NSString).expandingTildeInPath),policy = ConflictPolicy.allCases[policy.indexOfSelectedItem],sources = self.sources,kind = self.kind,filter = self.filter,mergeFolders = kind == .copy && mergeFolders.state == .on
         do { try validateDestination(target) } catch { info.stringValue = error.localizedDescription;return }

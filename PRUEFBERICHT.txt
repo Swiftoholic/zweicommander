@@ -1,10 +1,11 @@
-ZweiCommander 0.5.0 — Prüfung vom 18. Oktober 2026
+ZweiCommander 0.6.0 — Prüfung vom 18. Oktober 2026
 
 Ergebnis
-- 85/85 Dateikern- und Integrationstests bestanden.
-- 85/85 native UI-Prüfungen am universellen Release-Build bestanden:
+- 99/99 Dateikern- und Integrationstests bestanden.
+- 120/120 native UI-Prüfungen am universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, Warteschlange 14,
-  Kopierfilter 22, Ordner zusammenführen 29.
+  Kopierfilter 22, Ordner zusammenführen 29, Profile speichern 19,
+  Profile nach erneutem App-Start laden und verwenden 16.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
 - App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
 
@@ -12,6 +13,27 @@ Testsystem
 Intel-Mac, macOS 26.7.1, Swift 6.3.3. Apple Silicon und ältere macOS-Versionen
 wurden kompiliert, aber nicht zur Laufzeit geprüft. Keine Developer-ID-Signatur
 oder Notarisierung.
+
+Kopierprofile und Metadatenfilter
+Neue Tests prüfen Größenangaben mit 1000er-/1024er-Einheiten, Dezimalpunkt und
+-komma, Byte-Grenzwerte, ungültige und überlaufende Eingaben, einschließlich
+Größen-Unter-/Obergrenze und Datum ab/vor mit ausschließlichem Endzeitpunkt.
+Hinzu kommen Kombinationen mit Namen, Ordnerfiltern und Zusammenführen,
+Links ohne Ziel-Traversierung, geänderte Dateizeiten seit der Vorschau,
+Strukturkopie und die Ablehnung gefilterter Verschiebeaufträge.
+Profiltests prüfen JSON-Speicherung, alte Filterfelder, unbekannte Pfadfelder,
+Unicode-Namensgleichheit, doppelte Namen/Kennungen, unveränderte Daten bei
+Fehlern, Aktualisieren/Löschen und die Grenze von 50 Profilen.
+
+Zwei getrennte native App-Prozesse prüfen die tatsächliche Speicherung in einem
+eigenen macOS-Einstellungsbereich und das Laden nach Prozessneustart. Die Tests
+bedienen die Größen-/Datumseingaben, Profilmenüs, Speichern-/Löschen-Dialoge,
+Synchronisation offener Fenster sowie die Warteschlange. Die ausgeführte Kopie
+wird mit dem geplanten Dateibaum und der exakten Bytezahl verglichen.
+Persönliche Kopierprofile werden dabei nicht verändert; der eigene Testbereich
+wird nach den Durchläufen entfernt. Unlesbare Profildaten werden nicht ersetzt.
+Beim Verlassen der Strukturkopie wird die vorherige Regel für leere Ordner
+wiederhergestellt.
 
 Zusammenführen und Konflikte
 Die Tests prüfen den Erhalt zusätzlicher Zieldateien und bestehender Ordnerrechte,
@@ -45,7 +67,10 @@ Neue Ordner können bis zum Abschluss vorläufig private Zugriffsrechte behalten
 Wird der Zielordner während der Arbeit ersetzt oder umbenannt, kann eine
 versteckte Staging-Datei im vorherigen Ordnerobjekt zurückbleiben.
 Typkonflikte mit Ordnern können nur übersprungen werden. Zusammenführen und
-Filter sind beim Verschieben gesperrt. Die Warteschlange ist sitzungsbezogen.
+Filter und Profile sind beim Verschieben gesperrt. Die Warteschlange ist sitzungsbezogen.
+Größen-/Datumsgrenzen lassen symbolische Links aus und verwenden feste
+Zeitpunkte statt gleitender Altersregeln. Profile speichern nur Regeln und die
+globale Konfliktvorgabe; keine Pfade, Auswahl oder einzelnen Entscheidungen.
 Namen werden beim Zusammenführen vorsorglich ohne Beachtung der Schreibweise
 auf Kollisionen geprüft. Keine vollständige ACL-/Cloud-/Dateisystem-Matrix.
 
