@@ -21,12 +21,14 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let mergeSmoke = args.firstIndex(of:"--merge-smoke")
         let profilesSmoke = args.firstIndex(of:"--profiles-smoke")
         let journalSmoke = args.firstIndex(of:"--journal-smoke")
-        Preferences.testMode = smoke != nil || operationsSmoke != nil || filtersSmoke != nil || mergeSmoke != nil || profilesSmoke != nil || journalSmoke != nil
+        let ageSmoke = args.firstIndex(of:"--age-smoke")
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke].compactMap { $0 }.first
+        Preferences.testMode = testIndex != nil
         if Preferences.testMode { Preferences.state = SavedState() }
-        if let journalSmoke,args.indices.contains(journalSmoke+1) {
-            Preferences.transferJournalTestDirectory = URL(fileURLWithPath:args[journalSmoke+1]).appendingPathComponent("Auftragsablage")
+        if let index = journalSmoke ?? ageSmoke,args.indices.contains(index+1) {
+            Preferences.transferJournalTestDirectory = URL(fileURLWithPath:args[index+1]).appendingPathComponent("Auftragsablage")
         }
-        if profilesSmoke != nil,let index = args.firstIndex(of:"--profile-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
+        if profilesSmoke != nil || ageSmoke != nil,let index = args.firstIndex(of:"--profile-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
             Preferences.copyProfileTestDefaults = UserDefaults(suiteName:args[index+1])
         }
         if let index = args.firstIndex(of:"--import-settings"),args.indices.contains(index+1) {
@@ -40,7 +42,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
                 print("INI-Einstellungen importiert: \(profile.columns.count) Spalten, \(profile.plugins.filter(\.enabled).count) aktive Plug-in-Einträge. Pfadzuordnungen ausgelassen.")
             } catch { fputs("Einstellungsimport fehlgeschlagen: \(error.localizedDescription)\n",stderr);exit(2) }
         }
-        let root = (smoke ?? operationsSmoke ?? filtersSmoke ?? mergeSmoke ?? profilesSmoke ?? journalSmoke).flatMap { args.indices.contains($0+1) ? URL(fileURLWithPath:args[$0+1]) : nil }
+        let root = testIndex.flatMap { args.indices.contains($0+1) ? URL(fileURLWithPath:args[$0+1]) : nil }
         main = MainWindow(startLeft:root?.appendingPathComponent("Links"),startRight:root?.appendingPathComponent("Rechts"))
         main.onRebuildMenus = { [weak self] in self?.buildMenus(); self?.main.updateFunctionLabels() }
         buildMenus(); main.showWindow(nil); main.left.focus()
@@ -75,6 +77,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runJournalSmoke(root:root,prefix:args[journalSmoke+2],phase:args[journalSmoke+3]) }
         } else if !Preferences.testMode,(main.jobs.journalError != nil || main.jobs.scheduler.snapshots.contains { $0.state == .review }) {
             DispatchQueue.main.async { self.main.showOperations() }
+        }
+        if let ageSmoke,args.indices.contains(ageSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runAgeSmoke(root:root,prefix:args[ageSmoke+2],reload:args.contains("--reload-age")) }
         }
     }
     static func parseShortcut(_ text:String) -> (String,NSEvent.ModifierFlags)? {
@@ -127,7 +132,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if item.keyEquivalentModifierMask.isEmpty, item.keyEquivalent == " ", NSApp.keyWindow?.firstResponder is NSTextView { return false }
         return true
     }
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:"0.7.0",.version:"7",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:"0.8.0",.version:"8",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
     func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply {
         if main?.canTerminate == false { _ = dialog("Dateivorgänge laufen",message:"Laufende Vorgänge und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return .terminateCancel }
         main?.saveState(); return .terminateNow

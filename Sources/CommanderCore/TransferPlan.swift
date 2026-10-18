@@ -36,15 +36,16 @@ public struct TransferPlan {
     public let policy: ConflictPolicy
     public let destination: URL
     public let filter: TransferFilter
+    public let ageReference: Date?
     public let merge: MergePlan?
     let destinationVersion: FileStamp
     public let entries: [PlannedTransfer]
     public var bytes: Int64 { merge?.bytes ?? entries.reduce(0) { $0+$1.bytes } }
     public var initialItems: [TransferItemProgress] { merge?.initialItems ?? entries.map { TransferItemProgress(id:$0.id,source:$0.source,target:$0.target,state:.waiting,bytes:0,totalBytes:$0.bytes,isByteTracked:kind == .copy,message:"") } }
-    public func selecting(_ ids: Set<UUID>) -> TransferPlan { TransferPlan(kind:kind,policy:policy,destination:destination,filter:filter,merge:merge?.selecting(ids),destinationVersion:destinationVersion,entries:entries.filter { ids.contains($0.id) }) }
+    public func selecting(_ ids: Set<UUID>) -> TransferPlan { TransferPlan(kind:kind,policy:policy,destination:destination,filter:filter,ageReference:ageReference,merge:merge?.selecting(ids),destinationVersion:destinationVersion,entries:entries.filter { ids.contains($0.id) }) }
     public func resolving(_ action: UUID,with decision: MergeDecision) throws -> TransferPlan {
         guard let merge else { throw CommanderError.message("Einzelentscheidungen benötigen den Zusammenführen-Modus.") }
-        return TransferPlan(kind:kind,policy:policy,destination:destination,filter:filter,merge:try merge.resolving(action,with:decision),destinationVersion:destinationVersion,entries:entries)
+        return TransferPlan(kind:kind,policy:policy,destination:destination,filter:filter,ageReference:ageReference,merge:try merge.resolving(action,with:decision),destinationVersion:destinationVersion,entries:entries)
     }
 }
 public enum TransferItemState: String, Codable { case waiting, running, completed, skipped, failed, cancelled }
@@ -66,10 +67,11 @@ public struct TransferProgress {
     public let items: [TransferItemProgress]
 }
 public enum TransferPlanner {
-    public static func prepare(_ urls: [URL],to destination: URL,kind: TransferKind,policy: ConflictPolicy,filter: TransferFilter = .init(),mergeFolders: Bool = false,token: CancellationToken = .init()) throws -> TransferPlan {
+    public static func prepare(_ urls: [URL],to destination: URL,kind: TransferKind,policy: ConflictPolicy,filter: TransferFilter = .init(),mergeFolders: Bool = false,token: CancellationToken = .init(),referenceDate: Date = Date()) throws -> TransferPlan {
         guard kind == .copy || !mergeFolders else { throw CommanderError.message("Ordnerzusammenführung ist derzeit nur beim Kopieren verfügbar.") }
         guard kind == .copy || !filter.isActive else { throw CommanderError.message("Dateifilter und Strukturkopien sind derzeit nur beim Kopieren verfügbar. Verschieben benötigt die vollständige Auswahl.") }
-        _ = try CompiledTransferFilter(filter)
+        _ = try CompiledTransferFilter(filter,referenceDate:referenceDate)
+        let ageReference = filter.modifiedAge != nil && !filter.structureOnly ? referenceDate : nil
         guard !urls.isEmpty else { throw CommanderError.message("Keine Objekte ausgewählt.") }
         guard FileSystem.isDirectory(destination) else { throw CommanderError.message("Ziel ist kein Ordner: \(destination.path)") }
         let destinationVersion = try FileStamp(destination)
@@ -79,12 +81,12 @@ public enum TransferPlanner {
             guard FileSystem.canonical(source).path != "/" else { throw CommanderError.message("Das Wurzelverzeichnis kann nicht übertragen werden.") }
             if FileSystem.isDirectory(source) && !FileSystem.isSymlink(source) && FileSystem.isInside(destination,source) { throw CommanderError.message("Ziel liegt innerhalb des Quellordners.") }
             if FileSystem.canonical(source) == FileSystem.canonical(target) && !(kind == .copy && policy == .keepBoth) { throw CommanderError.message("Quelle und Ziel sind identisch.") }
-            let tree = try CopyTree.scan(source,filter:filter,token:token)
+            let tree = try CopyTree.scan(source,filter:filter,token:token,referenceDate:ageReference)
             guard !tree.nodes.isEmpty else { return nil }
             return PlannedTransfer(id:UUID(),source:source,target:target,bytes:tree.bytes,objectCount:tree.nodes.count,fileCount:tree.nodes.filter { !$0.directory && !$0.link }.count,directoryCount:tree.nodes.filter(\.directory).count,linkCount:tree.nodes.filter(\.link).count,conflict:FileSystem.exists(target),tree:tree,targetVersion:try TargetVersion(target))
         }
         let merge = mergeFolders ? try MergePlan.prepare(entries,to:destination,policy:policy,token:token) : nil
-        return TransferPlan(kind:kind,policy:policy,destination:destination,filter:filter,merge:merge,destinationVersion:destinationVersion,entries:entries)
+        return TransferPlan(kind:kind,policy:policy,destination:destination,filter:filter,ageReference:ageReference,merge:merge,destinationVersion:destinationVersion,entries:entries)
     }
     public static func execute(_ plan: TransferPlan,token: CancellationToken = .init(),validateExecution: (() throws -> Void)? = nil,progress: @escaping (TransferProgress) -> Void = { _ in }) -> OperationReport {
         if let merge = plan.merge { return merge.execute(entries:plan.entries,token:token,validateExecution:validateExecution,progress:progress) }

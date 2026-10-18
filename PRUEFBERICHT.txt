@@ -1,14 +1,15 @@
-ZweiCommander 0.7.0 — Prüfung vom 18. Oktober 2026
+ZweiCommander 0.8.0 — Prüfung vom 18. Oktober 2026
 
 Ergebnis
-- 117/117 Dateikern- und Integrationstests bestanden.
-- 186/186 native UI-Prüfungen am universellen Release-Build bestanden:
+- 129/129 Dateikern- und Integrationstests bestanden.
+- 217/217 native UI-Prüfungen am universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, Warteschlange 14,
   Kopierfilter 22, Ordner zusammenführen 29, Profile speichern 19,
   Profile nach erneutem App-Start laden und verwenden 16,
   Aufträge speichern 8, nach Neustart neu prüfen und ausführen 23,
   abruptes Prozessende während Kopie 7, Wiederanlauf mit neuem Plan 13,
-  Speicherfehler während Kopie 10, beschädigte Auftragsablage 5.
+  Speicherfehler während Kopie 10, beschädigte Auftragsablage 5,
+  relative Altersregeln und Speichern 12, Altersregeln nach Neustart 19.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
 - App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
 - Debug-Pfadverweise vor Signierung entfernt; Release-Binärdatei auf lokale
@@ -18,6 +19,32 @@ Testsystem
 Intel-Mac, macOS 26.7.1, Swift 6.3.3. Apple Silicon und ältere macOS-Versionen
 wurden kompiliert, aber nicht zur Laufzeit geprüft. Keine Developer-ID-Signatur
 oder Notarisierung.
+
+Relative Altersfilter
+Neue Tests prüfen Minuten/Stunden/Tage/Wochen, exakte Umrechnung, leere und
+ungültige Angaben, Überläufe, einschließlich beider Altersgrenzen, Nullgrenzen,
+einseitige Bereiche und das Auslassen künftiger Änderungsdaten. Ein Tag hat
+24 Stunden, eine Woche 7 Tage; die Regeln sind unabhängig von Sommerzeit und
+Kalendermonaten. Feste Zeitpunkte und relatives Alter sind getrennte Modi.
+Kombinationen mit Namen, Größe und Unterordnern sowie Links ohne Traversierung,
+Strukturkopie und die Ablehnung gefilterter Verschiebeaufträge werden geprüft.
+Eine gemeinsame Bezugszeit gilt für alle Auswahlobjekte und bleibt bei
+Auswahländerung, Konfliktentscheidung und Ausführung erhalten. Tests verwenden
+bewusst eine Bezugszeit Jahre vor der tatsächlichen Uhr, um eine versehentliche
+Neuberechnung während der Validierung zu erkennen. Neue Pläne berechnen neu;
+eine Quelle, die nach der Vorschau durch Änderung in den Bereich gelangt,
+verhindert jede Veröffentlichung mit dem alten Plan.
+
+Zwei getrennte native Prozesse bedienen die Modus-/Einheitenauswahl, prüfen
+Fehlermeldungen, Abbrechen, Profil-Speicherung, Vormerken und Wiederanlauf.
+Der neue Plan übernimmt die relative Regel und erfasst einen zwischenzeitlich
+geänderten Quellbestand. Er kopiert nur die erwarteten Dateien mit exakt
+14 Bytes, erhält gespeicherte Profile und führt keinen Auftrag automatisch aus.
+Die Tests verwenden einen eigenen Einstellungsbereich und eine temporäre
+Auftragsablage. Profile und Aufträge mit Altersregeln werden als Version 2
+gespeichert; alte Daten ohne diese Regeln bleiben kompatibel. Altersfelder in
+einer als Version 1 gekennzeichneten Datei werden abgewiesen, damit frühere
+App-Versionen neue Regeln nicht stillschweigend ignorieren können.
 
 Lokales Auftragsjournal und Wiederanlauf
 Neue Tests prüfen atomische Speicherung von Auftragsabsichten, Regeln,
@@ -109,8 +136,9 @@ Fehlende Quellen gelten nicht als erfolgreich verschoben. Andere Hintergrund-
 vorgänge und Rückgängig bleiben sitzungsbezogen. Nach abruptem Prozessende
 können versteckte unveröffentlichte Kopien zurückbleiben; keine automatische
 Bereinigung beim Wiederanlauf. Dateirechte sind keine Verschlüsselung.
-Größen-/Datumsgrenzen lassen symbolische Links aus und verwenden feste
-Zeitpunkte statt gleitender Altersregeln. Profile speichern nur Regeln und die
+Größen-/Datums-/Altersgrenzen lassen symbolische Links aus. Relative Altersregeln
+verwenden Zeitspannen in ganzen Minuten/Stunden/Tagen/Wochen bis 36.500 Tage,
+keine Kalendermonate/-jahre oder auf Mitternacht gerundeten Tagesbereiche. Profile speichern nur Regeln und die
 globale Konfliktvorgabe; keine Pfade, Auswahl oder einzelnen Entscheidungen.
 Namen werden beim Zusammenführen vorsorglich ohne Beachtung der Schreibweise
 auf Kollisionen geprüft. Keine vollständige ACL-/Cloud-/Dateisystem-Matrix.

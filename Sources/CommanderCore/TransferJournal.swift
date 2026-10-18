@@ -42,7 +42,8 @@ private struct JournalDocument: Codable {
     var version = 1
     var entries: [TransferJournalEntry] = []
     func validate() throws {
-        guard version == 1 else { throw journalError("Diese Auftragsdatei hat eine unbekannte Version.") }
+        guard [1,2].contains(version) else { throw journalError("Diese Auftragsdatei hat eine unbekannte Version.") }
+        guard version == 2 || !entries.contains(where: { $0.intent.filter.modifiedAge != nil }) else { throw journalError("Relative Altersfilter benötigen die neue Auftragsversion.") }
         guard entries.count <= TransferJournal.maximumEntries,Set(entries.map(\.id)).count == entries.count else { throw journalError("Zu viele oder doppelte Aufträge.") }
         for entry in entries {
             try entry.intent.validate()
@@ -207,6 +208,8 @@ public final class TransferJournal: @unchecked Sendable {
         guard try currentDiskVersion() == diskVersion else { throw journalError("Die Auftragsdatei wurde beim Lesen verändert.") };return data
     }
     private func save(_ next: JournalDocument) throws {
+        var next = next
+        next.version = next.entries.contains { $0.intent.filter.modifiedAge != nil } ? 2 : 1
         try next.validate();let encoder = JSONEncoder();encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(next)
         guard data.count <= Self.maximumBytes else { throw journalError("Die Auftragsablage ist voll. Bitte erledigte Aufträge ausblenden.") }

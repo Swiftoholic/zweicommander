@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import uuid
 
 
@@ -15,7 +16,7 @@ def write(root, name, contents):
 
 
 def fixtures(base):
-    main, operations, filters, merge, profiles, journal, damaged = [base / name for name in ("main", "operations", "filters", "merge", "profiles", "journal", "damaged")]
+    main, operations, filters, merge, profiles, journal, damaged, age = [base / name for name in ("main", "operations", "filters", "merge", "profiles", "journal", "damaged", "age")]
     for name in ("Archiv", "Dokumente", "Fotos", "Projekte"):
         (main / "Links" / name).mkdir(parents=True)
     for name, text in (("Besprechung.txt", "Besprechung\n"), ("Grüße aus Wien.txt", "Hallo Wien\n"),
@@ -77,7 +78,16 @@ def fixtures(base):
     write(damaged, "Links/Umzug.txt", "keep source")
     (damaged / "Rechts").mkdir(parents=True)
     write(damaged, "Auftragsablage/journal.json", "{broken")
-    return main, operations, filters, merge, profiles, journal, damaged
+    for name in ("Rechts", "Sicherung", "Links/Projekt/Leer"):
+        (age / name).mkdir(parents=True)
+    now = time.time()
+    for name, text, days in (("passend.txt", "match", 3), ("alt.txt", "older", 12),
+                             ("jung.txt", "young", 0.5), ("zukunft.txt", "future", -2),
+                             ("klein.txt", "x", 3), ("auslassen.bin", "data", 3),
+                             ("Unterordner/kind.txt", "kind", 5), ("Cache/bleibt.txt", "cache", 3)):
+        write(age, "Links/Projekt/" + name, text)
+        os.utime(age / "Links/Projekt" / name, (now - days * 86400, now - days * 86400))
+    return main, operations, filters, merge, profiles, journal, damaged, age
 
 
 def main():
@@ -110,8 +120,11 @@ def main():
             ("journal-recover", "--journal-smoke", roots[5], str(prefix), "JOURNAL UI PASS ", "JOURNAL SMOKE PASS 13 checks", 13),
             ("journal-write-failure", "--journal-smoke", roots[5], str(prefix), "JOURNAL UI PASS ", "JOURNAL SMOKE PASS 10 checks", 10),
             ("journal-damaged", "--journal-smoke", roots[6], str(prefix), "JOURNAL UI PASS ", "JOURNAL SMOKE PASS 5 checks", 5),
+            ("age-save", "--age-smoke", roots[7], str(prefix), "AGE UI PASS ", "AGE SMOKE PASS 12 checks", 12),
+            ("age-reload", "--age-smoke", roots[7], str(prefix), "AGE UI PASS ", "AGE SMOKE PASS 19 checks", 19),
         ]
         suite = "local.zweicommander.tests." + str(uuid.uuid4())
+        age_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         try:
             for name, flag, root, image, pass_prefix, marker, expected in cases:
                 command = [str(binary), flag, str(root), image]
@@ -123,6 +136,10 @@ def main():
                     command += ["--profile-test-suite", suite]
                     if name == "profiles-reload":
                         command += ["--reload-profiles"]
+                if name.startswith("age-"):
+                    command += ["--profile-test-suite", age_suite]
+                    if name == "age-reload":
+                        command += ["--reload-age"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
                         result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=45)
@@ -135,6 +152,7 @@ def main():
                 print(name + ": " + str(count) + " native UI-Prüfungen bestanden", flush=True)
         finally:
             subprocess.run(["defaults", "delete", suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["defaults", "delete", age_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

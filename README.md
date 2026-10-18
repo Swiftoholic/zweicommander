@@ -2,7 +2,7 @@
 
 ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Tabs und Tastaturbedienung. Er wird in Swift und AppKit entwickelt und verwendet Systembibliotheken für Dateivorgänge, Vorschau und Archive.
 
-**Version 0.7.0 ist eine frühe, ausführbare Version.** Neu ist die lokale Speicherung von Kopier- und Verschiebeaufträgen mit Prüfung nach einem App-Neustart. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+**Version 0.8.0 ist eine frühe, ausführbare Version.** Neu sind relative Altersfilter für Kopien, Profile und die erneute Prüfung gespeicherter Aufträge. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 ## Funktionen
 
@@ -83,9 +83,14 @@ Es werden höchstens 50 Profile lokal in den macOS-Benutzereinstellungen gespeic
 
 - Minimale und maximale Dateigröße zählen die Grenze jeweils mit. Leer bedeutet unbeschränkt; ohne Einheit gilt Byte.
 - `KB`, `MB`, `GB` und `TB` verwenden 1000er-Schritte; `KiB`, `MiB`, `GiB` und `TiB` verwenden 1024er-Schritte. Beispiel: `1,5 MB` ergibt 1.500.000 Bytes. Punkt oder Komma ist als Dezimalzeichen erlaubt; Tausendertrennzeichen sind nicht vorgesehen.
-- **Geändert ab** zählt den Zeitpunkt mit, **Geändert vor** schließt ihn aus. Profile speichern feste Zeitpunkte, keine gleitenden Altersregeln. Die Anzeige folgt der aktuellen Zeitzone.
+- Im Modus **Feste Zeitpunkte** zählt **Geändert ab** den Zeitpunkt mit, **Geändert vor** schließt ihn aus. Die Anzeige folgt der aktuellen Zeitzone.
+- **Relatives Alter** wählt Dateien anhand ihres Änderungsdatums: **Mindestens so alt** und **Höchstens so alt**. Beide Grenzen zählen mit; ein leeres Feld bleibt unbeschränkt. Beispiel: höchstens 7 Tage für die letzte Woche; mindestens 1 Tag und höchstens 1 Woche für Dateien dazwischen. Künftige Änderungsdaten werden bei aktiven Altersregeln ausgelassen.
+- Altersangaben sind ganze Zahlen in Minuten, Stunden, Tagen oder Wochen. Ein Tag entspricht genau 24 Stunden, eine Woche 7 Tagen; Sommerzeit und Kalendermonate ändern die Dauer nicht. Eine Grenze kann bis zu 36.500 Tage betragen.
+- Für einen Dateiplan wird eine gemeinsame Bezugszeit festgehalten. Sie steht im Hinweistext der Filterzusammenfassung. Die Auswahl bleibt auch in der Warteschlange auf diesen Zeitpunkt bezogen. **Plan aktualisieren**, das Laden eines Profils und **Erneut prüfen …** nach einem Neustart berechnen sie neu. Profile und Aufträge speichern die Altersregel, keinen festgeschriebenen Zeitpunkt. Feste Zeitpunkte und relatives Alter werden getrennt verwendet.
 - Namen, Größe und Datum müssen gemeinsam passen. Aktive Größen- oder Datumsgrenzen lassen symbolische Links aus; deren Ziele werden nicht verfolgt. Ordner folgen weiterhin den Regeln für Rekursion und leere Ordner.
 - **Nur Ordnerstruktur** setzt Dateigrößen und Datumsgrenzen aus. Beim Ausschalten kehrt die vorherige Auswahl für leere Ordner zurück. Verschieben unterstützt diese Filter und Profile noch nicht.
+
+Profile und Aufträge mit Altersregeln verwenden die neue Formatversion 2 und benötigen ZweiCommander 0.8 oder neuer. Ältere App-Versionen lehnen diese Daten ab, damit sie Altersregeln nicht unbemerkt weglassen. Bestehende Daten ohne Altersregeln bleiben lesbar.
 
 ## Grenzen von Dateivorgängen
 
@@ -106,7 +111,7 @@ python3 scripts/ui-smoke.py --app ../ZweiCommander.app --results /tmp/ZweiComman
 python3 scripts/check-public.py
 ```
 
-Die Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die zwölf nativen Oberflächendurchläufe verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil; sie verändern keine persönlichen Benutzereinstellungen. Die Profilprüfung verwendet einen eigenen, anschließend entfernten Einstellungsbereich. Weitere Prozesse prüfen Aufträge nach regulärem Beenden, ein abruptes Prozessende während einer Kopie, den erneuten Start mit neuem Plan und beschädigte oder während der Arbeit geänderte Auftragsdaten. Die Journaltests verwenden ausschließlich eine eigene temporäre Ablage. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
+Die Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die vierzehn nativen Oberflächendurchläufe verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil; sie verändern keine persönlichen Benutzereinstellungen. Die Profilprüfung verwendet einen eigenen, anschließend entfernten Einstellungsbereich. Weitere Prozesse prüfen Aufträge nach regulärem Beenden, ein abruptes Prozessende während einer Kopie, den erneuten Start mit neuem Plan und beschädigte oder während der Arbeit geänderte Auftragsdaten. Die Journaltests verwenden ausschließlich eine eigene temporäre Ablage. Zwei zusätzliche Prozesse prüfen relative Altersregeln, Profil-/Auftragsspeicherung, erneute Vorschau und Ausführung nach einem Neustart. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
 
 `check-public.py` prüft die im Git-Index enthaltenen Dateien vor einer Veröffentlichung. Erlaubt sind die Projektdateien, Quellcode, Werkzeuge und künstlichen Testdaten. Lokale Protokolle, Buildprodukte und Arbeitsunterlagen gehören nicht ins Repository.
 

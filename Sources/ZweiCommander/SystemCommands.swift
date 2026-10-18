@@ -61,7 +61,7 @@ extension MainWindow {
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.7.0
+        ZWEICOMMANDER · Version 0.8.0
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -89,6 +89,10 @@ extension MainWindow {
         KOPIERPROFILE UND ZUSÄTZLICHE FILTER
         „Speichern als …“ legt ein benanntes Kopierprofil an. Es umfasst Namens-/Unterordnerfilter, Rekursion, leere Ordner, Strukturkopie, Größe, Änderungsdatum, die globale Konfliktregel und Zusammenführen. Pfade, die Dateiauswahl und Entscheidungen für einzelne Konflikte werden nicht gespeichert. Neue Kopierdialoge starten mit eigenen Einstellungen; ein Profil muss ausdrücklich ausgewählt werden. „Speichern“ aktualisiert das ausgewählte Profil. Änderungen an den Feldern verändern das Profil erst nach dem Speichern. Bis zu 50 Profile können lokal gespeichert werden. Nicht lesbare Profildaten werden nicht automatisch ersetzt.
         „Größe / Datum …“ ergänzt eine minimale und maximale Dateigröße sowie feste Zeitpunkte für „Geändert ab“ und „Geändert vor“. Beide Größengrenzen sind einschließlich, der Beginn des Zeitbereichs einschließlich und das Ende ausschließlich. Leer bedeutet keine Grenze. Ohne Einheit gilt Byte; KB/MB/GB verwenden 1000, KiB/MiB/GiB verwenden 1024. Punkt oder Komma dient als Dezimalzeichen, ohne Tausendertrennzeichen. Aktive Größen- oder Datumsgrenzen lassen symbolische Links aus. Bei Strukturkopie sind die Grenzen ausgesetzt. Beim Ausschalten der Strukturkopie kehrt die zuvor gewählte Regel für leere Ordner zurück.
+
+        RELATIVES DATEIALTER
+        Unter „Größe / Datum …“ kann „Relatives Alter“ gewählt werden. „Mindestens so alt“ und „Höchstens so alt“ beziehen sich auf das Änderungsdatum, jeweils einschließlich der Grenze. Ein leeres Feld bleibt unbeschränkt. Zum Beispiel: höchstens 7 Tage für die letzte Woche oder mindestens 1 Tag und höchstens 1 Woche. Künftige Änderungsdaten werden ausgelassen. Ganze Zahlen in Minuten, Stunden, Tagen und Wochen sind möglich; ein Tag hat genau 24 Stunden, eine Woche 7 Tage. Jede Grenze darf höchstens 36.500 Tage betragen. Kalendermonate/-jahre und auf Mitternacht gerundete Bereiche sind nicht vorgesehen.
+        Der Dateiplan hält eine gemeinsame Bezugszeit fest; der Hinweistext der Filterzusammenfassung zeigt sie an. Auch vorgemerkte Aufträge verwenden diesen Zeitpunkt. „Plan aktualisieren“, Profil laden oder „Erneut prüfen …“ nach einem Neustart berechnen neu. Profile und Aufträge speichern die Regel, nicht die alte Bezugszeit. Feste Zeitpunkte und relatives Alter sind getrennte Modi. Strukturkopie setzt Altersregeln aus; Verschieben unterstützt diese Filter nicht. Profile und Auftragsdateien mit Altersregeln benötigen Version 0.8 oder neuer; ältere Daten ohne solche Regeln bleiben lesbar.
 
         ORDNER ZUSAMMENFÜHREN
         Beim Kopieren kann „Ordner zusammenführen“ eingeschaltet werden. Bestehende echte Zielordner bleiben erhalten. In „Geplante Objekte“ stehen Quell- und Zielgröße sowie Änderungsdatum nebeneinander. Dateikonflikte können einzeln übersprungen, unter dem angezeigten Alternativnamen kopiert oder mit Sicherung ersetzt werden. Bis alle Konflikte entschieden sind, bleiben Starten und Vormerken gesperrt. Konflikte zwischen Ordnern und Dateien oder Links können nur übersprungen werden. Zusätzliche Zieldateien bleiben erhalten. Bereits fertige Schritte und neu angelegte Ordner bleiben bei einem Abbruch bestehen; der gesamte Auftrag wird nicht zurückgerollt.

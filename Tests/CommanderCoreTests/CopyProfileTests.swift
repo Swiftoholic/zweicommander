@@ -137,7 +137,7 @@ extension CoreTests {
     func testCopyProfileCorruptUnknownAndDuplicateDocumentsAreRejected() throws {
         XCTAssertThrowsError(try CopyProfileLibrary(data:Data("broken".utf8)))
         XCTAssertThrowsError(try CopyProfileLibrary(data:Data(repeating:32,count:1_048_577)))
-        XCTAssertThrowsError(try CopyProfileLibrary(data:Data("{\"version\":2,\"profiles\":[]}".utf8)))
+        XCTAssertThrowsError(try CopyProfileLibrary(data:Data("{\"version\":99,\"profiles\":[]}".utf8)))
         var library = CopyProfileLibrary();try library.save(name:"One",filter:.init(),policy:.stop,mergeFolders:false)
         var json = try JSONSerialization.jsonObject(with:library.encoded()) as! [String:Any]
         let row = (json["profiles"] as! [[String:Any]])[0];var second = row;second["name"] = "Two";json["profiles"] = [row,second]

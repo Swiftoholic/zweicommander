@@ -12,9 +12,10 @@ public struct TransferFilter: Codable, Equatable {
     public var maximumSize: Int64?
     public var modifiedFrom: Date?
     public var modifiedBefore: Date?
+    public var modifiedAge: TransferAgeRange?
     public init() {}
     public var isActive: Bool { self != Self() }
-    public var hasMetadataConditions: Bool { !structureOnly && (minimumSize != nil || maximumSize != nil || modifiedFrom != nil || modifiedBefore != nil) }
+    public var hasMetadataConditions: Bool { !structureOnly && (minimumSize != nil || maximumSize != nil || modifiedFrom != nil || modifiedBefore != nil || modifiedAge != nil) }
     public func validate() throws { _ = try CompiledTransferFilter(self) }
 }
 
@@ -48,14 +49,24 @@ private struct TransferPatterns {
 struct CompiledTransferFilter {
     private let include: TransferPatterns, exclude: TransferPatterns, folders: TransferPatterns
     private let filter: TransferFilter
-    init(_ filter: TransferFilter) throws {
+    private let youngestDate: Date?,oldestDate: Date?
+    init(_ filter: TransferFilter,referenceDate: Date = Date()) throws {
         self.filter = filter
+        var youngest: Date?,oldest: Date?
         if !filter.structureOnly {
             guard filter.minimumSize.map({ $0 >= 0 }) ?? true,filter.maximumSize.map({ $0 >= 0 }) ?? true else { throw CommanderError.message("Dateigrößen dürfen nicht negativ sein.") }
             if let lower = filter.minimumSize,let upper = filter.maximumSize,lower > upper { throw CommanderError.message("Die kleinste Dateigröße darf nicht über der größten liegen.") }
             guard filter.modifiedFrom.map({ $0.timeIntervalSinceReferenceDate.isFinite }) ?? true,filter.modifiedBefore.map({ $0.timeIntervalSinceReferenceDate.isFinite }) ?? true else { throw CommanderError.message("Ungültiges Änderungsdatum.") }
             if let lower = filter.modifiedFrom,let upper = filter.modifiedBefore,lower >= upper { throw CommanderError.message("Das Ende des Datumsbereichs muss nach dem Anfang liegen.") }
+            if let age = filter.modifiedAge {
+                try age.validate()
+                guard filter.modifiedFrom == nil,filter.modifiedBefore == nil else { throw CommanderError.message("Feste Zeitpunkte und relatives Alter getrennt verwenden.") }
+                guard referenceDate.timeIntervalSinceReferenceDate.isFinite else { throw CommanderError.message("Ungültige Bezugszeit für das Dateialter.") }
+                youngest = referenceDate.addingTimeInterval(-Double(try age.minimum?.seconds() ?? 0))
+                oldest = try age.maximum.map { referenceDate.addingTimeInterval(-Double(try $0.seconds())) }
+            }
         }
+        youngestDate = youngest;oldestDate = oldest
         include = try TransferPatterns(filter.structureOnly ? "*" : filter.include,regex:filter.structureOnly ? false : filter.regularExpressions,emptyMatchesAll:true)
         exclude = try TransferPatterns(filter.structureOnly ? "" : filter.exclude,regex:filter.structureOnly ? false : filter.regularExpressions,emptyMatchesAll:false)
         folders = try TransferPatterns(filter.recursive ? filter.excludedFolders : "",regex:false,emptyMatchesAll:false)
@@ -68,6 +79,8 @@ struct CompiledTransferFilter {
         if let maximum = filter.maximumSize,size > maximum { return false }
         if let lower = filter.modifiedFrom,modified < lower { return false }
         if let upper = filter.modifiedBefore,modified >= upper { return false }
+        if let youngestDate,modified > youngestDate { return false }
+        if let oldestDate,modified < oldestDate { return false }
         return true
     }
     func excludesFolder(_ name: String) -> Bool { folders.matches(name) }

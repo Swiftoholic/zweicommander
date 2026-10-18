@@ -165,7 +165,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         guard kind == .copy else { return .init() }
         var value = TransferFilter();value.include = include.stringValue;value.exclude = exclude.stringValue;value.excludedFolders = excludedFolders.stringValue
         value.regularExpressions = regex.state == .on;value.recursive = recursive.state == .on;value.keepEmptyFolders = keepEmpty.state == .on;value.structureOnly = structureOnly.state == .on
-        value.minimumSize = criteria.minimumSize;value.maximumSize = criteria.maximumSize;value.modifiedFrom = criteria.modifiedFrom;value.modifiedBefore = criteria.modifiedBefore;return value
+        value.minimumSize = criteria.minimumSize;value.maximumSize = criteria.maximumSize;value.modifiedFrom = criteria.modifiedFrom;value.modifiedBefore = criteria.modifiedBefore;value.modifiedAge = criteria.modifiedAge;return value
     }
     func updateCriteriaInfo() {
         var parts: [String] = []
@@ -173,11 +173,14 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         if let value = criteria.maximumSize { parts.append("bis "+bytes(value)) }
         if let value = criteria.modifiedFrom { parts.append("ab "+operationDate.string(from:value)) }
         if let value = criteria.modifiedBefore { parts.append("vor "+operationDate.string(from:value)) }
+        if let value = criteria.modifiedAge?.minimum { parts.append("mindestens "+value.german+" alt") }
+        if let value = criteria.modifiedAge?.maximum { parts.append("höchstens "+value.german+" alt") }
         let text = parts.joined(separator:" · ")
         let hasDates = criteria.modifiedFrom != nil || criteria.modifiedBefore != nil,hasSizes = criteria.minimumSize != nil || criteria.maximumSize != nil
-        let caption = hasDates ? (hasSizes ? "Größe und Datum aktiv" : "Datumsbereich aktiv") : text
+        let caption = criteria.modifiedAge != nil ? "Relatives Alter aktiv" : hasDates ? (hasSizes ? "Größe und Datum aktiv" : "Datumsbereich aktiv") : text
         criteriaInfo.stringValue = kind != .copy ? "Nur für Kopien" : structureOnly.state == .on && !parts.isEmpty ? "Grenzen bei Strukturkopie ausgesetzt" : parts.isEmpty ? "Keine zusätzlichen Grenzen" : caption
         criteriaInfo.toolTip = text.isEmpty ? "Dateigröße und Änderungsdatum sind nicht eingeschränkt." : text+"\nGilt für Dateien; symbolische Links werden bei aktiven Grenzen ausgelassen."
+        if let reference = plan?.ageReference { criteriaInfo.toolTip = (criteriaInfo.toolTip ?? "")+"\nBezugszeit dieses Plans: "+displayDate.string(from:reference) }
     }
     func showCriteria() {
         guard kind == .copy,structureOnly.state == .off,let window,window.attachedSheet == nil else { return }
@@ -279,6 +282,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         }
     }
     func updateSummary() {
+        updateCriteriaInfo()
         let selected = plan?.entries.filter { !excluded.contains($0.source) } ?? []
         let selectedPlan = plan?.selecting(Set(selected.map(\.id)));previewMerge = selectedPlan?.merge
         previewEntries = selected;previewOffsets = [];previewCount = 0

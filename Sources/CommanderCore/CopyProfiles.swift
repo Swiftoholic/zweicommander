@@ -15,13 +15,15 @@ public struct CopyProfileLibrary: Equatable {
     public init(data: Data) throws {
         guard data.count <= 1_048_576 else { throw CommanderError.message("Profildatei ist größer als 1 MB.") }
         let document = try JSONDecoder().decode(Document.self,from:data)
-        guard document.version == 1 else { throw CommanderError.message("Diese Version der Kopierprofile wird nicht unterstützt.") }
+        guard [1,2].contains(document.version) else { throw CommanderError.message("Diese Version der Kopierprofile wird nicht unterstützt.") }
+        guard document.version == 2 || !document.profiles.contains(where: { $0.filter.modifiedAge != nil }) else { throw CommanderError.message("Relative Altersfilter benötigen die neue Profilversion.") }
         try Self.validate(document.profiles);profiles = document.profiles
     }
     public func encoded() throws -> Data {
         try Self.validate(profiles)
         let encoder = JSONEncoder();encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(Document(version:1,profiles:profiles))
+        let version = profiles.contains { $0.filter.modifiedAge != nil } ? 2 : 1
+        let data = try encoder.encode(Document(version:version,profiles:profiles))
         guard data.count <= 1_048_576 else { throw CommanderError.message("Kopierprofile benötigen mehr als 1 MB.") }
         return data
     }

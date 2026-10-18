@@ -10,9 +10,12 @@ struct CopyNode: Equatable {
 struct CopyTree: Equatable {
     let nodes: [CopyNode]
     let filter: TransferFilter
+    let referenceDate: Date?
+    init(nodes: [CopyNode],filter: TransferFilter,referenceDate: Date? = nil) { self.nodes = nodes;self.filter = filter;self.referenceDate = referenceDate }
     var bytes: Int64 { nodes.reduce(0) { $0+$1.bytes } }
-    static func scan(_ source: URL, filter: TransferFilter = .init(), token: CancellationToken) throws -> CopyTree {
-        let compiled = try CompiledTransferFilter(filter)
+    static func scan(_ source: URL, filter: TransferFilter = .init(), token: CancellationToken,referenceDate: Date? = nil) throws -> CopyTree {
+        let reference = filter.modifiedAge != nil && !filter.structureOnly ? referenceDate ?? Date() : nil
+        let compiled = try CompiledTransferFilter(filter,referenceDate:reference ?? Date())
         var nodes: [CopyNode] = []
         var visited = 0
         enum ScanDisposition { case descend, skip, leaf }
@@ -51,10 +54,10 @@ struct CopyTree: Equatable {
             nodes.removeAll { $0.directory && !needed.contains($0.relative) }
         }
         try token.check()
-        return CopyTree(nodes:nodes.sorted { $0.relative < $1.relative },filter:filter)
+        return CopyTree(nodes:nodes.sorted { $0.relative < $1.relative },filter:filter,referenceDate:reference)
     }
     func validate(_ source: URL, token: CancellationToken) throws {
-        guard try Self.scan(source,filter:filter,token:token) == self else { throw CommanderError.message("Quelle wurde seit der Dateivorschau verändert: \(source.lastPathComponent)") }
+        guard try Self.scan(source,filter:filter,token:token,referenceDate:referenceDate) == self else { throw CommanderError.message("Quelle wurde seit der Dateivorschau verändert: \(source.lastPathComponent)") }
     }
     func copy(_ source: URL, to destination: URL, token: CancellationToken, progress: @escaping (String,Int64,Int64) -> Void) throws {
         let fm = FileManager.default

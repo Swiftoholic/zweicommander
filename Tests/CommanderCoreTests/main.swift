@@ -424,6 +424,18 @@ func XCTAssertThrowsError<T>(_ expression: @autoclosure () throws -> T, file: St
 }
 
 let tests: [(String, (CoreTests) throws -> Void)] = [
+    ("testAgeUnitsParsingAndOverflowAreExact", { try $0.testAgeUnitsParsingAndOverflowAreExact() }),
+    ("testAgeValidationRejectsMixedModesAndReversedUnits", { try $0.testAgeValidationRejectsMixedModesAndReversedUnits() }),
+    ("testAgeRangeIncludesBothBoundariesAndExcludesFuture", { try $0.testAgeRangeIncludesBothBoundariesAndExcludesFuture() }),
+    ("testAgeOneSidedRangesAndZeroUseNoFutureDates", { try $0.testAgeOneSidedRangesAndZeroUseNoFutureDates() }),
+    ("testAgeReferenceIsFrozenForEveryRootAndExecution", { try $0.testAgeReferenceIsFrozenForEveryRootAndExecution() }),
+    ("testAgeFreshPlansRecalculateWhileEmptyPlansKeepTheirReference", { try $0.testAgeFreshPlansRecalculateWhileEmptyPlansKeepTheirReference() }),
+    ("testAgeCombinesWithNamesSizeSubtreesAndLinkExclusion", { try $0.testAgeCombinesWithNamesSizeSubtreesAndLinkExclusion() }),
+    ("testAgeSourceEnteringRangeInvalidatesBeforeAnyPublication", { try $0.testAgeSourceEnteringRangeInvalidatesBeforeAnyPublication() }),
+    ("testAgeMergeKeepsReferenceAndRequiresRealConflictDecision", { try $0.testAgeMergeKeepsReferenceAndRequiresRealConflictDecision() }),
+    ("testAgeStructureSuspendsRulesAndFilteredMovesRemainRejected", { try $0.testAgeStructureSuspendsRulesAndFilteredMovesRemainRejected() }),
+    ("testAgeProfilesUseVersionTwoAndPreserveLegacyRecords", { try $0.testAgeProfilesUseVersionTwoAndPreserveLegacyRecords() }),
+    ("testAgeJournalRestoresRelativeRuleAndNewPlansUseNewTime", { try $0.testAgeJournalRestoresRelativeRuleAndNewPlansUseNewTime() }),
     ("testLaterSelectionObjectReportsItsFirstPartialBytes", { try $0.testLaterSelectionObjectReportsItsFirstPartialBytes() }),
     ("testJournalCapacityDoesNotEvictUnfinishedEntries", { try $0.testJournalCapacityDoesNotEvictUnfinishedEntries() }),
     ("testJournalRestoresIntentWithoutExecutingOrLosingRules", { try $0.testJournalRestoresIntentWithoutExecutingOrLosingRules() }),
