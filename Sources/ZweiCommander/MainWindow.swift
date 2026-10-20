@@ -71,12 +71,15 @@ final class MainContent: CommanderSurface, NSSplitViewDelegate {
     func positionRail() {
         let panes = split.arrangedSubviews
         rail.isHidden = panes.count != 2 || panes.contains(where: \.isHidden)
+        window?.invalidateCursorRects(for:split);window?.invalidateCursorRects(for:rail)
         guard !rail.isHidden else { return };rail.vertical = split.isVertical
-        let rect = split.isVertical ? NSRect(x:panes[0].frame.maxX+1,y:1,width:28,height:max(1,split.bounds.height-2)) : NSRect(x:1,y:panes[0].frame.maxY+1,width:max(1,split.bounds.width-2),height:28)
-        rail.frame = convert(rect,from:split);rail.needsLayout = true
+        rail.frame = convert(split.actionStripFrame,from:split);rail.needsLayout = true
     }
     func splitViewDidResizeSubviews(_ notification: Notification) { positionRail() }
     func splitView(_ splitView:NSSplitView,canCollapseSubview subview:NSView)->Bool { false }
+    func splitView(_ splitView:NSSplitView,effectiveRect proposedEffectiveRect:NSRect,forDrawnRect drawnRect:NSRect,ofDividerAt dividerIndex:Int)->NSRect {
+        split.resizeGrip(in:drawnRect)
+    }
     func splitView(_ splitView:NSSplitView,constrainSplitPosition proposedPosition:CGFloat,ofSubviewAt dividerIndex:Int)->CGFloat {
         let length = splitView.isVertical ? splitView.bounds.width : splitView.bounds.height
         let minimum: CGFloat = splitView.isVertical ? min(280,length*0.35) : min(160,length*0.35)
@@ -146,7 +149,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         }
         buildToolbar();refreshLocations();setActive(left)
         content.toolbarMore.perform = { [weak self] in guard let self else { return };self.toolbarOverflowMenu().popUp(positioning:nil,at:NSPoint(x:0,y:0),in:self.content.toolbarMore) }
-        content.rail.configure([("Seiten tauschen","arrow.triangle.swap","swap"),("Gleicher Ordner","equal.square","sameFolder"),("Verknüpft navigieren","link","linked"),("Ordner vergleichen","arrow.left.arrow.right","compare"),("Anordnung wechseln","rectangle.split.2x1","orientation"),("Ein-/Zweifensteransicht","sidebar.left","onePane")]) { [weak self] in self?.command($0) }
+        content.rail.configure([("Seiten tauschen","arrow.left.arrow.right.square","swap"),("Ordner vergleichen","doc.text.magnifyingglass","compare"),("Gleicher Ordner","folder.fill","sameFolder"),("Verknüpft navigieren","link","linked"),("Anordnung wechseln","rectangle.split.2x1","orientation"),("Ein-/Zweifensteransicht","sidebar.left","onePane"),("In den Papierkorb …","trash","trash")]) { [weak self] in self?.command($0) }
         content.commandMode.target = self;content.commandMode.action = #selector(commandModeChanged)
         content.commandField.target = self;content.commandField.action = #selector(commandEntered)
         content.commandGo.perform = { [weak self] in self?.commandEntered() }

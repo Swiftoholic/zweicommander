@@ -173,6 +173,7 @@ def main():
             ("main", "--smoke-test", roots[0], str(prefix) + "-Import-Vorschau.png", "UI PASS ", "SMOKE PASS", 20),
             ("appearance-save", "--appearance-smoke", roots[0], str(prefix), "APPEARANCE UI PASS ", "APPEARANCE SMOKE PASS 47 checks", 47),
             ("appearance-reload", "--appearance-smoke", roots[0], str(prefix), "APPEARANCE UI PASS ", "APPEARANCE SMOKE PASS 9 checks", 9),
+            ("rail", "--rail-smoke", roots[0], str(prefix), "RAIL UI PASS ", "RAIL SMOKE PASS 26 checks", 26),
             ("ux-save", "--ux-smoke", roots[12], str(prefix), "UX UI PASS ", "UX SMOKE PASS 55 checks", 55),
             ("ux-reload", "--ux-smoke", roots[12], str(prefix), "UX UI PASS ", "UX SMOKE PASS 6 checks", 6),
             ("operations", "--operations-smoke", roots[1], str(prefix), "OPS UI PASS ", "OPS SMOKE PASS 14 checks", 14),

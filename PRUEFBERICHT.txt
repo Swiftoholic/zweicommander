@@ -1,10 +1,11 @@
-ZweiCommander 0.14.0 — Prüfung vom 20. Oktober 2026
+ZweiCommander 0.14.1 — Prüfung vom 20. Oktober 2026
 
 Ergebnis
 - 200/200 Dateikern- und Integrationstests bestanden.
-- 542/542 native UI-Prüfungen am universellen Release-Build bestanden:
+- 568/568 native UI-Prüfungen am universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
-  Darstellung nach erneutem App-Start 9, UX-Arbeitsabläufe 55,
+  Darstellung nach erneutem App-Start 9, Mittelstreifen und Mausbedienung 26,
+  UX-Arbeitsabläufe 55,
   Werkzeugleiste nach erneutem App-Start 6, Warteschlange 14,
   Kopierfilter 22, Ordner zusammenführen 29, Profile speichern 19,
   Profile nach erneutem App-Start laden und verwenden 16,
@@ -16,6 +17,9 @@ Ergebnis
   Mehrfachumbenennen und Profile speichern 20, nach Neustart verwenden 27,
   Sucharbeitsbereich und Profile speichern 22, nach Neustart verwenden 25,
   Ordnervergleich und Profile speichern 24, nach Neustart verwenden 30.
+- Ein Vergleichslauf erreichte den erwarteten Fensterfokus nicht. Beide
+  Vergleichsfälle wurden mit unverändertem Release-Build und frischen
+  Testdaten wiederholt: 24/24 und 30/30 Prüfungen bestanden.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
 - App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
 - Debug-Pfadverweise vor Signierung entfernt; Release-Binärdatei auf lokale
@@ -35,6 +39,17 @@ Bei einer früheren Entwicklungsprüfung blieb ein Start aus dem Entwicklungsord
 Anwendungsinitialisierung hängen. Derselbe unveränderte Build startete aus
 dem Benutzer-Programmeordner regulär. Die genaue Ursache des ersten Hängers
 ist nicht abschließend bestimmt; die Verwendung aus Programme wird empfohlen.
+
+Mittelstreifen und Mausbedienung
+Die Funktionsleiste ist von einer fünf Punkte breiten Griffkante getrennt.
+Native Hit-Tests, Cursor-Rücksetzung und AppKit-Mausverfolgung prüfen das
+Verhalten bei nebeneinander und übereinander angeordneten Dateifenstern.
+Ziehen an der Kante ändert die Fensteraufteilung; Ziehen auf freiem Leistenplatz
+und das Betätigen eines Funktionsknopfs verschieben die Trennung nicht.
+Die Funktionsgruppen verteilen sich über den Streifen; der Papierkorb steht
+unten beziehungsweise rechts. Kleine Fenster, Einzelansicht, Rückkehr zu zwei
+Dateifenstern und deckende Hell-/Dunkelflächen werden ebenfalls geprüft.
+Die Fensteraufnahmen verwenden künstliche Dateien und neutrale Ortsleisten.
 
 Bedienabläufe und kompakte Transferdialoge
 Zusätzliche native Prüfungen bedienen die Richtungsknöpfe bei beiden aktiven
@@ -72,8 +87,8 @@ Pfadeditor und Escape, die untere Pfadeingabe, Tabs mit eigenem Schließen-Knopf
 Sperren sowie den Erhalt des ausgewählten Tabs beim Schließen anderer Tabs.
 Mittlere Aktionsleiste, verknüpftes Navigieren, horizontale/vertikale Anordnung,
 Einzelansicht, Schnellvorschau und schmale Fenster werden mit echten Steuerelementen
-geprüft. Freier Platz im Mittelstreifen darf das Verschieben der Trennung nicht
-abfangen. Der ausdrücklich gewählte Befehlsmodus führt einen neutralen Testbefehl
+geprüft. Nur die getrennte schmale Griffkante verändert die Fensteraufteilung.
+Funktionsleiste und freier Leistenplatz verwenden den normalen Mauszeiger. Der ausdrücklich gewählte Befehlsmodus führt einen neutralen Testbefehl
 aus und zeigt seine Textausgabe; der Standardmodus öffnet ausschließlich Ordner.
 
 Hell/Dunkel werden an den tatsächlichen Listen-, Scroll- und Symbolflächen sowie

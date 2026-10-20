@@ -71,7 +71,7 @@ extension MainWindow {
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.14.0
+        ZWEICOMMANDER · Version 0.14.1
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -87,7 +87,7 @@ extension MainWindow {
 
         DARSTELLUNG UND NAVIGATION
         Oben rechts zwischen System, Hell und Dunkel wählen. Hell verwendet helle Dateilisten und Dokumentflächen; Dunkel Grautöne mit heller Schrift. Die aktive Seite erhält eine blaue Pfadzeile. Importierte Hintergrundfarben gelten nur im passenden Modus; Schrift- und Dateitypfarben werden bei Bedarf für ausreichenden Kontrast angepasst. Über Einstellungen lassen sich kompakte oder größere Zeilen, Listenschriftgröße, Werkzeugbeschriftungen und importierte Farben wählen. Die Darstellungsvorgaben werden getrennt von Tabs und Importprofil lokal gespeichert.
-        Beide Seiten haben eigene Ortsleisten. Pfadbestandteile sind anklickbar; „…“ zeigt alle übergeordneten Ordner. Cmd+L öffnet den Pfadeditor, Escape kehrt zur Pfadzeile zurück. Jeder ungesperrte Tab hat bei mehreren Tabs einen eigenen Schließen-Knopf. Die mittlere Leiste bietet Tausch, gleichen Ordner, verknüpftes Navigieren, Vergleich und Anordnung. Freier Platz in der Leiste bleibt zum Verschieben der Trennung nutzbar.
+        Beide Seiten haben eigene Ortsleisten. Pfadbestandteile sind anklickbar; „…“ zeigt alle übergeordneten Ordner. Cmd+L öffnet den Pfadeditor, Escape kehrt zur Pfadzeile zurück. Jeder ungesperrte Tab hat bei mehreren Tabs einen eigenen Schließen-Knopf. Die mittlere Funktionsleiste bietet verteilte Gruppen für Tausch, Vergleich, gleichen Ordner, verknüpftes Navigieren, Anordnung und Einzelansicht; der Papierkorb steht am Ende. Nur die schmale Kante daneben verändert die Fensteraufteilung. Die Funktionsleiste verwendet den normalen Mauszeiger.
         Die untere Eingabezeile startet im Modus „Pfad“ und öffnet mit Enter einen absoluten oder zum aktiven Ordner relativen Ordnerpfad. Im ausdrücklich gewählten Modus „Befehl“ führt Enter zsh mit deinen Benutzerrechten im aktiven Ordner aus und zeigt die Textausgabe. Shell-Befehle können Dateien verändern; für interaktive Programme den Terminal-Knopf verwenden. Es wird kein Befehlsverlauf gespeichert.
 
         KOPIEREN, VERSCHIEBEN UND FILTER

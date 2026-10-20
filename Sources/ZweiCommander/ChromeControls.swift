@@ -1,28 +1,78 @@
 import AppKit
 
 final class CommanderSplitView: NSSplitView {
-    override var dividerThickness: CGFloat { 30 }
+    static let gripThickness: CGFloat = 5
+    override var dividerThickness: CGFloat { 36 }
+    var dividerFrame: NSRect {
+        guard arrangedSubviews.count == 2,!arrangedSubviews.contains(where: \.isHidden) else { return .zero }
+        let first = arrangedSubviews[0].frame
+        return isVertical ? NSRect(x:first.maxX,y:bounds.minY,width:dividerThickness,height:bounds.height) : NSRect(x:bounds.minX,y:first.maxY,width:bounds.width,height:dividerThickness)
+    }
+    func resizeGrip(in rect:NSRect) -> NSRect {
+        guard !rect.isEmpty else { return .zero }
+        return isVertical ? NSRect(x:rect.minX,y:rect.minY,width:Self.gripThickness,height:rect.height) : NSRect(x:rect.minX,y:rect.minY,width:rect.width,height:Self.gripThickness)
+    }
+    var actionStripFrame: NSRect {
+        let rect = dividerFrame,offset = Self.gripThickness+1
+        guard !rect.isEmpty else { return .zero }
+        return isVertical ? NSRect(x:rect.minX+offset,y:rect.minY,width:rect.width-offset,height:rect.height) : NSRect(x:rect.minX,y:rect.minY+offset,width:rect.width,height:rect.height-offset)
+    }
     override func drawDivider(in rect: NSRect) {
-        super.drawDivider(in:rect)
+        let palette = CommanderPalette.current(in:self)
+        palette.chrome.setFill();rect.fill(using:.sourceOver)
+        palette.separator.withAlphaComponent(0.55).setFill()
+        if isVertical {
+            for x in [rect.minX,rect.minX+Self.gripThickness,rect.maxX-1] { NSRect(x:x,y:rect.minY,width:1,height:rect.height).fill(using:.sourceOver) }
+        } else {
+            for y in [rect.minY,rect.minY+Self.gripThickness,rect.maxY-1] { NSRect(x:rect.minX,y:y,width:rect.width,height:1).fill(using:.sourceOver) }
+        }
+    }
+    override func resetCursorRects() {
+        let grip = resizeGrip(in:dividerFrame)
+        if !grip.isEmpty { addCursorRect(grip,cursor:isVertical ? .resizeLeftRight : .resizeUpDown) }
+    }
+    override func mouseDown(with event:NSEvent) {
+        guard resizeGrip(in:dividerFrame).contains(convert(event.locationInWindow,from:nil)) else { return }
+        super.mouseDown(with:event)
     }
 }
 
 final class SplitActionRail: CommanderSurface {
     var vertical = true { didSet { needsLayout = true } }
     var buttons: [ActionButton] = []
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        let hit = super.hitTest(point);return hit === self ? nil : hit
+    override func resetCursorRects() { addCursorRect(bounds,cursor:.arrow) }
+    override func cursorUpdate(with event:NSEvent) { NSCursor.arrow.set() }
+    override func draw(_ dirtyRect:NSRect) {
+        super.draw(dirtyRect);CommanderPalette.current(in:self).separator.withAlphaComponent(0.55).setFill()
+        let edge = vertical ? NSRect(x:bounds.maxX-1,y:bounds.minY,width:1,height:bounds.height) : NSRect(x:bounds.minX,y:bounds.minY,width:bounds.width,height:1)
+        edge.fill(using:.sourceOver)
     }
     func configure(_ items: [(String,String,String)],perform: @escaping (String)->Void) {
         for (title,symbol,id) in items {
             let b = ActionButton("",symbol:symbol,action:{ perform(id) });b.flat = true;b.toolTip = title;b.identifier = .init(id);b.setAccessibilityLabel(title)
+            b.symbolTint = id == "sameFolder" ? .systemOrange : id == "trash" ? .systemRed : id == "compare" ? .systemPurple : .systemBlue
             buttons.append(b);addSubview(b)
         }
     }
     override func layout() {
         super.layout()
+        let extent = vertical ? bounds.height : bounds.width
+        let step = min(28,max(0,(extent-28)/CGFloat(max(1,buttons.count-1))))
+        var previous: CGFloat = -step+14
         for (i,b) in buttons.enumerated() {
-            b.frame = vertical ? NSRect(x:3,y:bounds.height-30-CGFloat(i)*34,width:24,height:26) : NSRect(x:8+CGFloat(i)*34,y:2,width:26,height:26)
+            let id = b.identifier?.rawValue
+            let desired: CGFloat
+            switch id {
+            case "swap": desired = 38
+            case "compare": desired = extent*0.23
+            case "sameFolder": desired = extent*0.43
+            case "linked": desired = extent*0.43+28
+            case "orientation": desired = extent*0.63
+            case "onePane": desired = extent*0.63+28
+            default: desired = extent-16
+            }
+            let center = max(previous+step,min(desired,extent-14-CGFloat(buttons.count-1-i)*step));previous = center
+            b.frame = vertical ? NSRect(x:(bounds.width-24)/2,y:extent-center-12,width:24,height:24) : NSRect(x:center-12,y:(bounds.height-24)/2,width:24,height:24)
         }
     }
 }
