@@ -164,6 +164,8 @@ def main():
         roots = fixtures(Path(temporary))
         cases = [
             ("main", "--smoke-test", roots[0], str(prefix) + "-Import-Vorschau.png", "UI PASS ", "SMOKE PASS", 20),
+            ("appearance-save", "--appearance-smoke", roots[0], str(prefix), "APPEARANCE UI PASS ", "APPEARANCE SMOKE PASS 47 checks", 47),
+            ("appearance-reload", "--appearance-smoke", roots[0], str(prefix), "APPEARANCE UI PASS ", "APPEARANCE SMOKE PASS 9 checks", 9),
             ("operations", "--operations-smoke", roots[1], str(prefix), "OPS UI PASS ", "OPS SMOKE PASS 14 checks", 14),
             ("filters", "--filters-smoke", roots[2], str(prefix), "FILTER UI PASS ", "FILTER SMOKE PASS 22 checks", 22),
             ("merge", "--merge-smoke", roots[3], str(prefix), "MERGE UI PASS ", "MERGE SMOKE PASS 29 checks", 29),
@@ -192,6 +194,7 @@ def main():
         rename_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         search_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         compare_suite = "local.zweicommander.tests." + str(uuid.uuid4())
+        appearance_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         try:
             for name, flag, root, image, pass_prefix, marker, expected in cases:
                 command = [str(binary), flag, str(root), image]
@@ -199,6 +202,10 @@ def main():
                     command += [name.removeprefix("journal-")]
                 if args.settings:
                     command += ["--import-settings", str(args.settings.resolve())]
+                if name.startswith("appearance-"):
+                    command += ["--appearance-test-suite", appearance_suite]
+                    if name == "appearance-reload":
+                        command += ["--reload-appearance"]
                 if name.startswith("profiles-"):
                     command += ["--profile-test-suite", suite]
                     if name == "profiles-reload":
@@ -240,6 +247,7 @@ def main():
             subprocess.run(["defaults", "delete", rename_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", search_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", compare_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["defaults", "delete", appearance_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

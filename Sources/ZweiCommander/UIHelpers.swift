@@ -3,6 +3,9 @@ import CommanderCore
 
 final class ActionButton: NSButton {
     var perform: (() -> Void)?
+    var flat = false { didSet { isBordered = !flat;invalidateIntrinsicContentSize();needsDisplay = true } }
+    var verticalLabel = false { didSet { invalidateIntrinsicContentSize();needsDisplay = true } }
+    var symbolTint: NSColor = .systemBlue
     convenience init(_ title: String, symbol: String? = nil, action: @escaping () -> Void) {
         self.init(frame: .zero)
         self.title = title; self.perform = action; target = self; self.action = #selector(invoke)
@@ -10,6 +13,32 @@ final class ActionButton: NSButton {
         if let symbol { image = NSImage(systemSymbolName: symbol, accessibilityDescription: title); imagePosition = title.isEmpty ? .imageOnly : .imageLeading }
     }
     @objc private func invoke() { perform?() }
+    override var alignmentRectInsets: NSEdgeInsets { flat ? NSEdgeInsets(top:0,left:0,bottom:0,right:0) : super.alignmentRectInsets }
+    override var intrinsicContentSize: NSSize {
+        guard flat else { return super.intrinsicContentSize }
+        let textWidth = (title as NSString).size(withAttributes:[.font:font ?? NSFont.systemFont(ofSize:11)]).width
+        if verticalLabel { return NSSize(width:max(48,min(90,textWidth+12)),height:43) }
+        return NSSize(width:max(24,min(220,textWidth+(image == nil ? 12 : title.isEmpty ? 24 : 31))),height:24)
+    }
+    override func draw(_ dirtyRect: NSRect) {
+        guard flat else { super.draw(dirtyRect);return }
+        let p = CommanderPalette.current(in:self),selected = state == .on
+        if selected || isHighlighted { (selected ? p.activePath : p.hover).setFill();bounds.insetBy(dx:1,dy:1).fill(using:.sourceOver) }
+        let color: NSColor = !isEnabled ? p.secondaryText.withAlphaComponent(0.55) : selected ? .white : p.text
+        if let image {
+            let tint: NSColor = selected ? .white : symbolTint
+            let icon = image.withSymbolConfiguration(.init(paletteColors:[tint])) ?? image
+            let rect = verticalLabel ? NSRect(x:(bounds.width-18)/2,y:isFlipped ? 5 : bounds.height-23,width:18,height:18) : NSRect(x:title.isEmpty ? (bounds.width-15)/2 : 6,y:(bounds.height-15)/2,width:15,height:15)
+            icon.draw(in:rect,from:.zero,operation:.sourceOver,fraction:isEnabled ? 1 : 0.45,respectFlipped:true,hints:nil)
+        }
+        if !title.isEmpty {
+            let paragraph = NSMutableParagraphStyle();paragraph.alignment = verticalLabel || image == nil ? .center : .left;paragraph.lineBreakMode = .byTruncatingTail
+            let rect = verticalLabel ? NSRect(x:3,y:isFlipped ? bounds.height-18 : 3,width:bounds.width-6,height:15) : NSRect(x:image == nil ? 3 : 26,y:(bounds.height-15)/2,width:max(0,bounds.width-(image == nil ? 6 : 29)),height:15)
+            (title as NSString).draw(in:rect,withAttributes:[.font:font ?? NSFont.systemFont(ofSize:11),.foregroundColor:color,.paragraphStyle:paragraph])
+        }
+        if window?.firstResponder === self { p.accent.setStroke();let ring = NSBezierPath(rect:bounds.insetBy(dx:1.5,dy:1.5));ring.lineWidth = 1;ring.stroke() }
+    }
+    override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance();needsDisplay = true }
 }
 
 func label(_ text: String, size: CGFloat = 12, color: NSColor = .labelColor, weight: NSFont.Weight = .regular) -> NSTextField {
@@ -58,7 +87,7 @@ func bytes(_ n: Int64) -> String { ByteCountFormatter.string(fromByteCount: n, c
 let displayDate: DateFormatter = { let d = DateFormatter(); d.dateStyle = .medium; d.timeStyle = .short; return d }()
 
 final class TextWindow: NSWindowController, NSWindowDelegate {
-    let textView = NSTextView()
+    let textView = CommanderTextView()
     var onClose: (() -> Void)?
     init(title: String, text: String, editable: Bool = false) {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 850, height: 560), styleMask: [.titled,.closable,.miniaturizable,.resizable], backing: .buffered, defer: false)
@@ -68,6 +97,7 @@ final class TextWindow: NSWindowController, NSWindowDelegate {
         scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true
         textView.frame = scroll.bounds; textView.autoresizingMask = [.width]
         textView.isEditable = editable; textView.isRichText = false; textView.isSelectable = true
+        textView.updateColors()
         textView.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         textView.textContainerInset = NSSize(width: 16, height: 16)
         textView.string = text; scroll.documentView = textView; w.contentView?.addSubview(scroll)

@@ -14,8 +14,9 @@ final class FolderTab {
     var view: FolderViewSettings?
     init(_ url: URL) { self.url = url; history = [url] }
 }
-final class FileTable: NSTableView {
+final class FileTable: CommanderTableView {
     weak var pane: PaneView?
+    override func updateSurface() { super.updateSurface();if let pane { backgroundColor = pane.palette.list(active:pane.isActive,profile:pane.importedProfile);enclosingScrollView?.backgroundColor = backgroundColor } }
     override func becomeFirstResponder() -> Bool { pane?.activate(); return super.becomeFirstResponder() }
     override func mouseDown(with event: NSEvent) { pane?.activate(); super.mouseDown(with: event) }
     override func rightMouseDown(with event: NSEvent) {
@@ -43,7 +44,9 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     let table = FileTable()
     let grid = FileGrid()
     let scroll = NSScrollView()
-    let pathField = input()
+    let pathField = PathEditor(frame:.zero)
+    let breadcrumb = BreadcrumbBar(frame:.zero)
+    let locations = LocationStrip(frame:.zero)
     let filterField = NSSearchField()
     let filterRegex = checkbox(".*")
     let status = label("", size: 11, color: .secondaryLabelColor)
@@ -70,7 +73,8 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     var defaultView: FolderViewSettings?
     var changingView = false
     var syncingSelection = false
-    var isActive = false { didSet { marker.layer?.backgroundColor = (isActive ? NSColor.controlAccentColor : .separatorColor).cgColor; applyImportedAppearance() } }
+    var isActive = false { didSet { if oldValue != isActive { applyImportedAppearance() } } }
+    var freeSpace: Int64?
     var foldersFirst = true
     var importedProfile: SettingsProfile?
     private struct ColumnState { let id: String; let title: String; let width: CGFloat; let hidden: Bool }
@@ -103,7 +107,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
 
     init(url: URL, savedTabs: [SavedTab] = []) {
         super.init(frame: .zero)
-        wantsLayer = true; layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+        wantsLayer = false
         var restoredActive: UUID?
         tabs = savedTabs.compactMap { item in
             let u = URL(fileURLWithPath: item.path)
@@ -117,8 +121,8 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         marker.wantsLayer = true
         table.pane = self; table.delegate = self; table.dataSource = self
         table.allowsMultipleSelection = true; table.allowsEmptySelection = true
-        table.usesAlternatingRowBackgroundColors = true; table.rowHeight = 25
-        table.style = .plain; table.intercellSpacing = NSSize(width: 8,height: 2)
+        table.usesAlternatingRowBackgroundColors = false;table.rowHeight = Preferences.appearanceSettings().rowHeight
+        table.style = .plain; table.intercellSpacing = NSSize(width:6,height:0)
         table.target = self; table.doubleAction = #selector(doubleClick)
         table.columnAutoresizingStyle = .noColumnAutoresizing
         for (id,title,width) in [("name","Name",CGFloat(260)),("ext","Endung",55),("size","Größe",85),("modified","Geändert",155),("kind","Art",130),("attributes","Attribute",80),("permissions","Rechte",65),("path","Ordner",260)] {
@@ -139,15 +143,22 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         table.headerView?.menu = columns
         table.registerForDraggedTypes([.fileURL]); table.setDraggingSourceOperationMask(.copy, forLocal: false); table.setDraggingSourceOperationMask(.copy, forLocal: true)
         scroll.documentView = table; scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true; scroll.autohidesScrollers = true
-        pathField.target = self; pathField.action = #selector(pathEntered); pathField.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        pathField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let back = ActionButton("", symbol: "chevron.left") { [weak self] in self?.history(-1) }; back.toolTip = "Zurück"
-        let forward = ActionButton("", symbol: "chevron.right") { [weak self] in self?.history(1) }; forward.toolTip = "Vorwärts"
-        let up = ActionButton("", symbol: "arrow.up") { [weak self] in self?.goParent() }; up.toolTip = "Übergeordneter Ordner"
-        let home = ActionButton("", symbol: "house") { [weak self] in self?.navigate(FileManager.default.homeDirectoryForCurrentUser) }; home.toolTip = "Benutzerordner"
-        nav.orientation = .horizontal; nav.spacing = 4
-        [back,forward,up,home,pathField].forEach { nav.addArrangedSubview($0) }
-        tabsStack.orientation = .horizontal; tabsStack.spacing = 4; tabsStack.alignment = .centerY
+        pathField.target = self;pathField.action = #selector(pathEntered);pathField.delegate = self;pathField.font = .monospacedSystemFont(ofSize:11,weight:.regular)
+        pathField.isEditable = true;pathField.isSelectable = true;pathField.isBordered = true;pathField.drawsBackground = true;pathField.isHidden = true
+        pathField.onCancel = { [weak self] in self?.endPathEditing() }
+        pathField.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
+        breadcrumb.setContentHuggingPriority(.defaultLow,for:.horizontal);breadcrumb.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
+        breadcrumb.onChoose = { [weak self] in self?.navigate($0) };breadcrumb.onEdit = { [weak self] in self?.beginPathEditing() }
+        locations.onChoose = { [weak self] in self?.navigate($0) }
+        let back = ActionButton("",symbol:"chevron.left") { [weak self] in self?.history(-1) };back.toolTip = "Zurück"
+        let forward = ActionButton("",symbol:"chevron.right") { [weak self] in self?.history(1) };forward.toolTip = "Vorwärts"
+        let up = ActionButton("",symbol:"arrow.up") { [weak self] in self?.goParent() };up.toolTip = "Übergeordneter Ordner"
+        let home = ActionButton("",symbol:"house") { [weak self] in self?.navigate(FileManager.default.homeDirectoryForCurrentUser) };home.toolTip = "Benutzerordner"
+        let edit = ActionButton("",symbol:"square.and.pencil") { [weak self] in self?.beginPathEditing() };edit.toolTip = "Pfad bearbeiten · Cmd+L"
+        nav.orientation = .horizontal;nav.spacing = 1;nav.detachesHiddenViews = true
+        [breadcrumb,pathField].forEach { $0.heightAnchor.constraint(equalToConstant:24).isActive = true;nav.addArrangedSubview($0) }
+        for b in [back,forward,up,home,edit] { b.flat = true;b.widthAnchor.constraint(equalToConstant:23).isActive = true;b.heightAnchor.constraint(equalToConstant:24).isActive = true;b.setAccessibilityLabel(b.toolTip);nav.addArrangedSubview(b) }
+        tabsStack.orientation = .horizontal; tabsStack.spacing = 1; tabsStack.alignment = .centerY
         tabsScroll.documentView = tabsStack; tabsScroll.hasHorizontalScroller = true; tabsScroll.autohidesScrollers = true;tabsScroll.drawsBackground = false
         viewMode.addItems(withTitles:PaneDisplayMode.allCases.map(\.title));viewMode.target = self;viewMode.action = #selector(viewModeChanged)
         viewMode.toolTip = "Darstellung dieses Tabs"
@@ -156,26 +167,37 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         sortDirection.perform = { [weak self] in self?.sortDirectionChanged() };sortDirection.toolTip = "Sortierrichtung wechseln"
         viewBar.orientation = .horizontal;viewBar.spacing = 7
         [viewMode,sortMode,sortDirection].forEach { viewBar.addArrangedSubview($0) }
-        filterField.placeholderString = "Schnellfilter · Name, *.pdf oder RegEx"
+        viewMode.controlSize = .small;sortMode.controlSize = .small;sortDirection.flat = true
+        viewMode.font = .systemFont(ofSize:10);sortMode.font = .systemFont(ofSize:10)
+        filterField.placeholderString = "Filter · *.pdf";filterField.controlSize = .small;filterField.font = .systemFont(ofSize:11)
+        filterField.toolTip = "Schnellfilter: Namensteil oder Wildcards; .* aktiviert reguläre Ausdrücke"
         filterField.delegate = self; filterField.sendsSearchStringImmediately = true
         filterRegex.target = self; filterRegex.action = #selector(filterChanged)
         tree.isHidden = true; tree.onChoose = { [weak self] url in self?.navigate(url) }
-        [marker,tabsScroll,nav,viewBar,scroll,filterField,filterRegex,status,tree].forEach { addSubview($0) }
+        [marker,locations,tabsScroll,nav,viewBar,scroll,filterField,filterRegex,status,tree].forEach { addSubview($0) }
         rebuildTabs(); refresh()
     }
     required init?(coder: NSCoder) { fatalError() }
     deinit { watcher?.cancel() }
+    private var appearanceRefresh: DispatchWorkItem?
     override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        effectiveAppearance.performAsCurrentDrawingAppearance {
-            layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
-            marker.layer?.backgroundColor = (isActive ? NSColor.controlAccentColor : .separatorColor).cgColor
-        }
-        applyImportedAppearance()
+        super.viewDidChangeEffectiveAppearance();appearanceRefresh?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.applyImportedAppearance() };appearanceRefresh = work;DispatchQueue.main.async(execute:work)
     }
+    override var isOpaque: Bool { true }
+    override func draw(_ dirtyRect: NSRect) { palette.chrome.setFill();bounds.fill(using:.sourceOver) }
     var listFont: NSFont {
-        guard let profile = importedProfile else { return .systemFont(ofSize:12) }
-        return NSFont(name:profile.fontName,size:profile.fontSize) ?? .systemFont(ofSize:profile.fontSize)
+        let settings = Preferences.appearanceSettings(),size = settings.fontSize == 0 ? (importedProfile?.fontSize ?? 12) : CGFloat(settings.fontSize)
+        return importedProfile.flatMap { NSFont(name:$0.fontName,size:size) } ?? .systemFont(ofSize:size)
+    }
+    var palette: CommanderPalette { CommanderPalette.current(in:self) }
+    func fileTextColor(_ name: String,secondary: Bool = false) -> NSColor {
+        let p = palette
+        let candidate: NSColor?
+        if Preferences.appearanceSettings().importedColors {
+            candidate = importedProfile?.fileColors.first(where: { $0.matches(name) })?.color.nsColor ?? (importedProfile?.darkAppearance == p.dark ? importedProfile?.foreground?.nsColor : nil)
+        } else { candidate = nil }
+        return p.readable(candidate,on:p.list(active:isActive,profile:importedProfile),fallback:secondary ? p.secondaryText : p.text)
     }
     func configure(profile: SettingsProfile, isLeft: Bool) {
         changingView = true;defer { changingView = false }
@@ -207,9 +229,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
             table.moveColumn(oldIndex,toColumn:index)
         }
         sortKey = saved.sort; ascending = saved.ascending; treeVisible = saved.tree; foldersFirst = saved.foldersFirst
-        table.backgroundColor = .controlBackgroundColor; scroll.backgroundColor = .controlBackgroundColor
-        grid.backgroundColors = [.controlBackgroundColor]
-        table.usesAlternatingRowBackgroundColors = true
+        applyImportedAppearance()
         table.autosaveTableColumns = !Preferences.testMode
         beforeImport = nil; rebuildColumnMenu(); applyFilter()
     }
@@ -219,26 +239,38 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         table.headerView?.menu = columns
     }
     func applyImportedAppearance() {
-        guard let profile = importedProfile else { return }
-        let color = (isActive ? profile.background : profile.inactiveBackground) ?? profile.background
-        table.backgroundColor = color?.nsColor ?? .controlBackgroundColor
-        grid.backgroundColors = [table.backgroundColor]
-        scroll.backgroundColor = table.backgroundColor
+        let p = palette,selection = selectionIndexes
+        layer?.backgroundColor = p.chrome.cgColor;marker.layer?.backgroundColor = (isActive ? p.accent : p.separator).cgColor
+        let background = p.list(active:isActive,profile:importedProfile)
+        table.backgroundColor = background;scroll.backgroundColor = background;grid.backgroundColors = [background]
         table.usesAlternatingRowBackgroundColors = false
+        table.rowHeight = thumbnails ? max(52,listFont.pointSize+16) : max(Preferences.appearanceSettings().rowHeight,listFont.pointSize+7)
+        tree.outline.backgroundColor = background;tree.backgroundColor = background;tree.outline.rowHeight = max(Preferences.appearanceSettings().rowHeight,listFont.pointSize+7)
+        breadcrumb.active = isActive;breadcrumb.updateColors()
+        status.textColor = p.secondaryText
+        syncingSelection = true;table.reloadData();grid.reloadData();syncingSelection = false
+        selectionIndexes = selection;table.updateHeaderColors();tabsStack.subviews.forEach { $0.needsDisplay = true };needsDisplay = true
     }
     override func layout() {
-        super.layout(); let w = bounds.width, h = bounds.height
-        marker.frame = NSRect(x: 0,y: h-3,width: w,height: 3)
-        tabsScroll.frame = NSRect(x: 8,y: h-35,width: max(1,w-16),height: 28)
-        nav.frame = NSRect(x: 7,y: h-72,width: max(1,w-14),height: 30)
-        viewBar.frame = NSRect(x:7,y:h-103,width:max(1,w-14),height:27)
+        super.layout();let w = bounds.width,h = bounds.height
+        marker.frame = NSRect(x:0,y:h-1,width:w,height:1)
+        locations.frame = NSRect(x:2,y:h-25,width:max(1,w-4),height:24)
+        tabsScroll.frame = NSRect(x:2,y:h-51,width:max(1,w-4),height:25)
+        nav.frame = NSRect(x:1,y:h-78,width:max(1,w-2),height:26)
+        viewBar.frame = NSRect(x:5,y:h-102,width:max(1,w-10),height:23)
         let treeWidth: CGFloat = treeVisible ? min(165,w*0.32) : 0
-        tree.frame = NSRect(x: 0,y: 59,width: treeWidth,height: max(1,h-169))
-        scroll.frame = NSRect(x: treeWidth,y: 59,width: max(1,w-treeWidth),height: max(1,h-169))
-        filterField.frame = NSRect(x: 8,y: 29,width: max(1,w-67),height: 24)
-        filterRegex.frame = NSRect(x: w-53,y: 29,width: 45,height: 24)
-        status.frame = NSRect(x: 10,y: 6,width: max(1,w-20),height: 18)
+        tree.frame = NSRect(x:0,y:27,width:treeWidth,height:max(1,h-130))
+        scroll.frame = NSRect(x:treeWidth,y:27,width:max(1,w-treeWidth),height:max(1,h-130))
+        let filterWidth = min(170,max(105,w*0.31))
+        filterField.frame = NSRect(x:w-filterWidth-31,y:2,width:filterWidth,height:22)
+        filterRegex.frame = NSRect(x:w-29,y:2,width:28,height:22);filterRegex.controlSize = .mini
+        status.frame = NSRect(x:5,y:4,width:max(1,w-filterWidth-41),height:18)
     }
+    func beginPathEditing() {
+        activate();breadcrumb.isHidden = true;pathField.isHidden = false;pathField.stringValue = currentURL.path
+        nav.needsLayout = true;window?.makeFirstResponder(pathField);pathField.selectText(nil)
+    }
+    func endPathEditing() { pathField.isHidden = true;breadcrumb.isHidden = false;nav.needsLayout = true;focus() }
     func activate() { onActivate?(self) }
     func focus() { activate(); window?.makeFirstResponder(displayMode == .icons ? grid : table) }
     func rebuildTabs() {
@@ -246,13 +278,12 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         for (i,t) in tabs.enumerated() {
             let title = (t.locked ? "🔒 " : "") + (t.title ?? (t.url.lastPathComponent.isEmpty ? "/" : t.url.lastPathComponent))
             let b = FolderTabButton(title:title,tab:t,pane:self)
-            b.bezelStyle = .recessed; b.state = i == tabIndex ? .on : .off; b.toolTip = t.url.path
+            b.state = i == tabIndex ? .on : .off; b.toolTip = t.url.path
             b.font = .systemFont(ofSize: 12, weight: i == tabIndex ? .semibold : .regular)
             tabsStack.addArrangedSubview(b)
         }
-        tabsStack.addArrangedSubview(ActionButton("+", action: { [weak self] in self?.newTab() }))
-        tabsStack.addArrangedSubview(ActionButton("×", action: { [weak self] in self?.closeTab() }))
-        tabsStack.frame = NSRect(origin: .zero, size: NSSize(width: max(180,tabsStack.fittingSize.width),height: 28))
+        let add = ActionButton("",symbol:"plus",action:{ [weak self] in self?.newTab() });add.flat = true;add.toolTip = "Neuer Tab · Cmd+T";add.setAccessibilityLabel("Neuer Tab");tabsStack.addArrangedSubview(add)
+        tabsStack.frame = NSRect(origin: .zero, size: NSSize(width: max(180,tabsStack.fittingSize.width),height:25))
         if tabsStack.arrangedSubviews.indices.contains(tabIndex) { tabsStack.scrollToVisible(tabsStack.arrangedSubviews[tabIndex].frame) }
         onState?()
     }
@@ -261,7 +292,13 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         if let root = tab.archiveRoot, FileSystem.isInside(t.url,root) { t.archiveRoot = root; t.archiveOrigin = tab.archiveOrigin }
         tabs.append(t); tabIndex = tabs.count-1;restoreTabView(); rebuildTabs(); refresh(); focus()
     }
-    func closeTab() { guard tabs.count > 1, !tab.locked else { NSSound.beep(); return }; tabs.remove(at: tabIndex); tabIndex = max(0,tabIndex-1);restoreTabView(); rebuildTabs(); refresh();focus() }
+    func closeTab() { closeTab(tab.id) }
+    func closeTab(_ id: UUID) {
+        guard tabs.count > 1,let index = tabs.firstIndex(where: { $0.id == id }),!tabs[index].locked else { NSSound.beep();return }
+        let activeID = tab.id;tabs.remove(at:index)
+        tabIndex = tabs.firstIndex(where: { $0.id == activeID }) ?? min(index,tabs.count-1)
+        restoreTabView();rebuildTabs();refresh();focus()
+    }
     func navigate(_ url: URL, linked: Bool = false) {
         let u = url.standardizedFileURL
         guard FileSystem.isDirectory(u) else { showFailure(CommanderError.message("Ordner nicht gefunden: \(u.path)")); return }
@@ -297,7 +334,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     func showArchive(root: URL, original: URL) { newTab(url: root); tab.archiveRoot = root; tab.archiveOrigin = original; tab.title = original.lastPathComponent;restoreTabView(); rebuildTabs(); refresh() }
     @objc func pathEntered() {
         activate(); let path = (pathField.stringValue as NSString).expandingTildeInPath
-        navigate(path.hasPrefix("/") ? URL(fileURLWithPath: path) : currentURL.appendingPathComponent(path))
+        navigate(path.hasPrefix("/") ? URL(fileURLWithPath:path) : currentURL.appendingPathComponent(path));endPathEditing()
     }
     private var selectionRequest: (directory: URL,urls: Set<URL>)?
     func reveal(_ url: URL) {
@@ -309,14 +346,15 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         generation += 1; let g = generation, url = currentURL, hidden = showHidden, collection = tab.collection
         if let request = selectionRequest,request.directory != FileSystem.canonical(url) { selectionRequest = nil }
         let selected = selectionRequest?.urls ?? Set(selectedURLs)
-        pathField.stringValue = url.path; pathField.toolTip = readOnly ? "Temporäre Archivansicht · schreibgeschützt" : url.path
+        if pathField.currentEditor() == nil { pathField.stringValue = url.path };breadcrumb.url = url;locations.select(url);pathField.toolTip = readOnly ? "Temporäre Archivansicht · schreibgeschützt" : url.path
         status.stringValue = "Lese Ordner …"
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let result = Result { try collection.map { $0.compactMap { try? FileEntry(url: $0) } } ?? FileSystem.list(url, showHidden: hidden) }
+            let result = Result { try collection.map { $0.compactMap { try? FileEntry(url:$0) } } ?? FileSystem.list(url,showHidden:hidden) }
+            let available = try? url.resourceValues(forKeys:[.volumeAvailableCapacityKey]).volumeAvailableCapacity
             DispatchQueue.main.async {
                 guard let self, self.generation == g else { return }
                 switch result {
-                case .success(let entries): self.selectionRequest = nil;self.entries = entries; self.applyFilter(); self.select(selected); self.watch(url)
+                case .success(let entries): self.freeSpace = available.map(Int64.init);self.selectionRequest = nil;self.entries = entries; self.applyFilter(); self.select(selected); self.watch(url)
                 case .failure(let error): self.entries = []; self.visibleEntries = []; self.table.reloadData();self.grid.reloadData(); self.status.stringValue = error.localizedDescription
                 }
             }
@@ -362,11 +400,18 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     func clearFilter() { filterField.stringValue = ""; applyFilter() }
     @objc func filterChanged() { activate(); applyFilter() }
     func controlTextDidChange(_ obj: Notification) { if obj.object as? NSSearchField === filterField { filterChanged() } }
+    func control(_ control: NSControl,textView: NSTextView,doCommandBy commandSelector: Selector) -> Bool {
+        if control === pathField,commandSelector == #selector(NSResponder.cancelOperation(_:)) { endPathEditing();return true }
+        return false
+    }
     func updateStatus() {
         let chosen = selectionIndexes.compactMap { visibleEntries.indices.contains($0) ? visibleEntries[$0] : nil }
         let total = chosen.filter { !$0.isDirectory }.reduce(Int64(0)) { $0+$1.size }
         let prefix = readOnly ? "Archiv · " : ""
-        status.stringValue = "\(prefix)\(visibleEntries.count) Objekte · \(chosen.count) ausgewählt" + (chosen.isEmpty ? "" : " · \(bytes(total))")
+        let count = chosen.isEmpty ? "\(visibleEntries.count) Objekte" : "\(chosen.count)/\(visibleEntries.count) Objekte"
+        let size = chosen.isEmpty ? visibleEntries.filter { !$0.isDirectory }.reduce(Int64(0)) { let sum = $0.addingReportingOverflow($1.size);return sum.overflow ? Int64.max : sum.partialValue } : total
+        status.stringValue = prefix+count+" · "+bytes(size)+(freeSpace.map { " · Frei "+bytes($0) } ?? "")
+        status.toolTip = status.stringValue+" · \(chosen.count) ausgewählt"
         onSelection?(selectedURLs)
     }
     @objc func doubleClick() { guard table.clickedRow >= 0 else { return }; openSelection() }
@@ -389,16 +434,13 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         guard visibleEntries.indices.contains(row), let tableColumn else { return nil }
         let e = visibleEntries[row], id = tableColumn.identifier.rawValue
         if id == "name" {
-            let cell = NSTableCellView(); let image = NSImageView(); let text = label(e.name, size: 12)
-            text.font = listFont
-            text.textColor = importedProfile?.foreground?.nsColor ?? .labelColor
-            if let rule = importedProfile?.fileColors.first(where:{$0.matches(e.name)}) { text.textColor = rule.color.nsColor }
-            let iconSize: CGFloat = thumbnails ? 40 : 18
-            image.frame = NSRect(x: 2,y: thumbnails ? 6 : 3,width: iconSize,height: iconSize)
-            image.image = fileIcon(e,preview:thumbnails)
-            text.frame = NSRect(x: iconSize+9,y: thumbnails ? 16 : 3,width: max(30,tableColumn.width-iconSize-14),height: 19); text.autoresizingMask = [.width]
-            cell.addSubview(image); cell.addSubview(text); cell.imageView = image; cell.textField = text
-            cell.toolTip = e.url.path + (e.isSymbolicLink ? " (Verknüpfung)" : ""); return cell
+            let cell = FileCellView(frame:NSRect(x:0,y:0,width:tableColumn.width,height:table.rowHeight));cell.pane = self;let image = NSImageView();let text = label(e.name,size:listFont.pointSize)
+            text.font = listFont;cell.normalColor = fileTextColor(e.name);text.textColor = cell.normalColor
+            let iconSize: CGFloat = thumbnails ? 40 : 16,textHeight = ceil(listFont.pointSize*1.35)
+            image.frame = NSRect(x:2,y:(table.rowHeight-iconSize)/2,width:iconSize,height:iconSize);image.image = fileIcon(e,preview:thumbnails)
+            text.frame = NSRect(x:iconSize+7,y:(table.rowHeight-textHeight)/2,width:max(10,tableColumn.width-iconSize-12),height:textHeight);text.autoresizingMask = [.width]
+            cell.addSubview(image);cell.addSubview(text);cell.imageView = image;cell.textField = text
+            cell.toolTip = e.url.path+(e.isSymbolicLink ? " (Verknüpfung)" : "");return cell
         }
         let value: String
         switch id {
@@ -412,11 +454,13 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         case "path": value = e.url.deletingLastPathComponent().path
         default: value = ""
         }
-        let text = label(value, size: 11, color: .secondaryLabelColor)
-        if let profile = importedProfile { text.font = listFont; text.textColor = profile.foreground?.nsColor ?? .secondaryLabelColor }
+        let cell = FileCellView(frame:NSRect(x:0,y:0,width:tableColumn.width,height:table.rowHeight));cell.pane = self;cell.normalColor = fileTextColor(e.name,secondary:true)
+        let text = label(value,size:listFont.pointSize,color:cell.normalColor);text.font = listFont
+        text.frame = NSRect(x:2,y:(table.rowHeight-ceil(listFont.pointSize*1.35))/2,width:max(1,tableColumn.width-4),height:ceil(listFont.pointSize*1.35));text.autoresizingMask = [.width]
         if id == "attributes" { text.toolTip = "macOS: D Ordner, L Verknüpfung, H versteckter Name, R ohne Besitzer-Schreibbit" }
-        if id == "size" { text.alignment = .right }; return text
+        if id == "size" { text.alignment = .right };cell.addSubview(text);cell.textField = text;return cell
     }
+    func tableView(_ tableView: NSTableView,rowViewForRow row: Int) -> NSTableRowView? { let view = FileRowView();view.pane = self;return view }
     func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? { visibleEntries[row].url as NSURL }
     func tableView(_ tableView: NSTableView, validateDrop info: NSDraggingInfo, proposedRow row: Int, proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
         guard !readOnly else { return [] }; tableView.setDropRow(-1, dropOperation: .on); return .copy

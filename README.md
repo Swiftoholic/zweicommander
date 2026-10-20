@@ -2,11 +2,12 @@
 
 ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Tabs und Tastaturbedienung. Er wird in Swift und AppKit entwickelt und verwendet Systembibliotheken für Dateivorgänge, Vorschau und Archive.
 
-**Version 0.12.0 ist eine frühe, ausführbare Version.** Neu ist ein eigener Arbeitsbereich für Ordnervergleich und Synchronisation mit Gegenüberstellung, Entscheidungen pro Datei, lokalen Profilen, Planprüfung und Kopien in beide Richtungen. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+**Version 0.13.0 ist eine frühe, ausführbare Version.** Neu sind eine kompakte Oberfläche mit eigenen Ortsleisten je Dateifenster, klickbaren Pfaden, flachen Tabs und einer mittleren Aktionsleiste sowie vollständige Hell-/Dunkel-Farben für Dateilisten und Dokumentflächen. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 ## Funktionen
 
-- Zwei Dateifenster, Ordnerbaum, Tabs, Schnellfilter und Dateisammlungen.
+- Zwei Dateifenster mit eigenen Ortsleisten, klickbaren Pfaden, Ordnerbaum, Tabs, Schnellfilter und Dateisammlungen.
+- Durchgängige Hell-/Dunkel-/Systemdarstellung, kompakte oder größere Zeilen und wählbare Listenschrift.
 - Details, Vorschauliste und Symbolraster mit gemeinsamer Auswahl und Sortierung.
 - Tabs umordnen und duplizieren, ausgewählten Tab und Ansicht wiederherstellen.
 - Ordneransichten mit optionaler Vererbung sowie Ordner- und Programmfavoriten.
@@ -58,6 +59,16 @@ Das aktive Dateifenster ist blau markiert. Das andere Fenster dient als vorgesch
 | Cmd+Shift+J | Warteschlange |
 
 Auf manchen Tastaturen benötigen F-Tasten zusätzlich `fn`. Tastenkürzel können angepasst werden. F1 öffnet die Hilfe.
+
+## Erscheinungsbild und kompakte Oberfläche
+
+Oben rechts stehen **System**, **Hell** und **Dunkel** zur Wahl. Hell zeigt beide Dateilisten hell, Dunkel verwendet abgestufte Grautöne. Die aktive Seite ist zusätzlich an der blauen Pfadzeile erkennbar. Such-, Vergleichs-, Umbenennungs-, Text- und Vorschaufenster folgen der Umschaltung. Bilder und von macOS bereitgestellte Dokumentvorschauen behalten ihre eigenen Inhalte; Systemdialoge und die Menüleiste verwenden macOS-Darstellung.
+
+Importierte Hintergründe gelten nur für das passende Erscheinungsbild. Die Gegenpalette bleibt vollständig hell beziehungsweise dunkel. Zu kontrastarme Schrift- und Dateitypfarben werden angepasst. Unter **Einstellungen** lassen sich importierte Farben abschalten, kompakte oder größere Zeilen, die Listenschriftgröße und Beschriftungen unter den Werkzeug-Symbolen wählen. Die Vorgaben bleiben lokal, getrennt von vorhandenen Importprofilen und Tabs. Beschädigte oder unbekannte Darstellungsdaten werden nicht überschrieben.
+
+Jede Seite hat ihre eigene Ortsleiste. Ein Klick auf einen Pfadbestandteil öffnet diesen Ordner; **…** zeigt die vollständige Hierarchie. **Cmd+L** öffnet den Pfadeditor, **Escape** kehrt zur Pfadzeile zurück. Ungesperrte Tabs haben bei mehreren offenen Tabs einen eigenen Schließen-Knopf. Das Schließen eines inaktiven Tabs erhält den ausgewählten Tab. Die mittlere Leiste bietet Tausch, gleichen Ordner, verknüpftes Navigieren, Vergleich und Anordnung. Freier Platz im Mittelstreifen lässt die Trennung weiterhin verschieben. Die Werkzeugleiste lässt sich bei schmalen Fenstern horizontal scrollen; Favoriten und Erscheinungsbild bleiben rechts sichtbar.
+
+Die untere Eingabezeile startet mit **Pfad**. Enter öffnet einen absoluten oder zum aktiven Ordner relativen Ordnerpfad. Erst der ausdrücklich gewählte Modus **Befehl** führt zsh mit deinen Benutzerrechten im aktiven Ordner aus und öffnet die Textausgabe. Solche Befehle können Dateien verändern. Der Terminal-Knopf öffnet ein interaktives Terminal. Es wird kein Befehlsverlauf gespeichert.
 
 ## Ansichten, Tabs und Favoriten
 

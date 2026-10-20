@@ -119,7 +119,7 @@ extension AppDelegate {
         pane.onDrop = drop
         choose(pane.viewMode,1)
         check(pane.thumbnails && pane.table.rowHeight == 52 && pane.selectedURLs == [text],"thumbnail list restores selection")
-        main.command("details");check(pane.displayMode == .details && pane.table.rowHeight == 25,"details command restores compact rows")
+        main.command("details");check(pane.displayMode == .details && pane.table.rowHeight == 21,"details command restores compact rows")
         let sameURL = PaneView(url:folder,savedTabs:[
             SavedTab(path:root.appendingPathComponent("Missing").path,title:nil,locked:false,view:nil,selected:nil),
             SavedTab(path:folder.path,title:"Gleich",locked:false,view:.init(display:.icons),selected:nil),

@@ -17,7 +17,7 @@ final class RenameController: NSWindowController,NSWindowDelegate,NSTableViewDat
     let settingsButtons = [ActionButton("Name und Zähler",action:{}),ActionButton("Suchen und Ersetzen",action:{}),ActionButton("Datum und Schreibweise",action:{})]
     let profilePopup = NSPopUpButton(),profileSave = ActionButton("Speichern",action:{}),profileSaveAs = ActionButton("Speichern als …",action:{}),profileRemove = ActionButton("Löschen …",action:{})
     let profileStatus = label("Eigene Einstellungen",size:11,color:.secondaryLabelColor)
-    let table = NSTableView(),info = label("Vorschau wird vorbereitet …",size:12,color:.secondaryLabelColor)
+    let table = CommanderTableView(),info = label("Vorschau wird vorbereitet …",size:12,color:.secondaryLabelColor)
     let apply = ActionButton("Umbenennen",symbol:"checkmark",action:{}),cancel = ActionButton("Schließen",action:{}),refreshButton = ActionButton("Vorschau aktualisieren",symbol:"arrow.clockwise",action:{})
     let selectAll = ActionButton("Alle",action:{}),selectNone = ActionButton("Keine",action:{}),up = ActionButton("↑",action:{}),down = ActionButton("↓",action:{}),reset = ActionButton("Regeln zurücksetzen",action:{}),report = ActionButton("Bericht",action:{})
     private(set) var choices: [RenameChoice]

@@ -9,13 +9,13 @@ final class OperationContent: NSView {
     }
     required init?(coder:NSCoder) { fatalError() }
     private func updateBackground() {
-        effectiveAppearance.performAsCurrentDrawingAppearance { layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor }
+        effectiveAppearance.performAsCurrentDrawingAppearance { layer?.backgroundColor = CommanderPalette.current(in:self).chrome.cgColor }
     }
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance();updateBackground() }
 }
 
 private func operationTable(_ columns: [(String,String,CGFloat)]) -> NSTableView {
-    let table = NSTableView(); table.rowHeight = 29; table.usesAlternatingRowBackgroundColors = true
+    let table = CommanderTableView(); table.rowHeight = 29; table.usesAlternatingRowBackgroundColors = true
     table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle; table.allowsMultipleSelection = false
     for (id,title,width) in columns { let c = NSTableColumn(identifier:.init(id));c.title = title;c.width = width;c.minWidth = 45;table.addTableColumn(c) }
     return table

@@ -6,6 +6,7 @@ extension MainWindow {
         if let compare = keyCompareController,!["help","settings","operations"].contains(id) { compare.command(id);return }
         if let search = keySearchController,!["help","settings","operations"].contains(id) { search.command(id);return }
         if id == "closeTab",let key = NSApp.keyWindow,key !== window { key.performClose(nil); return }
+        defer { updateChromeState();content.needsLayout = true }
         do {
             switch id {
             case "open": active.openSelection()
@@ -96,7 +97,7 @@ extension MainWindow {
             case "loadCollection":
                 let panel = NSOpenPanel(); panel.allowsMultipleSelection = false
                 if panel.runModal() == .OK,let url = panel.url { let paths = try JSONDecoder().decode([String].self,from:Data(contentsOf:url)); active.showCollection(paths.map { URL(fileURLWithPath:$0) },title:url.deletingPathExtension().lastPathComponent) }
-            case "path": active.activate(); window?.makeFirstResponder(active.pathField); active.pathField.selectText(nil)
+            case "path": active.beginPathEditing()
             case "filter": active.activate(); window?.makeFirstResponder(active.filterField)
             case "parent": active.goParent()
             case "back": active.history(-1)

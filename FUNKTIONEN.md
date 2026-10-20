@@ -1,11 +1,11 @@
-# Funktionsstand 0.12.0
+# Funktionsstand 0.13.0
 
 ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet implementiert; die tatsächlich geprüften Bereiche und verbleibenden Grenzen sind separat aufgeführt.
 
 | Bereich | Stand | Umsetzung / Grenze |
 |---|---|---|
 | Zwei Dateifenster | Vorhanden | Nebeneinander, übereinander, Einzelansicht, Tausch und gemeinsamer Ordner |
-| Navigation | Vorhanden | Pfadfeld, vor/zurück, übergeordnet, Benutzerordner, eingebundene Volumes |
+| Navigation | Vorhanden | Eigene Ortsleisten je Seite, klickbare Pfadbestandteile mit Vorfahrenmenü, Pfadeditor mit Escape, vor/zurück, übergeordnet, Benutzerordner, eingebundene Volumes |
 | Tabs | Vorhanden | Neu, schließen, benennen, sperren, duplizieren, Reihenfolge per Ziehen/Menü, Wechsel mit Tastatur; andere ungesperrte Tabs schließen; Reihenfolge, ausgewählten Tab und manuelle Ansicht wiederherstellen |
 | Ordnerbaum | Vorhanden | Pro Dateifenster zuschaltbar, Unterordner bei Bedarf geladen |
 | Dateilisten | Vorhanden | Mehrfachauswahl, Sortierung, Ordner zuerst, konfigurierbare sichtbare Spalten |
@@ -40,10 +40,10 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 | Favoriten | Teilweise | Lokale Ordner- und Programmfavoriten mit Namen, Ziel, Reihenfolge und Entfernen; Programme starten oder ausgewählte Datei-URLs öffnen; noch keine frei programmierbare Werkzeugleiste |
 | Teilen / Zusammenfügen | Vorhanden | Eigene Teileliste mit SHA-256 je Teil; keine fremden Split-Formate |
 | Export | Vorhanden | Aktuelle Dateiliste als TSV |
-| Kommandozeile | Vorhanden | zsh-Befehl mit Ausgabefenster und Terminal im aktuellen Ordner |
+| Kommandozeile | Vorhanden | Untere Eingabezeile mit getrennten Modi für Ordnerpfad und zsh-Befehl, Ausgabefenster und Terminal im aktuellen Ordner; kein gespeicherter Befehlsverlauf |
 | Netzwerkvolumes | Vorhanden | macOS-gemountete Volumes, vom System verwaltete Anmeldung |
 | FTP / FTPS / SFTP | Teilweise | Eigenes Fenster für Navigation/Einzeldateitransfers; SFTP per Schlüssel/Agent; erweiterte SFTP-Nutzung im Terminal |
-| Tastenkürzel / Erscheinungsbild | Teilweise | Konfigurierbare Menübefehle, Hell/Dunkel/System; keine vollständige Themen-/Toolbar-Engine |
+| Tastenkürzel / Erscheinungsbild | Teilweise | Konfigurierbare Menübefehle; vollständige Hell-/Dunkel-/Systemfarben, passende Importfarben und Kontrastkorrektur, kompakte/größere Zeilen, Listenschrift, Werkzeugbeschriftungen; keine frei programmierbare Themen-/Toolbar-Engine |
 | INI-Einstellungsimport | Teilweise | INI-/SHC-Import unterstützter Farben, Spalten, Sortierung, Tasten, Such-/Archiv-/Zählervorgaben; Rücksetzung; Favoriten und Laufwerkspfade bewusst ausgelassen |
 | Dateistruktur-Vorschau | Teilweise | PE-/Mach-O-Köpfe, Architektur, PE-Sektionen und Versionsfelder; keine komplette Ressourcen-/Symboloberfläche |
 | Dokumentvorschau | Teilweise | System-Quick-Look und Office-XML-Textextraktion; zusätzliche Formate hängen von Vorschauanbietern ab |
@@ -60,7 +60,7 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 
 200 Dateikern- und Integrationstests prüfen unter anderem Ordnerregeln, Favoriten und strukturierte Programmaufrufe, das lokale Auftragsjournal, Wiederanlauf ohne automatische Ausführung, Speichergrenzen und Dateirechte, Kopierfortschritt, Pause/Abbruch, Metadaten, Dateifilter, Zusammenführen, Konfliktentscheidungen, Sicherungen, Rückgängig, veränderte Quellen und Ziele, symbolische Verknüpfungen, Umbenennungszyklen, Suche, Hashwerte, Archive, Pfadmanipulationen und einen lokalen FTP-Server.
 
-Die zweiundzwanzig nativen Oberflächendurchläufe mit 425 Prüfungen kontrollieren Ordnervergleich, gemischte Synchronisation und Vergleichsprofile, Suche und lokale Suchprofile, laufende/abgebrochene Treffer und Aktionen aus Ergebnissen, Mehrfachumbenennen und Profile, Dateifenster und Import, Symbolansicht und Dateikopie, Tabs, Favoriten und Ordnerregeln, Warteschlange, Kopierfilter, Zusammenführen, Kopierprofile, relative Altersregeln sowie gespeicherte und unterbrochene Dateiübertragungen über getrennte App-Prozesse. Sie bedienen die tatsächlichen Auswahlfelder und Konfliktmenüs und vergleichen das Ergebnis mit dem geplanten Bestand. Details stehen in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+Die vierundzwanzig nativen Oberflächendurchläufe mit 481 Prüfungen kontrollieren vollständige Hell-/Dunkelflächen und Spaltentitel, Kontrastkorrektur, kompakte Navigation, Tabs und Darstellung nach Neustart, Ordnervergleich, gemischte Synchronisation und Vergleichsprofile, Suche und lokale Suchprofile, laufende/abgebrochene Treffer und Aktionen aus Ergebnissen, Mehrfachumbenennen und Profile, Dateifenster und Import, Symbolansicht und Dateikopie, Tabs, Favoriten und Ordnerregeln, Warteschlange, Kopierfilter, Zusammenführen, Kopierprofile, relative Altersregeln sowie gespeicherte und unterbrochene Dateiübertragungen über getrennte App-Prozesse. Sie bedienen die tatsächlichen Auswahlfelder und Konfliktmenüs und vergleichen das Ergebnis mit dem geplanten Bestand. Details stehen in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 FTPS und SFTP sind bisher nicht Ende zu Ende gegen einen Server geprüft. Große Bestände, Cloud-Platzhalter, ACL-Sonderfälle, externe Datenträger, lange Alltagssitzungen sowie Apple Silicon und ältere macOS-Versionen benötigen weitere Laufzeitprüfungen.
 

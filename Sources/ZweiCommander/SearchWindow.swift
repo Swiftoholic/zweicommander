@@ -14,7 +14,7 @@ final class SearchController: NSWindowController,NSWindowDelegate,NSTableViewDat
     let chooseRoot = ActionButton("Wählen …",action:{}),criteria = ActionButton("Größe und Datum …",action:{}),reset = ActionButton("Zurücksetzen",action:{})
     let criteriaStatus = label("Keine Größen- oder Zeitgrenzen",size:11,color:.secondaryLabelColor)
     let start = ActionButton("Suchen",symbol:"magnifyingglass",action:{}),stop = ActionButton("Abbrechen",action:{})
-    let table = NSTableView(),resultFilter = input(placeholder:"Trefferliste filtern")
+    let table = CommanderTableView(),resultFilter = input(placeholder:"Trefferliste filtern")
     let info = label("Suchordner und Regeln wählen, dann Suchen.",size:12,color:.secondaryLabelColor)
     let detail = label("",size:12,color:.secondaryLabelColor),progress = NSProgressIndicator()
     let openButton = ActionButton("Öffnen",action:{}),previewButton = ActionButton("Vorschau",action:{}),revealButton = ActionButton("Im Dateifenster",action:{})

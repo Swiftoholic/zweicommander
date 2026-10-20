@@ -9,9 +9,9 @@ if [[ -d "$APP" && -f "$APP/Contents/Info.plist" ]]; then
   EXISTING_ID=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Contents/Info.plist")
   [[ "$EXISTING_ID" == 'local.zweicommander.app' ]] || { echo 'Ziel enthält eine andere App.' >&2; exit 1; }
 fi
-swift build --package-path "$PROJECT_DIR" --scratch-path "$BUILD_ROOT/intel" -c release --triple x86_64-apple-macosx13.0 --product ZweiCommander
+swift build --package-path "$PROJECT_DIR" --scratch-path "$BUILD_ROOT/intel" -c release --triple x86_64-apple-macosx13.0 --product ZweiCommander -Xswiftc -gnone
 INTEL_BIN=$(swift build --package-path "$PROJECT_DIR" --scratch-path "$BUILD_ROOT/intel" -c release --triple x86_64-apple-macosx13.0 --show-bin-path)
-swift build --package-path "$PROJECT_DIR" --scratch-path "$BUILD_ROOT/arm64" -c release --triple arm64-apple-macosx13.0 --product ZweiCommander
+swift build --package-path "$PROJECT_DIR" --scratch-path "$BUILD_ROOT/arm64" -c release --triple arm64-apple-macosx13.0 --product ZweiCommander -Xswiftc -gnone
 ARM_BIN=$(swift build --package-path "$PROJECT_DIR" --scratch-path "$BUILD_ROOT/arm64" -c release --triple arm64-apple-macosx13.0 --show-bin-path)
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 xcrun lipo -create "$INTEL_BIN/ZweiCommander" "$ARM_BIN/ZweiCommander" -output "$APP/Contents/MacOS/ZweiCommander"

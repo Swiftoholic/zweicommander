@@ -25,8 +25,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let workspaceSmoke = args.firstIndex(of:"--workspace-smoke")
         let renameSmoke = args.firstIndex(of:"--rename-smoke")
         let searchSmoke = args.firstIndex(of:"--search-smoke")
+        let appearanceSmoke = args.firstIndex(of:"--appearance-smoke")
         let compareSmoke = args.firstIndex(of:"--compare-smoke")
-        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke].compactMap { $0 }.first
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke].compactMap { $0 }.first
         Preferences.testMode = testIndex != nil
         if Preferences.testMode { setvbuf(stdout,nil,_IOLBF,0) }
         if Preferences.testMode { Preferences.state = SavedState() }
@@ -49,6 +50,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if compareSmoke != nil,let index = args.firstIndex(of:"--compare-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
             Preferences.compareTestDefaults = UserDefaults(suiteName:args[index+1])
         }
+        if appearanceSmoke != nil,let index = args.firstIndex(of:"--appearance-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") { Preferences.appearanceTestDefaults = UserDefaults(suiteName:args[index+1]) }
         if let index = args.firstIndex(of:"--import-settings"),args.indices.contains(index+1) {
             do {
                 let profile = try INISettingsImport.load(directory:URL(fileURLWithPath:args[index+1]))
@@ -70,7 +72,10 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
             guard let self else { return }
             self.main.content.layoutSubtreeIfNeeded()
             let split = self.main.content.split
-            split.setPosition((split.isVertical ? split.bounds.width : split.bounds.height)/2,ofDividerAt:0)
+            split.setPosition(((split.isVertical ? split.bounds.width : split.bounds.height)-split.dividerThickness)/2,ofDividerAt:0)
+        }
+        if let appearanceSmoke,args.indices.contains(appearanceSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+1) { self.runAppearanceSmoke(root:root,prefix:args[appearanceSmoke+2],reload:args.contains("--reload-appearance")) }
         }
         if let smoke, args.indices.contains(smoke+2) {
             let imagePath = args[smoke+2]
@@ -168,7 +173,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if item.keyEquivalentModifierMask.isEmpty, item.keyEquivalent == " ", NSApp.keyWindow?.firstResponder is NSTextView { return false }
         return true
     }
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:"0.12.0",.version:"12",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:"0.13.0",.version:"13",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
     func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply {
         if main?.canTerminate == false { _ = dialog("Dateivorgänge laufen",message:"Laufende Vorgänge einschließlich Suchen, vorgemerkte Synchronisationen und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return .terminateCancel }
         main?.saveState(); return .terminateNow

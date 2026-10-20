@@ -9,7 +9,7 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
     let profilePopup = NSPopUpButton(),profileSave = ActionButton("Speichern",action:{}),profileSaveAs = ActionButton("Speichern als …",action:{}),profileRemove = ActionButton("Löschen …",action:{})
     let profileStatus = label("Eigene Regeln",size:11,color:.secondaryLabelColor)
     let compareButton = ActionButton("Vergleichen",symbol:"arrow.left.arrow.right",action:{}),cancelButton = ActionButton("Abbrechen",action:{}),reviewButton = ActionButton("Plan prüfen …",action:{})
-    let table = NSTableView(),resultFilter = input(placeholder:"Vergleichsliste nach Pfad filtern"),statusFilter = NSPopUpButton()
+    let table = CommanderTableView(),resultFilter = input(placeholder:"Vergleichsliste nach Pfad filtern"),statusFilter = NSPopUpButton()
     let toRight = ActionButton("Auswahl →",action:{}),toLeft = ActionButton("← Auswahl",action:{}),skip = ActionButton("Auswahl auslassen",action:{})
     let previewLeft = ActionButton("Links ansehen",action:{}),previewRight = ActionButton("Rechts ansehen",action:{}),revealLeft = ActionButton("Links markieren",action:{}),revealRight = ActionButton("Rechts markieren",action:{})
     let info = label("Ordner und Vergleichsregeln wählen, dann Vergleichen.",size:12,color:.secondaryLabelColor),summary = label("",size:12,color:.secondaryLabelColor),detail = label("",size:11,color:.secondaryLabelColor)
@@ -291,7 +291,7 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
 }
 
 final class SyncReviewController: NSWindowController,NSTableViewDataSource,NSTableViewDelegate {
-    let plan: FolderSyncPlan,table = NSTableView(),start = ActionButton("Starten",symbol:"play.fill",action:{}),queue = ActionButton("Vormerken",action:{}),cancel = ActionButton("Abbrechen",action:{})
+    let plan: FolderSyncPlan,table = CommanderTableView(),start = ActionButton("Starten",symbol:"play.fill",action:{}),queue = ActionButton("Vormerken",action:{}),cancel = ActionButton("Abbrechen",action:{})
     var onStart: ((Bool)->Void)?
     init(_ plan: FolderSyncPlan) {
         self.plan = plan;let w = NSWindow(contentRect:NSRect(x:0,y:0,width:1030,height:550),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false);w.title = "Synchronisationsplan prüfen";w.minSize = NSSize(width:940,height:450);w.isReleasedWhenClosed = false

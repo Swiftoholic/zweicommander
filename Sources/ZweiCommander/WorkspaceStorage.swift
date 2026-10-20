@@ -37,7 +37,7 @@ extension PaneView {
         }
         for item in table.headerView?.menu?.items ?? [] { if let c = item.representedObject as? NSTableColumn { item.state = c.isHidden ? .off : .on } }
         table.sortDescriptors = [NSSortDescriptor(key:sortKey,ascending:ascending)]
-        displayMode = value.display;table.rowHeight = displayMode == .thumbnails ? 52 : 25
+        displayMode = value.display;table.rowHeight = displayMode == .thumbnails ? max(52,listFont.pointSize+16) : max(Preferences.appearanceSettings().rowHeight,listFont.pointSize+7)
         if displayMode == .icons { grid.frame = scroll.contentView.bounds;scroll.documentView = grid;scroll.hasHorizontalScroller = false }
         else { scroll.documentView = table;scroll.hasHorizontalScroller = true }
         viewMode.selectItem(at:PaneDisplayMode.allCases.firstIndex(of:displayMode) ?? 0)

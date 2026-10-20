@@ -2,9 +2,12 @@ import AppKit
 import QuickLookUI
 import CommanderCore
 
-final class MainContent: NSView, NSSplitViewDelegate {
-    let toolbar = NSStackView(), locations = NSStackView(), functionBar = NSStackView()
-    let split = NSSplitView()
+final class MainContent: CommanderSurface, NSSplitViewDelegate {
+    let toolbar = NSStackView(), functionBar = NSStackView(), utilityBar = NSStackView()
+    let toolbarScroll = NSScrollView()
+    let split = CommanderSplitView(), rail = SplitActionRail(frame:.zero)
+    let commandMode = NSPopUpButton(), commandField = input(placeholder:"Ordnerpfad")
+    let commandGo = ActionButton("",symbol:"return",action:{}), terminal = ActionButton("",symbol:"terminal",action:{})
     let status = label("Bereit",size:11,color:.secondaryLabelColor)
     let progress = NSProgressIndicator()
     let cancel = ActionButton("Abbrechen",symbol:"xmark.circle",action:{})
@@ -12,42 +15,56 @@ final class MainContent: NSView, NSSplitViewDelegate {
     let queueButton = ActionButton("Aufträge",symbol:"list.bullet.rectangle",action:{})
     let quick = QLPreviewView(frame:.zero,style:.normal)!
     var firstLayout = true
-    var quickVisible = false { didSet { quick.isHidden = !quickVisible; needsLayout = true } }
+    var quickVisible = false { didSet { quick.isHidden = !quickVisible;needsLayout = true } }
     override init(frame frameRect: NSRect) {
         super.init(frame:frameRect)
-        wantsLayer = true; layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
-        toolbar.orientation = .horizontal; toolbar.spacing = 10; toolbar.alignment = .centerY
-        locations.orientation = .horizontal; locations.spacing = 10
-        functionBar.orientation = .horizontal; functionBar.distribution = .fillEqually; functionBar.spacing = 4
-        split.isVertical = true; split.dividerStyle = .thin; split.delegate = self
-        progress.style = .bar; progress.controlSize = .small; progress.isDisplayedWhenStopped = false;progress.minValue = 0;progress.maxValue = 1
-        quick.isHidden = true; cancel.isHidden = true;pause.isHidden = true
-        [toolbar,locations,split,functionBar,status,progress,cancel,pause,queueButton,quick].forEach { addSubview($0) }
+        toolbar.orientation = .horizontal;toolbar.spacing = 3;toolbar.alignment = .centerY
+        utilityBar.orientation = .horizontal;utilityBar.spacing = 5;utilityBar.alignment = .centerY
+        toolbarScroll.drawsBackground = false;toolbarScroll.documentView = toolbar;toolbarScroll.hasHorizontalScroller = false
+        functionBar.orientation = .horizontal;functionBar.distribution = .fillEqually;functionBar.spacing = 1
+        split.isVertical = true;split.dividerStyle = .thin;split.delegate = self
+        commandMode.addItems(withTitles:["Pfad","Befehl"]);commandMode.controlSize = .small
+        commandMode.toolTip = "Pfad öffnet einen Ordner. Befehl führt zsh im aktiven Ordner aus."
+        commandField.font = .monospacedSystemFont(ofSize:11,weight:.regular)
+        commandGo.flat = true;commandGo.toolTip = "Eingabe ausführen";commandGo.setAccessibilityLabel("Eingabe ausführen")
+        terminal.flat = true;terminal.toolTip = "Terminal im aktiven Ordner öffnen";terminal.setAccessibilityLabel("Terminal öffnen")
+        progress.style = .bar;progress.controlSize = .small;progress.isDisplayedWhenStopped = false;progress.minValue = 0;progress.maxValue = 1
+        quick.isHidden = true;cancel.isHidden = true;pause.isHidden = true
+        [pause,cancel,queueButton].forEach { $0.flat = true;$0.font = .systemFont(ofSize:11) }
+        [toolbarScroll,utilityBar,split,rail,quick,functionBar,commandMode,commandField,commandGo,terminal,status,progress,cancel,pause,queueButton].forEach { addSubview($0) }
     }
     required init?(coder:NSCoder) { fatalError() }
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        effectiveAppearance.performAsCurrentDrawingAppearance { layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor }
-    }
     override func layout() {
-        super.layout(); let w = bounds.width,h = bounds.height
-        toolbar.frame = NSRect(x:14,y:h-44,width:w-28,height:34)
-        locations.frame = NSRect(x:14,y:h-80,width:w-28,height:28)
+        super.layout();let w = bounds.width,h = bounds.height
+        let toolbarHeight: CGFloat = Preferences.appearanceSettings().toolbarLabels ? 50 : 32
+        toolbarScroll.frame = NSRect(x:5,y:h-toolbarHeight,width:max(1,w-222),height:toolbarHeight)
+        utilityBar.frame = NSRect(x:w-212,y:h-toolbarHeight,width:207,height:toolbarHeight)
+        toolbar.frame = NSRect(x:0,y:0,width:max(toolbarScroll.bounds.width,toolbar.fittingSize.width),height:toolbarHeight)
         let q: CGFloat = quickVisible ? min(330,w*0.28) : 0
-        split.frame = NSRect(x:0,y:71,width:w-q,height:max(1,h-158))
-        if firstLayout && w > 0 && h > 0 && split.arrangedSubviews.count == 2 { firstLayout = false; split.setPosition((split.isVertical ? split.bounds.width : split.bounds.height)/2,ofDividerAt:0) }
-        quick.frame = NSRect(x:w-q,y:71,width:q,height:max(1,h-158))
-        functionBar.frame = NSRect(x:10,y:34,width:w-20,height:30)
-        progress.frame = NSRect(x:12,y:10,width:115,height:12)
-        status.frame = NSRect(x:140,y:7,width:max(20,w-510),height:18)
-        pause.frame = NSRect(x:w-365,y:3,width:110,height:26)
-        cancel.frame = NSRect(x:w-255,y:3,width:120,height:26)
-        queueButton.frame = NSRect(x:w-135,y:3,width:125,height:26)
+        split.frame = NSRect(x:0,y:78,width:max(1,w-q),height:max(1,h-toolbarHeight-78))
+        if firstLayout && w > 0 && h > 0 && split.arrangedSubviews.count == 2 { firstLayout = false;split.setPosition(((split.isVertical ? split.bounds.width : split.bounds.height)-split.dividerThickness)/2,ofDividerAt:0) }
+        quick.frame = NSRect(x:w-q,y:78,width:q,height:split.frame.height)
+        functionBar.frame = NSRect(x:2,y:25,width:max(1,w-4),height:25)
+        commandMode.frame = NSRect(x:5,y:52,width:84,height:23)
+        commandField.frame = NSRect(x:92,y:52,width:max(1,w-157),height:23)
+        commandGo.frame = NSRect(x:w-61,y:52,width:26,height:23);terminal.frame = NSRect(x:w-31,y:52,width:26,height:23)
+        progress.frame = NSRect(x:7,y:8,width:95,height:10)
+        status.frame = NSRect(x:108,y:4,width:max(20,w-465),height:17)
+        pause.frame = NSRect(x:w-351,y:2,width:98,height:22);cancel.frame = NSRect(x:w-251,y:2,width:112,height:22);queueButton.frame = NSRect(x:w-137,y:2,width:132,height:22)
+        positionRail()
     }
+    func positionRail() {
+        let panes = split.arrangedSubviews
+        rail.isHidden = panes.count != 2 || panes.contains(where: \.isHidden)
+        guard !rail.isHidden else { return };rail.vertical = split.isVertical
+        let rect = split.isVertical ? NSRect(x:panes[0].frame.maxX+1,y:1,width:28,height:max(1,split.bounds.height-2)) : NSRect(x:1,y:panes[0].frame.maxY+1,width:max(1,split.bounds.width-2),height:28)
+        rail.frame = convert(rect,from:split);rail.needsLayout = true
+    }
+    func splitViewDidResizeSubviews(_ notification: Notification) { positionRail() }
     func splitView(_ splitView:NSSplitView,canCollapseSubview subview:NSView)->Bool { false }
     func splitView(_ splitView:NSSplitView,constrainSplitPosition proposedPosition:CGFloat,ofSubviewAt dividerIndex:Int)->CGFloat {
         let length = splitView.isVertical ? splitView.bounds.width : splitView.bounds.height
-        let minimum:CGFloat = splitView.isVertical ? min(280,length*0.35) : min(160,length*0.35)
+        let minimum: CGFloat = splitView.isVertical ? min(280,length*0.35) : min(160,length*0.35)
         return max(minimum,min(proposedPosition,length-minimum))
     }
 }
@@ -65,7 +82,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     var cutURLs: [URL] = []
     var cutPasteboardChange = -1
     var linked = false
-    let locationsMenu = NSPopUpButton(frame:.zero,pullsDown:false)
+    let themeMenu = NSPopUpButton(frame:.zero,pullsDown:false)
     let favoriteMenu = NSPopUpButton(frame:.zero,pullsDown:false)
     let cache: URL
     var onRebuildMenus: (() -> Void)?
@@ -104,7 +121,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             pane.onDrop = { [weak self] urls,dest in self?.transfer(urls,to:dest,kind:.copy) }
             pane.onCollectionDrop = { [weak pane] urls in pane?.addToCollection(urls) }
             pane.onCommand = { [weak self] cmd in self?.command(cmd) }
-            pane.onState = { [weak self] in self?.saveState() }
+            pane.onState = { [weak self] in self?.saveState();self?.updateChromeState() }
             pane.onSelection = { [weak self, weak pane] urls in
                 guard let self, pane === self.active, self.content.quickVisible else { return }
                 self.content.quick.previewItem = urls.first.map { $0 as NSURL }
@@ -112,7 +129,12 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             pane.onNavigate = { [weak self] p,old,new in self?.followNavigation(p,from:old,to:new) }
             pane.refresh()
         }
-        buildToolbar(); refreshLocations(); setActive(left)
+        buildToolbar();refreshLocations();setActive(left)
+        content.rail.configure([("Seiten tauschen","arrow.triangle.swap","swap"),("Gleicher Ordner","equal.square","sameFolder"),("Verknüpft navigieren","link","linked"),("Ordner vergleichen","arrow.left.arrow.right","compare"),("Anordnung wechseln","rectangle.split.2x1","orientation"),("Ein-/Zweifensteransicht","sidebar.left","onePane")]) { [weak self] in self?.command($0) }
+        content.commandMode.target = self;content.commandMode.action = #selector(commandModeChanged)
+        content.commandField.target = self;content.commandField.action = #selector(commandEntered)
+        content.commandGo.perform = { [weak self] in self?.commandEntered() }
+        content.terminal.perform = { [weak self] in self?.openTerminal() }
         jobs.onStatus = { [weak self] text,done in
             guard let self else { return }; self.content.status.stringValue = text
             let active = self.jobs.active
@@ -138,28 +160,61 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     }
     required init?(coder:NSCoder) { fatalError() }
     func buildToolbar() {
-        let brand = label("ZWEI",size:19,color:.controlAccentColor,weight:.heavy)
-        let subtitle = label("COMMANDER",size:10,color:.secondaryLabelColor,weight:.semibold)
-        let brandGroup = row([brand,subtitle],spacing:5)
-        brandGroup.widthAnchor.constraint(equalToConstant:125).isActive = true
-        brandGroup.heightAnchor.constraint(equalToConstant:26).isActive = true
-        content.toolbar.addArrangedSubview(brandGroup)
-        for (title,symbol,cmd) in [("Suchen","magnifyingglass","search"),("Vergleichen","arrow.left.arrow.right","compare"),("Umbenennen","textformat.abc","batchRename"),("Packen","archivebox","pack"),("Vorschau","sidebar.right","quickView"),("Aktualisieren","arrow.clockwise","refresh")] {
-            content.toolbar.addArrangedSubview(ActionButton(title,symbol:symbol,action:{ [weak self] in self?.command(cmd) }))
+        let labels = Preferences.appearanceSettings().toolbarLabels
+        content.toolbar.arrangedSubviews.forEach { content.toolbar.removeArrangedSubview($0);$0.removeFromSuperview() }
+        let groups: [[(String,String,String,NSColor)]] = [
+            [("Zurück","arrow.left","back",.systemBlue),("Vorwärts","arrow.right","forward",.systemBlue)],
+            [("Packen","archivebox","pack",.systemOrange),("Entpacken","shippingbox","extract",.systemOrange)],
+            [("Filter","line.3.horizontal.decrease","filter",.systemOrange),("Baum","list.bullet.indent","tree",.systemBlue)],
+            [("Details","list.bullet.rectangle","details",.systemBlue),("Vorschauen","photo.on.rectangle","thumbnails",.systemTeal),("Symbole","square.grid.2x2","icons",.systemTeal)],
+            [("Suchen","magnifyingglass","search",.systemBlue),("Vergleichen","arrow.left.arrow.right","compare",.systemBlue),("Umbenennen","textformat.abc","batchRename",.systemPurple)],
+            [("Vorschau","sidebar.right","quickView",.systemOrange),("Neu laden","arrow.clockwise","refresh",.systemGreen)]
+        ]
+        for (index,group) in groups.enumerated() {
+            if index > 0 { let separator = NSBox();separator.boxType = .separator;separator.widthAnchor.constraint(equalToConstant:1).isActive = true;separator.heightAnchor.constraint(equalToConstant:labels ? 35 : 20).isActive = true;content.toolbar.addArrangedSubview(separator) }
+            for (title,symbol,id,tint) in group {
+                let b = ActionButton(labels ? title : "",symbol:symbol,action:{ [weak self] in self?.command(id) })
+                b.flat = true;b.verticalLabel = labels;b.font = .systemFont(ofSize:10);b.symbolTint = tint;b.identifier = .init(id);b.toolTip = title;b.setAccessibilityLabel(title)
+                content.toolbar.addArrangedSubview(b)
+            }
         }
-        locationsMenu.target = self; locationsMenu.action = #selector(locationChosen)
-        favoriteMenu.target = self; favoriteMenu.action = #selector(favoriteChosen)
-        locationsMenu.widthAnchor.constraint(equalToConstant:200).isActive = true
-        favoriteMenu.widthAnchor.constraint(equalToConstant:210).isActive = true
-        content.locations.addArrangedSubview(label("Orte",size:11,color:.secondaryLabelColor))
-        content.locations.addArrangedSubview(locationsMenu)
-        content.locations.addArrangedSubview(favoriteMenu)
-        content.locations.addArrangedSubview(ActionButton("Favorit",symbol:"star",action:{ [weak self] in self?.command("favorite") }))
-        content.locations.addArrangedSubview(ActionButton("Ansichten tauschen",symbol:"arrow.triangle.swap",action:{ [weak self] in self?.command("swap") }))
-        for (title,cmd) in [("F3 Ansehen","preview"),("F4 Bearbeiten","edit"),("F5 Kopieren","copy"),("F6 Verschieben","move"),("F7 Neuer Ordner","newFolder"),("F8 Papierkorb","trash")] {
-            let b = ActionButton(title,action:{ [weak self] in self?.command(cmd) }); b.identifier = .init(cmd); b.font = .systemFont(ofSize:11); content.functionBar.addArrangedSubview(b)
+        favoriteMenu.target = self;favoriteMenu.action = #selector(favoriteChosen);favoriteMenu.controlSize = .small
+        if !favoriteMenu.constraints.contains(where: { $0.firstAttribute == .width }) { favoriteMenu.widthAnchor.constraint(equalToConstant:115).isActive = true }
+        if favoriteMenu.superview == nil { content.utilityBar.addArrangedSubview(favoriteMenu) }
+        themeMenu.removeAllItems();themeMenu.addItems(withTitles:["System","Hell","Dunkel"]);themeMenu.controlSize = .small;themeMenu.toolTip = "Erscheinungsbild";themeMenu.setAccessibilityLabel("Erscheinungsbild")
+        themeMenu.target = self;themeMenu.action = #selector(themeChosen);if !themeMenu.constraints.contains(where: { $0.firstAttribute == .width }) { themeMenu.widthAnchor.constraint(equalToConstant:86).isActive = true }
+        if themeMenu.superview == nil { content.utilityBar.addArrangedSubview(themeMenu) }
+        if content.functionBar.arrangedSubviews.isEmpty {
+            for (title,symbol,cmd) in [("F3 Ansehen","eye","preview"),("F4 Bearbeiten","pencil","edit"),("F5 Kopieren","doc.on.doc","copy"),("F6 Verschieben","arrow.right.doc.on.clipboard","move"),("F7 Neuer Ordner","folder.badge.plus","newFolder"),("F8 Papierkorb","trash","trash")] {
+                let b = ActionButton(title,symbol:symbol,action:{ [weak self] in self?.command(cmd) });b.flat = true;b.identifier = .init(cmd);b.font = .systemFont(ofSize:11);b.symbolTint = cmd == "trash" ? .systemRed : cmd == "newFolder" ? .systemOrange : .systemBlue;content.functionBar.addArrangedSubview(b)
+            }
         }
-        updateFunctionLabels()
+        themeMenu.selectItem(at:max(0,min(2,Preferences.state.theme)))
+        updateFunctionLabels();updateChromeState();content.needsLayout = true
+    }
+    @objc func themeChosen() { Preferences.state.theme = themeMenu.indexOfSelectedItem;applyTheme();Preferences.save();onRebuildMenus?() }
+    @objc func commandModeChanged() {
+        content.commandField.stringValue = content.commandMode.indexOfSelectedItem == 0 ? active.currentURL.path : ""
+        content.commandField.placeholderString = content.commandMode.indexOfSelectedItem == 0 ? "Ordnerpfad" : "zsh-Befehl im aktiven Ordner"
+        content.commandField.toolTip = content.commandMode.indexOfSelectedItem == 0 ? "Enter öffnet diesen Ordner" : "Enter führt den Befehl mit deinen Benutzerrechten im aktiven Ordner aus"
+    }
+    @objc func commandEntered() {
+        defer { updateChromeState() }
+        let text = content.commandField.stringValue
+        guard !text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else { return }
+        if content.commandMode.indexOfSelectedItem == 0 {
+            let path = (text as NSString).expandingTildeInPath
+            active.navigate(path.hasPrefix("/") ? URL(fileURLWithPath:path) : active.currentURL.appendingPathComponent(path))
+        } else if ensureWritable(active) { executeShellCommand(text,in:active.currentURL) }
+    }
+    func updateChromeState() {
+        guard isWindowLoaded else { return }
+        if content.commandMode.indexOfSelectedItem == 0,!(content.commandField.currentEditor() is NSTextView) { content.commandField.stringValue = active.currentURL.path }
+        for case let button as NSButton in content.toolbar.arrangedSubviews {
+            let id = button.identifier?.rawValue
+            button.state = (id == "details" && active.displayMode == .details) || (id == "thumbnails" && active.displayMode == .thumbnails) || (id == "icons" && active.displayMode == .icons) || (id == "tree" && active.treeVisible) || (id == "quickView" && content.quickVisible) ? .on : .off
+        }
+        for button in content.rail.buttons { button.state = button.identifier?.rawValue == "linked" && linked ? .on : .off }
     }
     func updateFunctionLabels() {
         let values:[String:(String,String)] = ["preview":("F3","Ansehen"),"edit":("F4","Bearbeiten"),"copy":("F5","Kopieren"),"move":("F6","Verschieben"),"newFolder":("F7","Neuer Ordner"),"trash":("F8","Papierkorb")]
@@ -178,12 +233,12 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     }
     func refreshLocations() {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        locationsMenu.removeAllItems()
         var places:[(String,URL)] = [("Benutzerordner",home),("Schreibtisch",home.appendingPathComponent("Desktop")),("Dokumente",home.appendingPathComponent("Documents")),("Downloads",home.appendingPathComponent("Downloads")),("Programme",URL(fileURLWithPath:"/Applications")),("Macintosh HD",URL(fileURLWithPath:"/"))]
         if let volumes = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys:[.volumeIsBrowsableKey],options:[.skipHiddenVolumes]) {
             places += volumes.filter { $0.path != "/" }.map { ($0.lastPathComponent,$0) }
         }
-        for (name,url) in places { locationsMenu.addItem(withTitle:name); locationsMenu.lastItem?.representedObject = url }
+        let drivePlaces = places.filter { !["Schreibtisch","Dokumente","Programme"].contains($0.0) }
+        for pane in [left,right] { pane.locations.configure(drivePlaces);pane.locations.select(pane.currentURL) }
         favoriteMenu.removeAllItems(); favoriteMenu.addItem(withTitle:"Favoriten")
         do {
             for item in try Preferences.workspaceLibrary().favorites {
@@ -194,16 +249,24 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         } catch { favoriteMenu.addItem(withTitle:"Favoriten nicht lesbar");favoriteMenu.lastItem?.isEnabled = false;favoriteMenu.lastItem?.toolTip = error.localizedDescription }
         favoriteMenu.menu?.addItem(.separator());favoriteMenu.addItem(withTitle:"Favoriten bearbeiten …");favoriteMenu.lastItem?.representedObject = "editFavorites"
     }
-    @objc func locationChosen() { if let url = locationsMenu.selectedItem?.representedObject as? URL { active.navigate(url) } }
     @objc func favoriteChosen() {
         defer { favoriteMenu.selectItem(at:0) }
         guard let value = favoriteMenu.selectedItem?.representedObject as? String else { return }
         if value == "editFavorites" { showFavorites() }
         else if let id = UUID(uuidString:value) { do { try openFavorite(id) } catch { showFailure(error) } }
     }
-    func setActive(_ pane:PaneView) { active = pane; left.isActive = pane === left; right.isActive = pane === right; window?.subtitle = (pane === left ? "Links" : "Rechts")+" · "+pane.currentURL.path }
+    func setActive(_ pane:PaneView) { active = pane; left.isActive = pane === left; right.isActive = pane === right; window?.subtitle = (pane === left ? "Links" : "Rechts")+" · "+pane.currentURL.path;updateChromeState() }
     func saveState() { Preferences.state.left = left.savedTabs; Preferences.state.right = right.savedTabs; Preferences.state.vertical = content.split.isVertical; Preferences.save() }
-    func applyTheme() { NSApp.appearance = Preferences.state.theme == 1 ? NSAppearance(named:.aqua) : Preferences.state.theme == 2 ? NSAppearance(named:.darkAqua) : nil }
+    func applyTheme() {
+        NSApp.appearance = Preferences.state.theme == 1 ? NSAppearance(named:.aqua) : Preferences.state.theme == 2 ? NSAppearance(named:.darkAqua) : nil
+        themeMenu.selectItem(at:max(0,min(2,Preferences.state.theme)))
+        for pane in [left,right] { pane.applyImportedAppearance() }
+        content.updateSurface();content.needsDisplay = true
+    }
+    func applyAppearanceSettings() {
+        for pane in [left,right] { pane.applyImportedAppearance();pane.needsLayout = true }
+        buildToolbar();refreshLocations();content.needsLayout = true
+    }
     func followNavigation(_ pane:PaneView,from old:URL,to new:URL) {
         saveState(); guard linked else { return }
         let target = pane === left ? right : left

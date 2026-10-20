@@ -4,9 +4,14 @@ final class FolderTabButton: NSButton, NSDraggingSource {
     static let dragType = NSPasteboard.PasteboardType("local.zweicommander.folder-tab")
     weak var pane: PaneView?
     let tabID: UUID
+    let closeButton = ActionButton("",symbol:"xmark",action:{})
     init(title: String,tab: FolderTab,pane: PaneView) {
         tabID = tab.id;self.pane = pane;super.init(frame:.zero);self.title = title
         target = self;action = #selector(choose);controlSize = .small;registerForDraggedTypes([Self.dragType])
+        isBordered = false
+        closeButton.flat = true;closeButton.symbolTint = .secondaryLabelColor;closeButton.toolTip = "Diesen Tab schließen"
+        closeButton.setAccessibilityLabel("Tab schließen: "+title);closeButton.perform = { [weak self] in guard let self else { return };self.pane?.closeTab(self.tabID) }
+        closeButton.isHidden = tab.locked || pane.tabs.count == 1;addSubview(closeButton)
         let menu = NSMenu()
         for (title,command) in [("Tab duplizieren","duplicateTab"),("Tab schließen","closeTab"),("Andere Tabs schließen","closeOtherTabs"),("Tab sperren/entsperren","lockTab"),("Tab benennen …","nameTab"),("Nach links verschieben","moveTabLeft"),("Nach rechts verschieben","moveTabRight")] {
             let item = NSMenuItem(title:title,action:#selector(run(_:)),keyEquivalent:"");item.target = self;item.representedObject = command;menu.addItem(item)
@@ -14,6 +19,21 @@ final class FolderTabButton: NSButton, NSDraggingSource {
         self.menu = menu
     }
     required init?(coder: NSCoder) { fatalError() }
+    override var intrinsicContentSize: NSSize {
+        let width = (title as NSString).size(withAttributes:[.font:font ?? NSFont.systemFont(ofSize:11)]).width
+        return NSSize(width:max(80,min(220,width+45)),height:25)
+    }
+    override func layout() { super.layout();closeButton.frame = NSRect(x:bounds.width-23,y:2,width:20,height:21) }
+    override func draw(_ dirtyRect: NSRect) {
+        let p = CommanderPalette.current(in:self),selected = state == .on
+        (selected ? p.activeTab : p.chrome).setFill();bounds.fill(using:.sourceOver)
+        if selected { (pane?.isActive == true ? p.accent : p.separator).setFill();NSRect(x:0,y:0,width:bounds.width,height:2).fill(using:.sourceOver) }
+        p.separator.setFill();NSRect(x:bounds.maxX-1,y:0,width:1,height:bounds.height).fill(using:.sourceOver)
+        let paragraph = NSMutableParagraphStyle();paragraph.lineBreakMode = .byTruncatingMiddle
+        let attributes: [NSAttributedString.Key:Any] = [.font:font ?? NSFont.systemFont(ofSize:11),.foregroundColor:p.text,.paragraphStyle:paragraph]
+        (title as NSString).draw(in:NSRect(x:7,y:(bounds.height-16)/2,width:max(1,bounds.width-(closeButton.isHidden ? 13 : 31)),height:16),withAttributes:attributes)
+    }
+    override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance();needsDisplay = true }
     @objc func choose() { pane?.selectTab(tabID) }
     @objc func run(_ item: NSMenuItem) {
         guard let pane,let command = item.representedObject as? String else { return }

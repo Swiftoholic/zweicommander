@@ -3,7 +3,7 @@ import CommanderCore
 
 final class RemoteWindow:NSWindowController,NSTableViewDelegate,NSTableViewDataSource,NSWindowDelegate {
     let connection:RemoteConnection
-    let table = NSTableView(),scroll = NSScrollView(),path = input("/"),local = input(),status = label("Bereit",size:11,color:.secondaryLabelColor)
+    let table = CommanderTableView(),scroll = NSScrollView(),path = input("/"),local = input(),status = label("Bereit",size:11,color:.secondaryLabelColor)
     let jobs = JobQueue()
     var entries:[RemoteEntry] = []
     var listedPath = "/"

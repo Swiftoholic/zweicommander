@@ -14,9 +14,11 @@ extension MainWindow {
     func openTerminal() { terminalScript("cd -- "+shellQuote(active.currentURL.path)+"\nexec /bin/zsh -l",title:"Terminal") }
     func shell() {
         guard ensureWritable(active),let command = prompt("Shell-Befehl ausführen",message:"Arbeitsordner: \(active.currentURL.path)\nDer eingegebene Befehl wird mit deinen Benutzerrechten in zsh ausgeführt. Befehle können Dateien verändern. Für interaktive Programme „Terminal öffnen“ verwenden."),!command.isEmpty else { return }
-        let root = active.currentURL
+        executeShellCommand(command,in:active.currentURL)
+    }
+    func executeShellCommand(_ command: String,in root: URL) {
         jobs.submit("Shell",work:{ token,_ in try ProcessRunner.run("/bin/zsh",arguments:["-lc",command],directory:root,token:token) },completion:{ [weak self] result in
-            switch result { case .success(let text): self?.showText("Shell · "+command,text.isEmpty ? "Prozess erfolgreich beendet, keine Textausgabe." : text); case .failure(let e): self?.showText("Shell · Ergebnis",e.localizedDescription) }; self?.refresh()
+            switch result { case .success(let text): self?.showText("Shell · "+command,text.isEmpty ? "Prozess erfolgreich beendet, keine Textausgabe." : text);case .failure(let error): self?.showText("Shell · Ergebnis",error.localizedDescription) };self?.refresh()
         })
     }
     func connectServer() {
@@ -33,11 +35,17 @@ extension MainWindow {
     }
     func settings() {
         let theme = NSPopUpButton(); theme.addItems(withTitles:["Wie macOS","Hell","Dunkel"]); theme.selectItem(at:Preferences.state.theme)
+        let appearance = Preferences.appearanceSettings()
+        let density = NSPopUpButton();density.addItems(withTitles:["Kompakt","Mehr Abstand"]);density.selectItem(at:appearance.compact ? 0 : 1)
+        let fontSize = NSPopUpButton();fontSize.addItems(withTitles:AppearanceSettings.fontSizes.map { $0 == 0 ? "Vorgabe / Import" : "\($0) pt" });fontSize.selectItem(at:AppearanceSettings.fontSizes.firstIndex(of:appearance.fontSize) ?? 0)
+        let toolbarLabels = checkbox("Beschriftungen unter Werkzeug-Symbolen",on:appearance.toolbarLabels)
+        let importedColors = checkbox("Importierte Farben passend zum Modus verwenden",on:appearance.importedColors)
         let hidden = checkbox("Versteckte Dateien anzeigen",on:Preferences.state.showHidden)
-        let shortcuts = NSTextView(frame:NSRect(x:0,y:0,width:360,height:150)); shortcuts.isRichText = false; shortcuts.font = .monospacedSystemFont(ofSize:11,weight:.regular)
+        let shortcuts = CommanderTextView(frame:NSRect(x:0,y:0,width:360,height:150)); shortcuts.isRichText = false; shortcuts.font = .monospacedSystemFont(ofSize:11,weight:.regular)
         shortcuts.string = Preferences.state.shortcuts.sorted { $0.key < $1.key }.map { $0.key+"="+$0.value }.joined(separator:"\n")
-        let scroll = NSScrollView(); scroll.hasVerticalScroller = true; scroll.documentView = shortcuts
-        let answer = dialog("Einstellungen",message:"Eigene Tastenkürzel: eine Zeile je Befehl, z. B. copy=F5 oder search=cmd+f. Leere Liste verwendet die Standardbelegung. Befehlsnamen stehen in der Hilfe.",accessory:form([("Erscheinungsbild",theme),("",hidden),("Tastenkürzel",scroll)],width:620),buttons:["Speichern","Abbrechen"])
+        shortcuts.updateColors()
+        let scroll = NSScrollView();scroll.hasVerticalScroller = true;scroll.documentView = shortcuts
+        let answer = dialog("Einstellungen",message:"Eigene Tastenkürzel: eine Zeile je Befehl, z. B. copy=F5 oder search=cmd+f. Leere Liste verwendet die Standardbelegung. Befehlsnamen stehen in der Hilfe.",accessory:form([("Erscheinungsbild",theme),("Listendichte",density),("Listenschrift",fontSize),("Werkzeugleiste",toolbarLabels),("Farben",importedColors),("",hidden),("Tastenkürzel",scroll)],width:660),buttons:["Speichern","Abbrechen"])
         guard answer == 0 else { return }
         var keys:[String:String] = [:]
         let known = Set(AppDelegate.menuDefinitions.flatMap { $0.1.map { $0.1 } })
@@ -55,13 +63,15 @@ extension MainWindow {
                 guard let normalized = shortcutID(key),assigned.insert(normalized).inserted else { showFailure(CommanderError.message("Tastenkürzel doppelt belegt: \(key) bei „\(title)“.")); return }
             }
         }
+        var updatedAppearance = AppearanceSettings();updatedAppearance.compact = density.indexOfSelectedItem == 0;updatedAppearance.fontSize = AppearanceSettings.fontSizes[fontSize.indexOfSelectedItem];updatedAppearance.toolbarLabels = toolbarLabels.state == .on;updatedAppearance.importedColors = importedColors.state == .on
+        do { try Preferences.saveAppearance(updatedAppearance) } catch { showFailure(error);return }
         Preferences.state.theme = theme.indexOfSelectedItem; Preferences.state.showHidden = hidden.state == .on; Preferences.state.shortcuts = keys
         left.showHidden = Preferences.state.showHidden; right.showHidden = Preferences.state.showHidden
-        applyTheme(); Preferences.save(); onRebuildMenus?(); refresh()
+        applyTheme();applyAppearanceSettings();Preferences.save();onRebuildMenus?();refresh()
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.12.0
+        ZWEICOMMANDER · Version 0.13.0
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -74,6 +84,11 @@ extension MainWindow {
         Cmd+C Kopieren · Cmd+X Ausschneiden · Cmd+V Einfügen · Cmd+Z Rückgängig
         Cmd+Shift+M Mehrfachumbenennen · Cmd+Shift+. Versteckte Dateien
         Cmd+Shift+J Aufträge anzeigen
+
+        DARSTELLUNG UND NAVIGATION
+        Oben rechts zwischen System, Hell und Dunkel wählen. Hell verwendet helle Dateilisten und Dokumentflächen; Dunkel Grautöne mit heller Schrift. Die aktive Seite erhält eine blaue Pfadzeile. Importierte Hintergrundfarben gelten nur im passenden Modus; Schrift- und Dateitypfarben werden bei Bedarf für ausreichenden Kontrast angepasst. Über Einstellungen lassen sich kompakte oder größere Zeilen, Listenschriftgröße, Werkzeugbeschriftungen und importierte Farben wählen. Die Darstellungsvorgaben werden getrennt von Tabs und Importprofil lokal gespeichert.
+        Beide Seiten haben eigene Ortsleisten. Pfadbestandteile sind anklickbar; „…“ zeigt alle übergeordneten Ordner. Cmd+L öffnet den Pfadeditor, Escape kehrt zur Pfadzeile zurück. Jeder ungesperrte Tab hat bei mehreren Tabs einen eigenen Schließen-Knopf. Die mittlere Leiste bietet Tausch, gleichen Ordner, verknüpftes Navigieren, Vergleich und Anordnung. Freier Platz in der Leiste bleibt zum Verschieben der Trennung nutzbar.
+        Die untere Eingabezeile startet im Modus „Pfad“ und öffnet mit Enter einen absoluten oder zum aktiven Ordner relativen Ordnerpfad. Im ausdrücklich gewählten Modus „Befehl“ führt Enter zsh mit deinen Benutzerrechten im aktiven Ordner aus und zeigt die Textausgabe. Shell-Befehle können Dateien verändern; für interaktive Programme den Terminal-Knopf verwenden. Es wird kein Befehlsverlauf gespeichert.
 
         ANSICHTEN, TABS UND FAVORITEN
         Cmd+1 zeigt Details, Cmd+2 eine Vorschauliste, Cmd+3 Symbole. Darstellung, Sortierspalte und Richtung lassen sich auch direkt über der Dateiliste wählen. Auswahl, Schnellfilter, Vorschau, Zwischenablage und Dateiaktionen gelten in allen drei Darstellungen. Bildvorschauen werden verkleinert geladen; andere Dateien behalten ihr Programmsymbol.

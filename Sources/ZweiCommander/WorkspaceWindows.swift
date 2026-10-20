@@ -7,12 +7,12 @@ private final class WorkspaceSurface: NSView {
     required init?(coder: NSCoder) { fatalError() }
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance();updateBackground() }
     private func updateBackground() {
-        effectiveAppearance.performAsCurrentDrawingAppearance { layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor }
+        effectiveAppearance.performAsCurrentDrawingAppearance { layer?.backgroundColor = CommanderPalette.current(in:self).chrome.cgColor }
     }
 }
 
 final class FavoritesController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
-    let table = NSTableView(),name = input(),path = input(),kind = label(""),opensSelection = checkbox("Ausgewählte Dateien mit diesem Programm öffnen")
+    let table = CommanderTableView(),name = input(),path = input(),kind = label(""),opensSelection = checkbox("Ausgewählte Dateien mit diesem Programm öffnen")
     let info = label("",size:11,color:.secondaryLabelColor)
     let apply = ActionButton("Übernehmen",action:{}),up = ActionButton("↑",action:{}),down = ActionButton("↓",action:{}),remove = ActionButton("Entfernen",action:{})
     var library = WorkspaceLibrary()
@@ -103,7 +103,7 @@ final class FavoritesController: NSWindowController, NSTableViewDataSource, NSTa
 }
 
 final class FolderViewsController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
-    let table = NSTableView(),scope = checkbox("Auch in Unterordnern anwenden"),info = label("",size:11,color:.secondaryLabelColor)
+    let table = CommanderTableView(),scope = checkbox("Auch in Unterordnern anwenden"),info = label("",size:11,color:.secondaryLabelColor)
     let remove = ActionButton("Gespeicherte Ansicht entfernen",action:{})
     var rules: [FolderViewRule] = []
     var onChange: (() -> Void)?

@@ -6,7 +6,7 @@ final class PreviewController: NSWindowController {
     let url: URL
     let quick = QLPreviewView(frame: .zero, style: .normal)!
     let scroll = NSScrollView()
-    let text = NSTextView()
+    let text = CommanderTextView()
     let mode = NSSegmentedControl(labels: ["Vorschau", "Text", "Hex", "Binär", "Dateistruktur"], trackingMode: .selectOne, target: nil, action: nil)
     var eventMonitor: Any?
     init(_ url: URL) {
@@ -14,13 +14,13 @@ final class PreviewController: NSWindowController {
         let w = NSWindow(contentRect: NSRect(x: 0,y: 0,width: 850,height: 600), styleMask: [.titled,.closable,.resizable,.miniaturizable], backing: .buffered, defer: false)
         w.title = "Vorschau · " + url.lastPathComponent; w.isReleasedWhenClosed = false
         super.init(window: w)
-        let root = NSView(frame: w.contentView!.bounds); root.autoresizingMask = [.width,.height]
+        let root = CommanderSurface(frame: w.contentView!.bounds); root.autoresizingMask = [.width,.height]
         mode.frame = NSRect(x: 16,y: 558,width: 590,height: 28); mode.autoresizingMask = [.minYMargin]; mode.selectedSegment = 0; mode.target = self; mode.action = #selector(previewModeChanged)
         quick.frame = NSRect(x: 0,y: 0,width: 850,height: 546); quick.autoresizingMask = [.width,.height]; quick.previewItem = url as NSURL
         scroll.frame = quick.frame; scroll.autoresizingMask = [.width,.height]; scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true; scroll.isHidden = true
         text.frame = scroll.bounds; text.autoresizingMask = [.width]; text.isEditable = false; text.isRichText = false; text.isSelectable = true
         text.font = .monospacedSystemFont(ofSize: 12,weight: .regular); text.textContainerInset = NSSize(width: 16,height: 16); text.isAutomaticLinkDetectionEnabled = false
-        scroll.documentView = text
+        text.updateColors();scroll.documentView = text
         root.addSubview(quick); root.addSubview(scroll); root.addSubview(mode); w.contentView = root; w.center()
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching:.keyDown) { [weak self] event in
             guard let self,NSApp.keyWindow === self.window else { return event }

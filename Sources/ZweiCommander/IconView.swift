@@ -31,6 +31,7 @@ final class FileGrid: NSCollectionView {
 
 final class FileIconItem: NSCollectionViewItem {
     var normalColor: NSColor = .labelColor
+    weak var pane: PaneView?
     override func loadView() {
         view = NSView(frame:NSRect(x:0,y:0,width:126,height:112));view.wantsLayer = true;view.layer?.cornerRadius = 7
         let image = NSImageView(frame:NSRect(x:29,y:40,width:68,height:64));image.imageScaling = .scaleProportionallyUpOrDown
@@ -41,8 +42,9 @@ final class FileIconItem: NSCollectionViewItem {
     override var isSelected: Bool { didSet { updateSelection() } }
     override var highlightState: NSCollectionViewItem.HighlightState { didSet { updateSelection() } }
     func updateSelection() {
-        view.layer?.backgroundColor = (isSelected ? NSColor.selectedContentBackgroundColor : .clear).cgColor
-        textField?.textColor = isSelected ? .alternateSelectedControlTextColor : normalColor
+        guard let pane else { return };let p = pane.palette
+        view.layer?.backgroundColor = (isSelected ? (pane.isActive ? p.accent : p.inactiveSelection) : .clear).cgColor
+        textField?.textColor = isSelected ? (pane.isActive ? .white : p.text) : normalColor
     }
 }
 
@@ -64,7 +66,7 @@ extension PaneView: NSCollectionViewDataSource, NSCollectionViewDelegate {
         item.textField?.stringValue = entry.name;item.view.toolTip = entry.url.path+(entry.isSymbolicLink ? " (Verknüpfung)" : "")
         item.imageView?.image = fileIcon(entry,preview:true)
         if let iconItem = item as? FileIconItem {
-            iconItem.normalColor = importedProfile?.fileColors.first(where: { $0.matches(entry.name) })?.color.nsColor ?? importedProfile?.foreground?.nsColor ?? .labelColor
+            iconItem.pane = self;iconItem.normalColor = fileTextColor(entry.name);iconItem.textField?.font = listFont
             iconItem.updateSelection()
         }
         item.view.setAccessibilityLabel(entry.name);item.view.setAccessibilityRole(.button)

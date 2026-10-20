@@ -1,9 +1,10 @@
-ZweiCommander 0.12.0 — Prüfung vom 18. Oktober 2026
+ZweiCommander 0.13.0 — Prüfung vom 20. Oktober 2026
 
 Ergebnis
 - 200/200 Dateikern- und Integrationstests bestanden.
-- 425/425 native UI-Prüfungen am universellen Release-Build bestanden:
-  Hauptfenster/INI-Import/Profilübernahme 20, Warteschlange 14,
+- 481/481 native UI-Prüfungen am universellen Release-Build bestanden:
+  Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
+  Darstellung nach erneutem App-Start 9, Warteschlange 14,
   Kopierfilter 22, Ordner zusammenführen 29, Profile speichern 19,
   Profile nach erneutem App-Start laden und verwenden 16,
   Aufträge speichern 8, nach Neustart neu prüfen und ausführen 23,
@@ -33,6 +34,32 @@ Bei einer früheren Entwicklungsprüfung blieb ein Start aus dem Entwicklungsord
 Anwendungsinitialisierung hängen. Derselbe unveränderte Build startete aus
 dem Benutzer-Programmeordner regulär. Die genaue Ursache des ersten Hängers
 ist nicht abschließend bestimmt; die Verwendung aus Programme wird empfohlen.
+
+Kompakte Oberfläche und Erscheinungsbild
+Die zusätzliche native Prüfung bedient Ortsleisten, anklickbare Pfadbestandteile,
+Pfadeditor und Escape, die untere Pfadeingabe, Tabs mit eigenem Schließen-Knopf,
+Sperren sowie den Erhalt des ausgewählten Tabs beim Schließen anderer Tabs.
+Mittlere Aktionsleiste, verknüpftes Navigieren, horizontale/vertikale Anordnung,
+Einzelansicht, Schnellvorschau und schmale Fenster werden mit echten Steuerelementen
+geprüft. Freier Platz im Mittelstreifen darf das Verschieben der Trennung nicht
+abfangen. Der ausdrücklich gewählte Befehlsmodus führt einen neutralen Testbefehl
+aus und zeigt seine Textausgabe; der Standardmodus öffnet ausschließlich Ordner.
+
+Hell/Dunkel werden an den tatsächlichen Listen-, Scroll- und Symbolflächen sowie
+an ausgewählten Dateien geprüft. Fensteraufnahmen kontrollieren undurchsichtige
+helle beziehungsweise dunkle Dateiflächen und lesbare Spaltentitel nach dem
+Abschluss der nativen Darstellung. Importdaten und Auswahl bleiben bei der
+Umschaltung erhalten. Kontrastkorrektur wird auch für mittlere Grautöne geprüft.
+Such-, Umbenennungs-, Vergleichs-, Text- und Vorschaufenster übernehmen die Farben;
+vererbte Erscheinungswechsel aktualisieren Inhalte ohne manuellen Neuaufbau.
+Native macOS-Menüs, Systemdialoge und Vorschauanbieter behalten Systemverhalten.
+
+Listendichte, Schriftgröße, Werkzeugbeschriftung und Verwendung importierter Farben
+werden lokal gespeichert und in einem getrennten App-Prozess erneut angewendet.
+Beschädigte und unbekannte Daten bleiben bei einem Speicherfehler bytegleich
+bestehen. Die Darstellungsprüfung verwendet eigene Benutzereinstellungsbereiche,
+neutrale Testdateien und tatsächliche Datei-URLs einschließlich macOS-Pfadaliasen.
+Fehlende Testvoraussetzungen führen zu einem kontrollierten Testfehler.
 
 Ordnervergleich und Synchronisation
 24 zusätzliche Kernprüfungen kontrollieren Inhalts-/Größen-/Zeitvergleich,
