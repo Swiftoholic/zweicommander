@@ -2,16 +2,18 @@
 
 ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Tabs und Tastaturbedienung. Er wird in Swift und AppKit entwickelt und verwendet Systembibliotheken für Dateivorgänge, Vorschau und Archive.
 
-**Version 0.13.0 ist eine frühe, ausführbare Version.** Neu sind eine kompakte Oberfläche mit eigenen Ortsleisten je Dateifenster, klickbaren Pfaden, flachen Tabs und einer mittleren Aktionsleiste sowie vollständige Hell-/Dunkel-Farben für Dateilisten und Dokumentflächen. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+**Version 0.14.0 ist eine frühe, ausführbare Version.** Neu sind kompakte Kopier-/Verschiebedialoge mit aufklappbaren Optionen, eindeutige Zielrichtungen, sichtbare Filterzustände und eine anpassbare Werkzeugleiste mit Menü für schmale Fenster. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 ## Funktionen
 
 - Zwei Dateifenster mit eigenen Ortsleisten, klickbaren Pfaden, Ordnerbaum, Tabs, Schnellfilter und Dateisammlungen.
 - Durchgängige Hell-/Dunkel-/Systemdarstellung, kompakte oder größere Zeilen und wählbare Listenschrift.
-- Details, Vorschauliste und Symbolraster mit gemeinsamer Auswahl und Sortierung.
+- Details, Miniaturbilder und Symbolraster mit gemeinsamer Auswahl und Sortierung.
 - Tabs umordnen und duplizieren, ausgewählten Tab und Ansicht wiederherstellen.
 - Ordneransichten mit optionaler Vererbung sowie Ordner- und Programmfavoriten.
-- Kopieren und Verschieben mit Vorschau, Warteschlange, Pause, Abbruch und Sicherung beim Ersetzen.
+- Kopieren und Verschieben mit kompaktem Dialog, Vorschau, Warteschlange, Pause, Abbruch und Sicherung beim Ersetzen.
+- Sichtbare Filter mit Trefferzahl, Aufheben-Aktion und Hinweisen zu leeren oder nicht lesbaren Ordnern.
+- Werkzeugleistenbefehle ein-/ausblenden und ordnen; übrige Befehle bei schmalen Fenstern über ein Menü aufrufen.
 - Lokal gespeicherte Dateiübertragungen und letzter gemeldeter Fortschritt; neue Dateiprüfung nach Neustart.
 - Gespeicherte Kopierprofile, Namens-/Größen-/Datumsfilter, reine Ordnerstruktur und Zusammenführen mit Einzelentscheidungen.
 - Mehrfachumbenennen mit Livevorschau, Reihenfolge, Profilen, Namensausschnitten, Bilddaten und Versionsprüfung.
@@ -49,7 +51,7 @@ Das aktive Dateifenster ist blau markiert. Das andere Fenster dient als vorgesch
 | F7 / F8 | Neuer Ordner / Papierkorb |
 | Cmd+T / Cmd+W | Tab öffnen / schließen |
 | Cmd+Option+Pfeil rechts / links | Nächster / vorheriger Tab |
-| Cmd+1 / 2 / 3 | Details / Vorschauliste / Symbole |
+| Cmd+1 / 2 / 3 | Details / Miniaturbilder / Symbole |
 | Cmd+L | Pfad bearbeiten |
 | Cmd+F / Cmd+Shift+F | Suche / Schnellfilter |
 | Cmd+C / X / V | Dateizwischenablage |
@@ -66,9 +68,19 @@ Oben rechts stehen **System**, **Hell** und **Dunkel** zur Wahl. Hell zeigt beid
 
 Importierte Hintergründe gelten nur für das passende Erscheinungsbild. Die Gegenpalette bleibt vollständig hell beziehungsweise dunkel. Zu kontrastarme Schrift- und Dateitypfarben werden angepasst. Unter **Einstellungen** lassen sich importierte Farben abschalten, kompakte oder größere Zeilen, die Listenschriftgröße und Beschriftungen unter den Werkzeug-Symbolen wählen. Die Vorgaben bleiben lokal, getrennt von vorhandenen Importprofilen und Tabs. Beschädigte oder unbekannte Darstellungsdaten werden nicht überschrieben.
 
-Jede Seite hat ihre eigene Ortsleiste. Ein Klick auf einen Pfadbestandteil öffnet diesen Ordner; **…** zeigt die vollständige Hierarchie. **Cmd+L** öffnet den Pfadeditor, **Escape** kehrt zur Pfadzeile zurück. Ungesperrte Tabs haben bei mehreren offenen Tabs einen eigenen Schließen-Knopf. Das Schließen eines inaktiven Tabs erhält den ausgewählten Tab. Die mittlere Leiste bietet Tausch, gleichen Ordner, verknüpftes Navigieren, Vergleich und Anordnung. Freier Platz im Mittelstreifen lässt die Trennung weiterhin verschieben. Die Werkzeugleiste lässt sich bei schmalen Fenstern horizontal scrollen; Favoriten und Erscheinungsbild bleiben rechts sichtbar.
+Jede Seite hat ihre eigene Ortsleiste. Ein Klick auf einen Pfadbestandteil öffnet diesen Ordner; **…** zeigt die vollständige Hierarchie. **Cmd+L** öffnet den Pfadeditor, **Escape** kehrt zur Pfadzeile zurück. Ungesperrte Tabs haben bei mehreren offenen Tabs einen eigenen Schließen-Knopf. Das Schließen eines inaktiven Tabs erhält den ausgewählten Tab. Die mittlere Leiste bietet Tausch, gleichen Ordner, verknüpftes Navigieren, Vergleich und Anordnung. Freier Platz im Mittelstreifen lässt die Trennung weiterhin verschieben. Bei schmalen Fenstern enthält das Menü am rechten Ende der Werkzeugleiste die nicht mehr passenden Befehle. Favoriten und Erscheinungsbild bleiben rechts sichtbar.
 
 Die untere Eingabezeile startet mit **Pfad**. Enter öffnet einen absoluten oder zum aktiven Ordner relativen Ordnerpfad. Erst der ausdrücklich gewählte Modus **Befehl** führt zsh mit deinen Benutzerrechten im aktiven Ordner aus und öffnet die Textausgabe. Solche Befehle können Dateien verändern. Der Terminal-Knopf öffnet ein interaktives Terminal. Es wird kein Befehlsverlauf gespeichert.
+
+## Kopieren, Verschieben, Filter und Werkzeugleiste
+
+F5 und F6 zeigen die Zielrichtung abhängig von der aktiven Seite und der Fensteranordnung. Ohne Dateiauswahl sind die Knöpfe deaktiviert. Bei einer Dateisammlung als Ziel heißt die Kopieraktion **Zur Sammlung**: Sie fügt Verweise hinzu und erhält die Originaldateien.
+
+Der Übertragungsdialog zeigt zuerst Quelle, Ziel, Konfliktregel und Vorschau. **Weitere Optionen** blendet Kopierprofile, Dateifilter und Ordnerregeln ein. Aktive Regeln bleiben auch bei geschlossenen Optionen sichtbar. Änderungen an Ziel oder Regeln werden nach kurzer Tippause neu geprüft; währenddessen kann der alte Plan nicht gestartet werden. Offene Einzelentscheidungen sowie **Abbrechen bei Konflikt** mit belegten Zielen sperren Kopieren und Vormerken. **Konflikte zeigen** führt zu den betroffenen Objekten. Erweiterte Optionen bleiben in kleinen Fenstern scrollbar.
+
+Ein aktiver Schnellfilter zeigt Trefferzahl und Gesamtzahl der eingelesenen Objekte. **Filter aufheben** entfernt Muster und RegEx-Modus. Leere Ordner, fehlende Treffer, ungültige Ausdrücke und Ladefehler erhalten eigene Hinweise in der Dateifläche. Bei Ladefehlern steht **Erneut versuchen** bereit. Eine Aktualisierung des gleichen Ordners erhält Auswahl und Dateiaktionen.
+
+**Ansicht → Werkzeugleiste anpassen …** oder das Menü am rechten Leistenende öffnet die Anpassung: vorhandene Befehle ein-/ausblenden, Reihenfolge ändern oder den Standard wiederherstellen. Erst **Übernehmen** speichert; Abbrechen erhält die bisherige Leiste. Die Auswahl bleibt lokal und wird nach Neustart geladen. Beschädigte oder unbekannte Daten werden nicht überschrieben. Die Beschriftungen **Miniaturbilder** und **Schnellansicht** unterscheiden Dateiansicht und Vorschau rechts.
 
 ## Ansichten, Tabs und Favoriten
 
@@ -80,7 +92,7 @@ Tabs lassen sich innerhalb eines Dateifensters ziehen oder über Menübefehle ve
 
 **Gehe zu → Favoriten bearbeiten …** oder der letzte Eintrag im Favoritenmenü verwaltet Ordner und vorhandene macOS-Programme. Name und Ziel werden mit **Übernehmen** gespeichert; Reihenfolge und Entfernen wirken sofort. Bei Programmen kann **Ausgewählte Dateien öffnen** aktiviert werden. Der Aufruf benötigt dann eine Auswahl und übergibt deren Datei-URLs über macOS; es wird kein Shell-Befehl zusammengesetzt. Ohne diese Option startet das Programm.
 
-Favoriten und Ordnerregeln bleiben lokal in den macOS-Benutzereinstellungen. Vorhandene Ordnerfavoriten werden übernommen. Vorgesehen sind höchstens 200 Favoriten, 500 Ordnerregeln und zusammen 2 MiB. Unlesbare oder unbekannte Daten sperren Änderungen und werden nicht automatisch ersetzt. Eine frei programmierbare Werkzeugleiste gehört noch nicht zum Umfang.
+Favoriten und Ordnerregeln bleiben lokal in den macOS-Benutzereinstellungen. Vorhandene Ordnerfavoriten werden übernommen. Vorgesehen sind höchstens 200 Favoriten, 500 Ordnerregeln und zusammen 2 MiB. Unlesbare oder unbekannte Daten sperren Änderungen und werden nicht automatisch ersetzt. Eigene Werkzeugleistenaktionen mit frei gewählten Befehlen gehören noch nicht zum Umfang; die vorhandenen Befehle lassen sich einblenden, ausblenden und ordnen.
 
 ## Dateisuche
 

@@ -57,6 +57,21 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
     let objectsButton = ActionButton("Geplante Objekte",symbol:"list.bullet",action:{})
     let table = operationTable([("include","",45),("name","Auswahlobjekt",290),("size","Größe",100),("count","Objekte",80),("target","Ziel / Hinweis",400)])
     let filesTable = operationTable([("path","Relativer Pfad",220),("action","Aktion",215),("size","Quelle",75),("targetSize","Ziel",75),("sourceDate","Quelle geändert",155),("targetDate","Ziel geändert",155)])
+    let heading = label("",size:20,weight:.semibold)
+    let sourceInfo = label("",size:12)
+    let destinationCaption = label("Nach",weight:.medium)
+    let policyCaption = label("Bei Namenskonflikten",weight:.medium)
+    let conflictInfo = label("Ziele werden geprüft …",size:12,color:.secondaryLabelColor)
+    let conflictButton = ActionButton("Konflikte zeigen",action:{})
+    let optionsButton = ActionButton("Weitere Optionen",symbol:"chevron.right",action:{})
+    let optionsSummary = label("",size:11,color:.secondaryLabelColor)
+    let advancedScroll = NSScrollView()
+    let advancedDocument = CommanderSurface(frame:.zero)
+    let destinationChoose = ActionButton("Wählen …",symbol:"folder",action:{})
+    let refreshButton = ActionButton("Neu prüfen",symbol:"arrow.clockwise",action:{})
+    let cancelButton = ActionButton("Abbrechen",action:{})
+    var optionsExpanded = false
+    var editingDelay: DispatchWorkItem?
     let info = label("Erfasse Dateien …",color:.secondaryLabelColor)
     let safety = label("",size:11,color:.secondaryLabelColor)
     let startButton = ActionButton("Starten",symbol:"play.fill",action:{})
@@ -74,72 +89,33 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
     let validateDestination: (URL) throws -> Void
     init(sources: [URL],destination: URL,kind: TransferKind,validateDestination: @escaping (URL) throws -> Void) {
         self.sources = sources;self.kind = kind;self.destination = input(destination.path);self.validateDestination = validateDestination
-        let w = NSWindow(contentRect:NSRect(x:0,y:0,width:1060,height:760),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
-        w.title = kind == .copy ? "Dateien kopieren · Auftrag prüfen" : "Dateien verschieben · Auftrag prüfen";w.minSize = NSSize(width:960,height:680);w.isReleasedWhenClosed = false
+        let w = NSWindow(contentRect:NSRect(x:0,y:0,width:840,height:590),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
+        w.title = kind == .copy ? "Dateien kopieren" : "Dateien verschieben";w.minSize = NSSize(width:760,height:560);w.isReleasedWhenClosed = false
         super.init(window:w);w.delegate = self
-        let root = OperationContent(frame:w.contentView!.bounds);root.autoresizingMask = [.width,.height];w.contentView = root
-        func top(_ view: NSView,_ x: CGFloat,_ y: CGFloat,_ width: CGFloat,_ height: CGFloat = 26,_ stretch: Bool = false) {
-            view.frame = NSRect(x:x,y:y,width:width,height:height);view.autoresizingMask = stretch ? [.minYMargin,.width] : [.minYMargin];root.addSubview(view)
-        }
-        top(label(kind == .copy ? "Kopierauftrag" : "Verschiebeauftrag",size:20,weight:.semibold),22,712,1016,30,true)
-        top(label("Kopierprofil",weight:.medium),22,681,100)
-        top(profilePopup,125,680,285,28);profilePopup.target = self;profilePopup.action = #selector(chooseProfile)
-        top(profileSave,420,680,105,28);profileSave.perform = { [weak self] in self?.saveProfile() }
-        top(profileSaveAs,535,680,150,28);profileSaveAs.perform = { [weak self] in self?.saveProfileAs() }
-        top(profileRemove,695,680,100,28);profileRemove.perform = { [weak self] in self?.removeProfile() }
-        top(profileStatus,805,681,233,26,true)
-        top(label("Zielordner",weight:.medium),22,642,100)
-        top(self.destination,125,642,771,26,true);self.destination.delegate = self;self.destination.target = self;self.destination.action = #selector(rebuild)
-        let choose = ActionButton("Wählen …",symbol:"folder",action:{ [weak self] in self?.chooseDestination() });top(choose,906,641,132,28);choose.autoresizingMask = [.minYMargin,.minXMargin]
-        top(label("Namenskonflikte",weight:.medium),22,600,125)
-        policy.addItems(withTitles:["Abbrechen bei Konflikt","Überspringen","Beide behalten","Ersetzen mit Sicherung"]);top(policy,155,599,285,28);policy.target = self;policy.action = #selector(rebuild)
-        top(mergeFolders,456,600,260,26);mergeFolders.target = self;mergeFolders.action = #selector(filterOptionChanged)
-        let refresh = ActionButton("Plan aktualisieren",symbol:"arrow.clockwise",action:{ [weak self] in self?.prepare() });top(refresh,852,598,186,29);refresh.autoresizingMask = [.minYMargin,.minXMargin]
-        for (title,field,y) in [("Dateien einschließen",include,560.0),("Dateien ausschließen",exclude,523.0),("Unterordner auslassen",excludedFolders,486.0)] {
-            top(label(title,weight:.medium),22,y,155);top(field,185,y,853,26,true);field.delegate = self;field.target = self;field.action = #selector(rebuild)
-        }
-        let options = row([recursive,keepEmpty,structureOnly,regex],spacing:18);top(options,22,448,1016,28,true)
-        for button in [recursive,keepEmpty,structureOnly,regex] { button.target = self;button.action = #selector(filterOptionChanged) }
-        let rule = kind == .copy ? "Dateinamen: * und ? · mehrere Muster mit ; · Groß/Klein wird ignoriert · Unterordnermuster gelten immer als Wildcards." : "Filter und Strukturkopie sind nur beim Kopieren verfügbar. Verschieben übernimmt die vollständige Auswahl."
-        top(label(rule,size:11,color:.secondaryLabelColor),22,421,1016,22,true)
-        table.delegate = self;table.dataSource = self;filesTable.delegate = self;filesTable.dataSource = self
-        for column in filesTable.tableColumns where column.identifier.rawValue.hasSuffix("Date") { column.minWidth = 145 }
-        tabs.tabViewType = .noTabsNoBorder;tabs.delegate = self
-        for (id,title,content) in [("selection","Auswahl",table),("files","Geplante Objekte",filesTable)] {
-            let item = NSTabViewItem(identifier:id);item.label = title
-            let pane = NSView(frame:NSRect(x:0,y:0,width:990,height:270));let scroll = operationScroll(content);scroll.frame = pane.bounds;scroll.autoresizingMask = [.width,.height];pane.addSubview(scroll);item.view = pane;tabs.addTabViewItem(item)
-        }
-        top(selectionButton,22,382,130,28);top(objectsButton,160,382,190,28)
-        top(criteriaButton,500,382,185,28);criteriaButton.perform = { [weak self] in self?.showCriteria() }
-        top(criteriaInfo,695,384,343,24,true)
-        for button in [selectionButton,objectsButton] { button.setButtonType(.pushOnPushOff) }
-        selectionButton.perform = { [weak self] in self?.tabs.selectTabViewItem(at:0);self?.updateTabButtons() }
-        objectsButton.perform = { [weak self] in self?.tabs.selectTabViewItem(at:1);self?.updateTabButtons() }
-        updateTabButtons()
-        tabs.wantsLayer = true;tabs.frame = NSRect(x:22,y:110,width:1016,height:267);tabs.autoresizingMask = [.width,.height];root.addSubview(tabs)
-        info.frame = NSRect(x:22,y:77,width:1016,height:24);info.autoresizingMask = [.width];root.addSubview(info)
-        safety.frame = NSRect(x:22,y:52,width:1016,height:20);safety.autoresizingMask = [.width];root.addSubview(safety)
-        let cancel = ActionButton("Abbrechen",action:{ [weak self] in self?.close() });cancel.frame = NSRect(x:22,y:14,width:116,height:30);root.addSubview(cancel)
-        resetButton.frame = NSRect(x:148,y:14,width:165,height:30);resetButton.perform = { [weak self] in self?.resetFilters() };root.addSubview(resetButton)
-        queueButton.frame = NSRect(x:748,y:14,width:140,height:30);queueButton.autoresizingMask = [.minXMargin];queueButton.perform = { [weak self] in self?.submit(false) };root.addSubview(queueButton)
-        startButton.frame = NSRect(x:898,y:14,width:140,height:30);startButton.autoresizingMask = [.minXMargin];startButton.perform = { [weak self] in self?.submit(true) };root.addSubview(startButton)
+        buildTransferInterface(w)
         profileObserver = NotificationCenter.default.addObserver(forName:Preferences.copyProfilesChanged,object:nil,queue:.main) { [weak self] _ in self?.refreshProfiles() }
         refreshProfiles();updateFilterControls();w.center();prepare()
     }
     required init?(coder:NSCoder) { fatalError() }
-    deinit { preparation.cancel();if let profileObserver { NotificationCenter.default.removeObserver(profileObserver) } }
+    deinit { editingDelay?.cancel();preparation.cancel();if let profileObserver { NotificationCenter.default.removeObserver(profileObserver) } }
     func tabView(_ tabView: NSTabView,didSelect tabViewItem: NSTabViewItem?) { updateTabButtons() }
-    private func updateTabButtons() {
+    func updateTabButtons() {
         let index = tabs.selectedTabViewItem.map { tabs.indexOfTabViewItem($0) } ?? 0
         for (position,button) in [selectionButton,objectsButton].enumerated() {
             button.state = position == index ? .on : .off;button.bezelColor = position == index ? .controlAccentColor : nil
         }
     }
-    func windowWillClose(_ notification: Notification) { criteriaWindow?.close();profileNameWindow?.close();preparation.cancel();generation += 1 }
-    func controlTextDidChange(_ obj: Notification) { invalidatePlan();updateProfileState();info.stringValue = "Ziel oder Filter geändert · Plan aktualisieren oder Eingabetaste drücken" }
+    func windowWillClose(_ notification: Notification) { editingDelay?.cancel();criteriaWindow?.close();profileNameWindow?.close();preparation.cancel();generation += 1 }
+    func controlTextDidChange(_ obj: Notification) {
+        invalidatePlan();updateProfileState();updateOptionsSummary()
+        info.stringValue = "Änderungen werden geprüft …"
+        editingDelay?.cancel();let work = DispatchWorkItem { [weak self] in self?.prepare() };editingDelay = work
+        DispatchQueue.main.asyncAfter(deadline:.now()+0.35,execute:work)
+    }
     private func invalidatePlan() {
         preparation.cancel();generation += 1;plan = nil;startButton.isEnabled = false;queueButton.isEnabled = false
         previewEntries = [];previewMerge = nil;previewOffsets = [];previewCount = 0;table.reloadData();filesTable.reloadData()
+        conflictInfo.stringValue = "Ziele werden geprüft …";conflictInfo.textColor = .secondaryLabelColor;conflictButton.isHidden = true
     }
     @objc func rebuild() { prepare() }
     @objc func filterOptionChanged() { updateFilterControls();prepare() }
@@ -152,9 +128,9 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         recursive.isEnabled = copy;keepEmpty.isEnabled = copy && !structure;structureOnly.isEnabled = copy;resetButton.isEnabled = copy
         mergeFolders.isEnabled = copy
         criteriaButton.isEnabled = copy && !structure
-        updateCriteriaInfo();updateProfileState()
+        updateCriteriaInfo();updateProfileState();updateOptionsSummary()
         policy.item(at:0)?.title = mergeFolders.state == .on ? "Einzeln entscheiden" : "Abbrechen bei Konflikt"
-        safety.stringValue = !copy ? "Verschieben nutzt die Systemoperation. Pause und Abbruch greifen am nächsten sicheren Prüfpunkt." : mergeFolders.state == .on ? "Dateien werden einzeln veröffentlicht. Fertige Schritte bleiben bei Abbruch erhalten; Ersetzen sichert jede vorherige Zieldatei." : "Jedes Auswahlobjekt wird vollständig veröffentlicht. Ersetzen sichert das bisherige Ziel; Zusammenführen ist ausgeschaltet."
+        safety.stringValue = !copy ? "Erfolgreich verschobene Objekte werden aus dem Quellordner entfernt." : mergeFolders.state == .on ? "Vorhandene Ordner werden zusammengeführt. Ersetzen sichert die bisherige Zieldatei." : "Ordner werden als Ganzes kopiert. Ersetzen sichert das bisherige Ziel."
         if let recoveryNotice { safety.stringValue = recoveryNotice;safety.textColor = .systemOrange;safety.toolTip = recoveryNotice }
     }
     func resetFilters() {
@@ -199,6 +175,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         updateProfileState()
     }
     func updateProfileState() {
+        defer { updateOptionsSummary() }
         let available = kind == .copy && profileReadError == nil
         profilePopup.isEnabled = available;profileSaveAs.isEnabled = available
         let saved = selectedProfileID.flatMap { loadedProfiles.profile($0) }
@@ -265,18 +242,21 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         if panel.runModal() == .OK,let url = panel.url { destination.stringValue = url.path;prepare() }
     }
     func prepare() {
+        editingDelay?.cancel();editingDelay = nil
         invalidatePlan();preparation = CancellationToken();let token = preparation,current = generation
         updateProfileState()
         info.stringValue = "Erfasse Dateien und prüfe Ziele …"
-        let target = URL(fileURLWithPath:(destination.stringValue as NSString).expandingTildeInPath),policy = ConflictPolicy.allCases[policy.indexOfSelectedItem],sources = self.sources,kind = self.kind,filter = self.filter,mergeFolders = kind == .copy && mergeFolders.state == .on
-        do { try validateDestination(target) } catch { info.stringValue = error.localizedDescription;return }
+        let path = (destination.stringValue as NSString).expandingTildeInPath
+        guard path.hasPrefix("/") else { preparationFailed("Bitte einen absoluten Zielpfad eingeben oder einen Ordner wählen.");return }
+        let target = URL(fileURLWithPath:path),policy = ConflictPolicy.allCases[policy.indexOfSelectedItem],sources = self.sources,kind = self.kind,filter = self.filter,mergeFolders = kind == .copy && mergeFolders.state == .on
+        do { try validateDestination(target) } catch { preparationFailed(error.localizedDescription);return }
         DispatchQueue.global(qos:.userInitiated).async { [weak self] in
             let result = Result { try TransferPlanner.prepare(sources,to:target,kind:kind,policy:policy,filter:filter,mergeFolders:mergeFolders,token:token) }
             DispatchQueue.main.async {
                 guard let self,self.generation == current,!token.isCancelled else { return }
                 switch result {
                 case .success(let plan):self.plan = plan;self.table.reloadData();self.updateSummary()
-                case .failure(let error):self.info.stringValue = error.localizedDescription
+                case .failure(let error):self.preparationFailed(error.localizedDescription)
                 }
             }
         }
@@ -288,10 +268,28 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         previewEntries = selected;previewOffsets = [];previewCount = 0
         for entry in selected { previewOffsets.append(previewCount);previewCount += entry.objectCount }
         filesTable.reloadData()
-        let conflicts = previewMerge.map { "\($0.unresolvedCount) offene Konflikte" } ?? "\(selected.filter(\.conflict).count) belegte Ziele"
-        info.stringValue = selected.isEmpty ? "Keine Objekte ausgewählt oder kein Treffer für diesen Filter." : "\(selected.count) ausgewählt · \(selected.reduce(0) { $0+$1.fileCount }) Dateien · \(selected.reduce(0) { $0+$1.directoryCount }) Ordner · \(selected.reduce(0) { $0+$1.linkCount }) Links · \(bytes(selectedPlan?.bytes ?? 0)) · "+conflicts
-        startButton.isEnabled = !selected.isEmpty && (previewMerge?.unresolvedCount ?? 0) == 0;queueButton.isEnabled = startButton.isEnabled
+        updateRoute(selected.map(\.source));updateOptionsSummary()
+        let files = selected.reduce(0) { $0+$1.fileCount },folders = selected.reduce(0) { $0+$1.directoryCount },links = selected.reduce(0) { $0+$1.linkCount }
+        var counts: [String] = []
+        if files > 0 { counts.append("\(files) \(files == 1 ? "Datei" : "Dateien")") }
+        if folders > 0 { counts.append("\(folders) Ordner") }
+        if links > 0 { counts.append("\(links) \(links == 1 ? "Verknüpfung" : "Verknüpfungen")") }
+        counts.append(bytes(selectedPlan?.bytes ?? 0))
+        info.stringValue = selected.isEmpty ? "Keine Objekte ausgewählt oder kein Treffer für diesen Filter." : counts.joined(separator:" · ")
+        info.toolTip = info.stringValue
+        let unresolved = previewMerge?.unresolvedCount ?? 0,occupied = selected.filter(\.conflict).count
+        let blocked = unresolved > 0 || (previewMerge == nil && plan?.policy == .stop && occupied > 0)
+        if unresolved > 0 { conflictInfo.stringValue = "\(unresolved) offene Konflikte · Einzelentscheidungen erforderlich" }
+        else if occupied > 0 { conflictInfo.stringValue = "\(occupied) belegte Ziele · "+(blocked ? "Bitte eine Konfliktregel wählen" : (policy.titleOfSelectedItem ?? "Regel prüfen")) }
+        else { conflictInfo.stringValue = selected.isEmpty ? "Keine Übertragung geplant" : "Keine Namenskonflikte" }
+        conflictInfo.textColor = blocked ? .systemOrange : .secondaryLabelColor;conflictInfo.toolTip = conflictInfo.stringValue
+        conflictButton.isHidden = occupied == 0 && unresolved == 0
+        startButton.isEnabled = !selected.isEmpty && !blocked;queueButton.isEnabled = startButton.isEnabled
     }
+    private func preparationFailed(_ message:String) {
+        info.stringValue = message;info.toolTip = message;conflictInfo.stringValue = "Plan konnte nicht erstellt werden";conflictInfo.textColor = .systemOrange
+    }
+
     func previewObject(at row: Int) -> PlannedObject? {
         guard row >= 0,row < previewCount else { return nil }
         var lower = 0,upper = previewEntries.count
@@ -302,7 +300,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         guard let plan else { return }
         do { try validateDestination(plan.destination) } catch { showFailure(error);return }
         let selected = plan.selecting(Set(plan.entries.filter { !excluded.contains($0.source) }.map(\.id)))
-        guard !selected.entries.isEmpty,(selected.merge?.unresolvedCount ?? 0) == 0 else { return }
+        guard !selected.entries.isEmpty,(selected.merge?.unresolvedCount ?? 0) == 0,!(selected.merge == nil && selected.policy == .stop && selected.entries.contains(where: \.conflict)) else { return }
         if onSubmit?(selected,start) == true { close() }
     }
     @objc func toggle(_ sender: NSButton) {
@@ -329,7 +327,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
             let value: String
             switch column?.identifier.rawValue {
             case "path":value = object.relativePath
-            case "action":value = action.flatMap { previewMerge?.description(of:$0) } ?? (object.kind == .directory ? "Ordner kopieren" : object.kind == .symbolicLink ? "Verknüpfung kopieren" : "Datei kopieren")
+            case "action":value = action.flatMap { previewMerge?.description(of:$0) } ?? (object.kind == .directory ? "Ordner" : object.kind == .symbolicLink ? "Verknüpfung" : "Datei")+(kind == .copy ? " kopieren" : " verschieben")
             case "size":value = object.kind == .file ? bytes(object.bytes) : "—"
             case "targetSize":value = action?.targetInfo.map { $0.kind == .file ? bytes($0.bytes) : $0.kind == .directory ? "Ordner" : $0.kind == .symbolicLink ? "Link" : "Spezialdatei" } ?? "—"
             case "sourceDate":value = operationDate.string(from:object.modified)

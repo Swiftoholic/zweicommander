@@ -5,6 +5,7 @@ import CommanderCore
 final class MainContent: CommanderSurface, NSSplitViewDelegate {
     let toolbar = NSStackView(), functionBar = NSStackView(), utilityBar = NSStackView()
     let toolbarScroll = NSScrollView()
+    let toolbarMore = ActionButton("",symbol:"ellipsis.circle",action:{})
     let split = CommanderSplitView(), rail = SplitActionRail(frame:.zero)
     let commandMode = NSPopUpButton(), commandField = input(placeholder:"Ordnerpfad")
     let commandGo = ActionButton("",symbol:"return",action:{}), terminal = ActionButton("",symbol:"terminal",action:{})
@@ -18,9 +19,10 @@ final class MainContent: CommanderSurface, NSSplitViewDelegate {
     var quickVisible = false { didSet { quick.isHidden = !quickVisible;needsLayout = true } }
     override init(frame frameRect: NSRect) {
         super.init(frame:frameRect)
-        toolbar.orientation = .horizontal;toolbar.spacing = 3;toolbar.alignment = .centerY
+        toolbar.orientation = .horizontal;toolbar.spacing = 3;toolbar.alignment = .centerY;toolbar.detachesHiddenViews = true
         utilityBar.orientation = .horizontal;utilityBar.spacing = 5;utilityBar.alignment = .centerY
         toolbarScroll.drawsBackground = false;toolbarScroll.documentView = toolbar;toolbarScroll.hasHorizontalScroller = false
+        toolbarMore.flat = true;toolbarMore.toolTip = "Weitere Befehle und Werkzeugleiste anpassen";toolbarMore.setAccessibilityLabel("Weitere Werkzeugleistenbefehle")
         functionBar.orientation = .horizontal;functionBar.distribution = .fillEqually;functionBar.spacing = 1
         split.isVertical = true;split.dividerStyle = .thin;split.delegate = self
         commandMode.addItems(withTitles:["Pfad","Befehl"]);commandMode.controlSize = .small
@@ -31,15 +33,16 @@ final class MainContent: CommanderSurface, NSSplitViewDelegate {
         progress.style = .bar;progress.controlSize = .small;progress.isDisplayedWhenStopped = false;progress.minValue = 0;progress.maxValue = 1
         quick.isHidden = true;cancel.isHidden = true;pause.isHidden = true
         [pause,cancel,queueButton].forEach { $0.flat = true;$0.font = .systemFont(ofSize:11) }
-        [toolbarScroll,utilityBar,split,rail,quick,functionBar,commandMode,commandField,commandGo,terminal,status,progress,cancel,pause,queueButton].forEach { addSubview($0) }
+        [toolbarScroll,toolbarMore,utilityBar,split,rail,quick,functionBar,commandMode,commandField,commandGo,terminal,status,progress,cancel,pause,queueButton].forEach { addSubview($0) }
     }
     required init?(coder:NSCoder) { fatalError() }
     override func layout() {
         super.layout();let w = bounds.width,h = bounds.height
         let toolbarHeight: CGFloat = Preferences.appearanceSettings().toolbarLabels ? 50 : 32
-        toolbarScroll.frame = NSRect(x:5,y:h-toolbarHeight,width:max(1,w-222),height:toolbarHeight)
+        toolbarScroll.frame = NSRect(x:5,y:h-toolbarHeight,width:max(1,w-256),height:toolbarHeight)
+        toolbarMore.frame = NSRect(x:w-249,y:h-toolbarHeight+(toolbarHeight-28)/2,width:28,height:28)
         utilityBar.frame = NSRect(x:w-212,y:h-toolbarHeight,width:207,height:toolbarHeight)
-        toolbar.frame = NSRect(x:0,y:0,width:max(toolbarScroll.bounds.width,toolbar.fittingSize.width),height:toolbarHeight)
+        layoutToolbar(width:toolbarScroll.bounds.width,height:toolbarHeight)
         let q: CGFloat = quickVisible ? min(330,w*0.28) : 0
         split.frame = NSRect(x:0,y:78,width:max(1,w-q),height:max(1,h-toolbarHeight-78))
         if firstLayout && w > 0 && h > 0 && split.arrangedSubviews.count == 2 { firstLayout = false;split.setPosition(((split.isVertical ? split.bounds.width : split.bounds.height)-split.dividerThickness)/2,ofDividerAt:0) }
@@ -52,6 +55,18 @@ final class MainContent: CommanderSurface, NSSplitViewDelegate {
         status.frame = NSRect(x:108,y:4,width:max(20,w-465),height:17)
         pause.frame = NSRect(x:w-351,y:2,width:98,height:22);cancel.frame = NSRect(x:w-251,y:2,width:112,height:22);queueButton.frame = NSRect(x:w-137,y:2,width:132,height:22)
         positionRail()
+    }
+    func layoutToolbar(width:CGFloat,height:CGFloat) {
+        var used: CGFloat = 0,overflow = false,pendingSeparator: NSView?
+        for view in toolbar.arrangedSubviews {
+            if view is NSBox { view.isHidden = true;pendingSeparator = view;continue }
+            let itemWidth = max(24,view.intrinsicContentSize.width),gap: CGFloat = used > 0 ? (pendingSeparator == nil ? 3 : 7) : 0
+            let visible = !overflow && used+gap+itemWidth <= width
+            view.isHidden = !visible
+            if visible { pendingSeparator?.isHidden = used == 0;used += gap+itemWidth } else { overflow = true }
+            pendingSeparator = nil
+        }
+        toolbar.frame = NSRect(x:0,y:0,width:max(1,used),height:height)
     }
     func positionRail() {
         let panes = split.arrangedSubviews
@@ -123,13 +138,14 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             pane.onCommand = { [weak self] cmd in self?.command(cmd) }
             pane.onState = { [weak self] in self?.saveState();self?.updateChromeState() }
             pane.onSelection = { [weak self, weak pane] urls in
-                guard let self, pane === self.active, self.content.quickVisible else { return }
-                self.content.quick.previewItem = urls.first.map { $0 as NSURL }
+                guard let self else { return };self.updateChromeState()
+                if pane === self.active,self.content.quickVisible { self.content.quick.previewItem = urls.first.map { $0 as NSURL } }
             }
             pane.onNavigate = { [weak self] p,old,new in self?.followNavigation(p,from:old,to:new) }
             pane.refresh()
         }
         buildToolbar();refreshLocations();setActive(left)
+        content.toolbarMore.perform = { [weak self] in guard let self else { return };self.toolbarOverflowMenu().popUp(positioning:nil,at:NSPoint(x:0,y:0),in:self.content.toolbarMore) }
         content.rail.configure([("Seiten tauschen","arrow.triangle.swap","swap"),("Gleicher Ordner","equal.square","sameFolder"),("Verknüpft navigieren","link","linked"),("Ordner vergleichen","arrow.left.arrow.right","compare"),("Anordnung wechseln","rectangle.split.2x1","orientation"),("Ein-/Zweifensteransicht","sidebar.left","onePane")]) { [weak self] in self?.command($0) }
         content.commandMode.target = self;content.commandMode.action = #selector(commandModeChanged)
         content.commandField.target = self;content.commandField.action = #selector(commandEntered)
@@ -162,21 +178,14 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     func buildToolbar() {
         let labels = Preferences.appearanceSettings().toolbarLabels
         content.toolbar.arrangedSubviews.forEach { content.toolbar.removeArrangedSubview($0);$0.removeFromSuperview() }
-        let groups: [[(String,String,String,NSColor)]] = [
-            [("Zurück","arrow.left","back",.systemBlue),("Vorwärts","arrow.right","forward",.systemBlue)],
-            [("Packen","archivebox","pack",.systemOrange),("Entpacken","shippingbox","extract",.systemOrange)],
-            [("Filter","line.3.horizontal.decrease","filter",.systemOrange),("Baum","list.bullet.indent","tree",.systemBlue)],
-            [("Details","list.bullet.rectangle","details",.systemBlue),("Vorschauen","photo.on.rectangle","thumbnails",.systemTeal),("Symbole","square.grid.2x2","icons",.systemTeal)],
-            [("Suchen","magnifyingglass","search",.systemBlue),("Vergleichen","arrow.left.arrow.right","compare",.systemBlue),("Umbenennen","textformat.abc","batchRename",.systemPurple)],
-            [("Vorschau","sidebar.right","quickView",.systemOrange),("Neu laden","arrow.clockwise","refresh",.systemGreen)]
-        ]
-        for (index,group) in groups.enumerated() {
-            if index > 0 { let separator = NSBox();separator.boxType = .separator;separator.widthAnchor.constraint(equalToConstant:1).isActive = true;separator.heightAnchor.constraint(equalToConstant:labels ? 35 : 20).isActive = true;content.toolbar.addArrangedSubview(separator) }
-            for (title,symbol,id,tint) in group {
-                let b = ActionButton(labels ? title : "",symbol:symbol,action:{ [weak self] in self?.command(id) })
-                b.flat = true;b.verticalLabel = labels;b.font = .systemFont(ofSize:10);b.symbolTint = tint;b.identifier = .init(id);b.toolTip = title;b.setAccessibilityLabel(title)
-                content.toolbar.addArrangedSubview(b)
-            }
+        var previousGroup: Int?
+        for id in Preferences.toolbarSettings().items {
+            guard let item = ToolbarCommand.all.first(where: { $0.id == id }) else { continue }
+            if let previousGroup,previousGroup != item.group { let separator = NSBox();separator.boxType = .separator;separator.widthAnchor.constraint(equalToConstant:1).isActive = true;separator.heightAnchor.constraint(equalToConstant:labels ? 35 : 20).isActive = true;content.toolbar.addArrangedSubview(separator) }
+            previousGroup = item.group
+            let b = ActionButton(labels ? item.title : "",symbol:item.symbol,action:{ [weak self] in self?.command(id) })
+            b.flat = true;b.verticalLabel = labels;b.font = .systemFont(ofSize:10);b.symbolTint = item.tint;b.identifier = .init(id);b.toolTip = item.title;b.setAccessibilityLabel(item.title)
+            b.setContentCompressionResistancePriority(.required,for:.horizontal);content.toolbar.addArrangedSubview(b)
         }
         favoriteMenu.target = self;favoriteMenu.action = #selector(favoriteChosen);favoriteMenu.controlSize = .small
         if !favoriteMenu.constraints.contains(where: { $0.firstAttribute == .width }) { favoriteMenu.widthAnchor.constraint(equalToConstant:115).isActive = true }
@@ -215,6 +224,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             button.state = (id == "details" && active.displayMode == .details) || (id == "thumbnails" && active.displayMode == .thumbnails) || (id == "icons" && active.displayMode == .icons) || (id == "tree" && active.treeVisible) || (id == "quickView" && content.quickVisible) ? .on : .off
         }
         for button in content.rail.buttons { button.state = button.identifier?.rawValue == "linked" && linked ? .on : .off }
+        updateFunctionLabels()
     }
     func updateFunctionLabels() {
         let values:[String:(String,String)] = ["preview":("F3","Ansehen"),"edit":("F4","Bearbeiten"),"copy":("F5","Kopieren"),"move":("F6","Verschieben"),"newFolder":("F7","Neuer Ordner"),"trash":("F8","Papierkorb")]
@@ -223,7 +233,15 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             var key = (Preferences.state.shortcuts[id] ?? value.0).lowercased()
             if key == "space" { key = "Leertaste" }
             for (word,symbol) in [("cmd+","⌘"),("shift+","⇧"),("option+","⌥"),("alt+","⌥"),("control+","⌃"),("ctrl+","⌃")] { key = key.replacingOccurrences(of:word,with:symbol) }
-            button.title = key.uppercased()+" "+value.1
+            if id == "copy" || id == "move" {
+                let target = content.split.isVertical ? (active === left ? "→ Rechts" : "← Links") : (active === left ? "↓ Unten" : "↑ Oben")
+                button.title = key.uppercased()+" "+target+" "+value.1.lowercased()
+                if id == "copy",other.tab.collection != nil { button.title = key.uppercased()+" "+(target.components(separatedBy:" ").first ?? "→")+" Zur Sammlung" }
+                button.toolTip = "\(active.selectedURLs.count) ausgewählt · Quelle: \(active.currentURL.path)\nZiel: \(other.currentURL.path)"
+                if id == "copy",other.tab.collection != nil { button.toolTip = "Verweise zur Dateisammlung hinzufügen. Die Originaldateien bleiben an ihrem bisherigen Ort." }
+                button.setAccessibilityLabel(button.title+" · "+(button.toolTip ?? other.currentURL.path))
+                button.isEnabled = !active.selectedURLs.isEmpty && (id == "copy" ? !other.readOnly : !active.readOnly && !other.readOnly && other.tab.collection == nil)
+            } else { button.title = key.uppercased()+" "+value.1 }
         }
     }
     @objc func volumesChanged() { refreshLocations() }

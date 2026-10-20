@@ -17,7 +17,7 @@ final class ActionButton: NSButton {
     override var intrinsicContentSize: NSSize {
         guard flat else { return super.intrinsicContentSize }
         let textWidth = (title as NSString).size(withAttributes:[.font:font ?? NSFont.systemFont(ofSize:11)]).width
-        if verticalLabel { return NSSize(width:max(48,min(90,textWidth+12)),height:43) }
+        if verticalLabel { return NSSize(width:max(48,min(140,textWidth+12)),height:43) }
         return NSSize(width:max(24,min(220,textWidth+(image == nil ? 12 : title.isEmpty ? 24 : 31))),height:24)
     }
     override func draw(_ dirtyRect: NSRect) {

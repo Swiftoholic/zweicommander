@@ -49,6 +49,10 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     let locations = LocationStrip(frame:.zero)
     let filterField = NSSearchField()
     let filterRegex = checkbox(".*")
+    let filterBar = CommanderSurface(frame:.zero)
+    let filterInfo = label("",size:11)
+    let filterClear = ActionButton("Filter aufheben",symbol:"xmark.circle",action:{})
+    let stateView = PaneStateView(frame:.zero)
     let status = label("", size: 11, color: .secondaryLabelColor)
     let marker = NSView()
     let tabsScroll = NSScrollView()
@@ -81,6 +85,15 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     private var beforeImport: (columns: [ColumnState], sort: String, ascending: Bool, tree: Bool, foldersFirst: Bool)?
     var sortKey = "name", ascending = true
     var generation = 0
+    private(set) var isLoading = false
+    private(set) var loadError: String?
+    private(set) var filterError: String?
+    private var displayedDirectory: URL?
+    private var displayedTabID: UUID?
+    private var displayedCollection: [URL]?
+    private var replacesContents = false
+    var canUseDisplayedEntries: Bool { !(isLoading && replacesContents) && loadError == nil && filterError == nil }
+    var filterActive: Bool { !filterField.stringValue.isEmpty }
     var watcher: DispatchSourceFileSystemObject?
     var delayedRefresh: DispatchWorkItem?
     var onActivate: ((PaneView) -> Void)?
@@ -103,7 +116,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
             syncingSelection = false;updateStatus()
         }
     }
-    var selectedURLs: [URL] { selectionIndexes.compactMap { visibleEntries.indices.contains($0) ? visibleEntries[$0].url : nil } }
+    var selectedURLs: [URL] { guard canUseDisplayedEntries else { return [] };return selectionIndexes.compactMap { visibleEntries.indices.contains($0) ? visibleEntries[$0].url : nil } }
 
     init(url: URL, savedTabs: [SavedTab] = []) {
         super.init(frame: .zero)
@@ -173,8 +186,12 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         filterField.toolTip = "Schnellfilter: Namensteil oder Wildcards; .* aktiviert reguläre Ausdrücke"
         filterField.delegate = self; filterField.sendsSearchStringImmediately = true
         filterRegex.target = self; filterRegex.action = #selector(filterChanged)
+        filterRegex.toolTip = "Reguläre Ausdrücke verwenden";filterRegex.setAccessibilityLabel("Filter als regulären Ausdruck auswerten")
+        filterInfo.lineBreakMode = .byTruncatingTail
+        filterClear.flat = true;filterClear.font = .systemFont(ofSize:11);filterClear.perform = { [weak self] in self?.clearFilter();self?.focus() }
+        filterBar.addSubview(filterInfo);filterBar.addSubview(filterClear);filterBar.isHidden = true;stateView.isHidden = true
         tree.isHidden = true; tree.onChoose = { [weak self] url in self?.navigate(url) }
-        [marker,locations,tabsScroll,nav,viewBar,scroll,filterField,filterRegex,status,tree].forEach { addSubview($0) }
+        [marker,locations,tabsScroll,nav,viewBar,scroll,filterField,filterRegex,status,tree,filterBar,stateView].forEach { addSubview($0) }
         rebuildTabs(); refresh()
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -249,7 +266,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         breadcrumb.active = isActive;breadcrumb.updateColors()
         status.textColor = p.secondaryText
         syncingSelection = true;table.reloadData();grid.reloadData();syncingSelection = false
-        selectionIndexes = selection;table.updateHeaderColors();tabsStack.subviews.forEach { $0.needsDisplay = true };needsDisplay = true
+        selectionIndexes = selection;table.updateHeaderColors();tabsStack.subviews.forEach { $0.needsDisplay = true };updatePanePresentation();needsDisplay = true
     }
     override func layout() {
         super.layout();let w = bounds.width,h = bounds.height
@@ -258,9 +275,13 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         tabsScroll.frame = NSRect(x:2,y:h-51,width:max(1,w-4),height:25)
         nav.frame = NSRect(x:1,y:h-78,width:max(1,w-2),height:26)
         viewBar.frame = NSRect(x:5,y:h-102,width:max(1,w-10),height:23)
-        let treeWidth: CGFloat = treeVisible ? min(165,w*0.32) : 0
-        tree.frame = NSRect(x:0,y:27,width:treeWidth,height:max(1,h-130))
-        scroll.frame = NSRect(x:treeWidth,y:27,width:max(1,w-treeWidth),height:max(1,h-130))
+        let treeWidth: CGFloat = treeVisible ? min(165,w*0.32) : 0,filterHeight: CGFloat = filterBar.isHidden ? 0 : 28
+        filterBar.frame = NSRect(x:0,y:h-130,width:w,height:28)
+        filterInfo.frame = NSRect(x:7,y:4,width:max(1,w-143),height:20)
+        filterClear.frame = NSRect(x:w-134,y:2,width:130,height:24)
+        tree.frame = NSRect(x:0,y:27,width:treeWidth,height:max(1,h-130-filterHeight))
+        scroll.frame = NSRect(x:treeWidth,y:27,width:max(1,w-treeWidth),height:max(1,h-130-filterHeight))
+        stateView.frame = NSRect(x:treeWidth,y:27,width:scroll.frame.width,height:max(1,scroll.frame.height-(displayMode == .icons ? 0 : 24)))
         let filterWidth = min(170,max(105,w*0.31))
         filterField.frame = NSRect(x:w-filterWidth-31,y:2,width:filterWidth,height:22)
         filterRegex.frame = NSRect(x:w-29,y:2,width:28,height:22);filterRegex.controlSize = .mini
@@ -346,16 +367,20 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         generation += 1; let g = generation, url = currentURL, hidden = showHidden, collection = tab.collection
         if let request = selectionRequest,request.directory != FileSystem.canonical(url) { selectionRequest = nil }
         let selected = selectionRequest?.urls ?? Set(selectedURLs)
+        replacesContents = displayedDirectory != FileSystem.canonical(url) || displayedTabID != tab.id || displayedCollection != collection || loadError != nil
+        isLoading = true;loadError = nil
+        if replacesContents { entries = [];visibleEntries = [];table.reloadData();grid.reloadData() }
         if pathField.currentEditor() == nil { pathField.stringValue = url.path };breadcrumb.url = url;locations.select(url);pathField.toolTip = readOnly ? "Temporäre Archivansicht · schreibgeschützt" : url.path
         status.stringValue = "Lese Ordner …"
+        updatePanePresentation();onSelection?(selectedURLs)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let result = Result { try collection.map { $0.compactMap { try? FileEntry(url:$0) } } ?? FileSystem.list(url,showHidden:hidden) }
             let available = try? url.resourceValues(forKeys:[.volumeAvailableCapacityKey]).volumeAvailableCapacity
             DispatchQueue.main.async {
                 guard let self, self.generation == g else { return }
                 switch result {
-                case .success(let entries): self.freeSpace = available.map(Int64.init);self.selectionRequest = nil;self.entries = entries; self.applyFilter(); self.select(selected); self.watch(url)
-                case .failure(let error): self.entries = []; self.visibleEntries = []; self.table.reloadData();self.grid.reloadData(); self.status.stringValue = error.localizedDescription
+                case .success(let entries): self.isLoading = false;self.displayedDirectory = FileSystem.canonical(url);self.displayedTabID = self.tab.id;self.displayedCollection = collection;self.freeSpace = available.map(Int64.init);self.selectionRequest = nil;self.entries = entries; self.applyFilter(); self.select(selected); self.watch(url)
+                case .failure(let error): self.isLoading = false;self.loadError = error.localizedDescription;self.entries = [];self.visibleEntries = [];self.freeSpace = nil;self.table.reloadData();self.grid.reloadData();self.updateStatus()
                 }
             }
         }
@@ -391,13 +416,15 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         do {
             let selection = Set(selectedURLs)
             let filter = try NameFilter(filterField.stringValue, regex: filterRegex.state == .on)
+            filterError = nil
             visibleEntries = FileSystem.sorted(entries.filter { filter.matches($0.name) }, key: sortKey, ascending: ascending,foldersFirst:foldersFirst)
             filterField.textColor = .labelColor;syncingSelection = true;table.reloadData();grid.reloadData();syncingSelection = false;select(selection)
             let keys = ["name","ext","size","modified","kind","attributes","permissions","path"]
             sortMode.selectItem(at:keys.firstIndex(of:sortKey) ?? 0);sortDirection.toolTip = ascending ? "Aufsteigend · Klicken für absteigend" : "Absteigend · Klicken für aufsteigend"
-        } catch { filterField.textColor = .systemRed; status.stringValue = "Ungültiger regulärer Ausdruck" }
+        } catch { filterError = "Ungültiger regulärer Ausdruck";filterField.textColor = .systemRed;visibleEntries = [];table.reloadData();grid.reloadData();selectionIndexes = [] }
+        updatePanePresentation()
     }
-    func clearFilter() { filterField.stringValue = ""; applyFilter() }
+    func clearFilter() { filterField.stringValue = "";filterRegex.state = .off;applyFilter() }
     @objc func filterChanged() { activate(); applyFilter() }
     func controlTextDidChange(_ obj: Notification) { if obj.object as? NSSearchField === filterField { filterChanged() } }
     func control(_ control: NSControl,textView: NSTextView,doCommandBy commandSelector: Selector) -> Bool {
@@ -412,7 +439,28 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         let size = chosen.isEmpty ? visibleEntries.filter { !$0.isDirectory }.reduce(Int64(0)) { let sum = $0.addingReportingOverflow($1.size);return sum.overflow ? Int64.max : sum.partialValue } : total
         status.stringValue = prefix+count+" · "+bytes(size)+(freeSpace.map { " · Frei "+bytes($0) } ?? "")
         status.toolTip = status.stringValue+" · \(chosen.count) ausgewählt"
+        if isLoading { status.stringValue = "Lese Ordner …" }
+        else if let loadError { status.stringValue = loadError;status.toolTip = loadError }
+        else if let filterError { status.stringValue = filterError }
+        updatePanePresentation()
         onSelection?(selectedURLs)
+    }
+    func updatePanePresentation() {
+        let wasHidden = filterBar.isHidden
+        filterBar.isHidden = !filterActive && filterError == nil
+        filterInfo.stringValue = filterError ?? "Filter aktiv · \(visibleEntries.count) von \(entries.count) Objekten"
+        filterInfo.toolTip = "Filter: "+filterField.stringValue
+        filterInfo.textColor = filterError == nil ? palette.text : .systemRed
+        stateView.background = palette.list(active:isActive,profile:importedProfile)
+        stateView.heading.textColor = palette.readable(nil,on:stateView.background)
+        stateView.detail.textColor = palette.readable(nil,on:stateView.background,fallback:palette.secondaryText)
+        if isLoading && (replacesContents || visibleEntries.isEmpty) { stateView.show("Ordner wird geladen …",detail:"Die Dateiliste wird eingelesen.") }
+        else if let loadError { stateView.show("Ordner konnte nicht geöffnet werden",detail:loadError,button:"Erneut versuchen",perform:{ [weak self] in self?.refresh() }) }
+        else if let filterError { stateView.show(filterError,detail:"Passe den Ausdruck an oder hebe den Filter auf.",button:"Filter aufheben",perform:{ [weak self] in self?.clearFilter();self?.focus() }) }
+        else if visibleEntries.isEmpty && filterActive { stateView.show("Keine Treffer",detail:"Kein angezeigtes Objekt passt zum aktuellen Filter.",button:"Filter aufheben",perform:{ [weak self] in self?.clearFilter();self?.focus() }) }
+        else if visibleEntries.isEmpty { stateView.show(tab.collection == nil ? "Ordner ist leer" : "Dateisammlung ist leer",detail:tab.collection != nil ? "Ziehe Dateien in diese Sammlung, um Verweise hinzuzufügen." : showHidden ? "In diesem Ordner sind keine Objekte vorhanden." : "Es sind keine sichtbaren Objekte vorhanden. Versteckte Dateien sind ausgeblendet.") }
+        else { stateView.isHidden = true }
+        if wasHidden != filterBar.isHidden { needsLayout = true }
     }
     @objc func doubleClick() { guard table.clickedRow >= 0 else { return }; openSelection() }
     func openSelection() {
@@ -461,7 +509,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         if id == "size" { text.alignment = .right };cell.addSubview(text);cell.textField = text;return cell
     }
     func tableView(_ tableView: NSTableView,rowViewForRow row: Int) -> NSTableRowView? { let view = FileRowView();view.pane = self;return view }
-    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? { visibleEntries[row].url as NSURL }
+    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? { guard canUseDisplayedEntries,visibleEntries.indices.contains(row) else { return nil };return visibleEntries[row].url as NSURL }
     func tableView(_ tableView: NSTableView, validateDrop info: NSDraggingInfo, proposedRow row: Int, proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
         guard !readOnly else { return [] }; tableView.setDropRow(-1, dropOperation: .on); return .copy
     }

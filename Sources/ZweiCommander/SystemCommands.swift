@@ -71,7 +71,7 @@ extension MainWindow {
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.13.0
+        ZWEICOMMANDER · Version 0.14.0
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -90,8 +90,13 @@ extension MainWindow {
         Beide Seiten haben eigene Ortsleisten. Pfadbestandteile sind anklickbar; „…“ zeigt alle übergeordneten Ordner. Cmd+L öffnet den Pfadeditor, Escape kehrt zur Pfadzeile zurück. Jeder ungesperrte Tab hat bei mehreren Tabs einen eigenen Schließen-Knopf. Die mittlere Leiste bietet Tausch, gleichen Ordner, verknüpftes Navigieren, Vergleich und Anordnung. Freier Platz in der Leiste bleibt zum Verschieben der Trennung nutzbar.
         Die untere Eingabezeile startet im Modus „Pfad“ und öffnet mit Enter einen absoluten oder zum aktiven Ordner relativen Ordnerpfad. Im ausdrücklich gewählten Modus „Befehl“ führt Enter zsh mit deinen Benutzerrechten im aktiven Ordner aus und zeigt die Textausgabe. Shell-Befehle können Dateien verändern; für interaktive Programme den Terminal-Knopf verwenden. Es wird kein Befehlsverlauf gespeichert.
 
+        KOPIEREN, VERSCHIEBEN UND FILTER
+        F5 und F6 zeigen die Zielrichtung; ohne Auswahl sind die Knöpfe deaktiviert. Bei einer Dateisammlung als Ziel fügt F5 Verweise hinzu und erhält die Originaldateien. Der Übertragungsdialog zeigt zuerst Quelle, Ziel, Konfliktregel und Vorschau. „Weitere Optionen“ blendet Kopierprofile, Namens-/Größen-/Datumsfilter und Ordnerregeln ein. Aktive Regeln bleiben bei geschlossenen Optionen sichtbar. Änderungen werden nach kurzer Tippause neu geprüft. Offene Konflikte sowie „Abbrechen bei Konflikt“ mit belegten Zielen sperren Kopieren und Vormerken bis zu einer anderen Entscheidung.
+        Eine zusätzliche Filterzeile zeigt Trefferzahl und Gesamtzahl der eingelesenen Objekte. „Filter aufheben“ entfernt Muster und RegEx-Modus. Leere Ordner, fehlende Treffer, ungültige Ausdrücke und Ladefehler werden direkt in der Dateifläche erklärt. Bei Ladefehlern steht „Erneut versuchen“ bereit. Eine Hintergrundaktualisierung des gleichen Ordners erhält Auswahl und Dateiaktionen.
+        Über „Ansicht → Werkzeugleiste anpassen …“ oder das Menü am rechten Ende der Werkzeugleiste Befehle einblenden, ausblenden und ordnen. Erst „Übernehmen“ speichert die Auswahl lokal. Bei schmalen Fenstern enthält das Menü die nicht mehr passenden Befehle. „Miniaturbilder“ ändert die Dateiansicht; „Schnellansicht“ öffnet die Vorschau rechts.
+
         ANSICHTEN, TABS UND FAVORITEN
-        Cmd+1 zeigt Details, Cmd+2 eine Vorschauliste, Cmd+3 Symbole. Darstellung, Sortierspalte und Richtung lassen sich auch direkt über der Dateiliste wählen. Auswahl, Schnellfilter, Vorschau, Zwischenablage und Dateiaktionen gelten in allen drei Darstellungen. Bildvorschauen werden verkleinert geladen; andere Dateien behalten ihr Programmsymbol.
+        Cmd+1 zeigt Details, Cmd+2 Miniaturbilder, Cmd+3 Symbole. Darstellung, Sortierspalte und Richtung lassen sich auch direkt über der Dateiliste wählen. Auswahl, Schnellfilter, Vorschau, Zwischenablage und Dateiaktionen gelten in allen drei Darstellungen. Bildvorschauen werden verkleinert geladen; andere Dateien behalten ihr Programmsymbol.
         Tabs lassen sich innerhalb eines Dateifensters ziehen oder über das Tabs-Menü verschieben. Das Kontextmenü bietet Duplizieren, Benennen, Sperren und Schließen. „Andere Tabs schließen“ erhält gesperrte Tabs. Cmd+Option+Pfeil rechts/links wechselt Tabs. Normale Tabs speichern Reihenfolge, ausgewählten Tab und ihre manuell gewählte Ansicht; Archive und Sammlungen bleiben sitzungsbezogen.
         „Ansicht → Ordneransicht merken …“ speichert Darstellung, Sortierung, Ordnerbaum und Spalten für den aktuellen Ordner, auf Wunsch mit Unterordnern. Die speziellste passende Regel hat Vorrang. Unter „Gespeicherte Ordneransichten …“ lassen sich der Geltungsbereich ändern und Regeln entfernen. Ohne passende Regel gilt wieder die manuelle Ansicht des Tabs. Die Regeln beziehen sich auf vollständige Pfadnamen; symbolische Ordnerverknüpfungen haben ihre eigenen Pfade.
         „Gehe zu → Favoriten bearbeiten …“ oder der letzte Eintrag im Favoritenmenü öffnet die Verwaltung für Ordner und macOS-Programme. Name und Ziel mit Übernehmen speichern; Pfeile und Entfernen wirken sofort. Bei Programmen kann „Ausgewählte Dateien öffnen“ aktiviert werden. Dann benötigt der Aufruf eine Dateiauswahl. Ohne diese Option startet das Programm. Alle Angaben bleiben in den lokalen Benutzereinstellungen. Beschädigte Daten werden nicht automatisch ersetzt.

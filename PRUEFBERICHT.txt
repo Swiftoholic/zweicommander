@@ -1,10 +1,11 @@
-ZweiCommander 0.13.0 — Prüfung vom 20. Oktober 2026
+ZweiCommander 0.14.0 — Prüfung vom 20. Oktober 2026
 
 Ergebnis
 - 200/200 Dateikern- und Integrationstests bestanden.
-- 481/481 native UI-Prüfungen am universellen Release-Build bestanden:
+- 542/542 native UI-Prüfungen am universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
-  Darstellung nach erneutem App-Start 9, Warteschlange 14,
+  Darstellung nach erneutem App-Start 9, UX-Arbeitsabläufe 55,
+  Werkzeugleiste nach erneutem App-Start 6, Warteschlange 14,
   Kopierfilter 22, Ordner zusammenführen 29, Profile speichern 19,
   Profile nach erneutem App-Start laden und verwenden 16,
   Aufträge speichern 8, nach Neustart neu prüfen und ausführen 23,
@@ -34,6 +35,36 @@ Bei einer früheren Entwicklungsprüfung blieb ein Start aus dem Entwicklungsord
 Anwendungsinitialisierung hängen. Derselbe unveränderte Build startete aus
 dem Benutzer-Programmeordner regulär. Die genaue Ursache des ersten Hängers
 ist nicht abschließend bestimmt; die Verwendung aus Programme wird empfohlen.
+
+Bedienabläufe und kompakte Transferdialoge
+Zusätzliche native Prüfungen bedienen die Richtungsknöpfe bei beiden aktiven
+Seiten und bei horizontaler Anordnung; die Beschriftung wird auch mit der
+räumlichen Position des Ziels verglichen. Leere Auswahl sperrt Kopieren und
+Verschieben. Dateisammlungen zeigen das Hinzufügen von Verweisen an und erhalten
+Originaldateien. Eine Hintergrundaktualisierung erhält Auswahl und Dateiaktionen.
+
+Der kompakte Transferdialog zeigt Quelle, Ziel, Konfliktregel und Vorschau.
+Ausklappen und Einklappen erhalten Eingaben und aktive Regeln; kleine Fenster
+halten Optionen, Vorschau und Startknöpfe getrennt. Eingaben verwerfen den alten
+Plan sofort und lösen nach kurzer Pause eine Neuprüfung aus. Ein leeres Ziel
+wird nicht als Prozessordner interpretiert. Offene Entscheidungen und belegte
+Ziele bei Abbrechen-bei-Konflikt sperren Starten und Vormerken. Die Prüfung
+führt eine gefilterte Kopie mit Beide-behalten sowie einen Verschiebeauftrag
+über die echten Knöpfe aus und vergleicht Originale, Ziele und Inhalte.
+
+Schnellfilter zeigen Treffer und Gesamtbestand; Aufheben setzt Muster und
+RegEx-Modus zurück und gibt den Tastaturfokus an die Dateiliste. Keine Treffer,
+leere Ordner, ungültige Ausdrücke, Laden und Lesefehler werden unterschieden.
+Erneut versuchen stellt einen vorübergehend fehlenden Ordner wieder dar.
+Schnelle Navigation darf keine älteren Ergebnisse einblenden. Die Leeranzeige
+lässt die dahinterliegende Dateifläche für Drag-and-drop erreichbar.
+
+Die Werkzeugleiste hält Befehle bei Platzmangel über ein Menü erreichbar.
+Native Auswahlfelder und Reihenfolgeknöpfe ändern den Entwurf erst beim
+Übernehmen. Abbrechen erhält die gespeicherte Leiste. Ein getrennter Prozess
+lädt dieselbe Auswahl und Reihenfolge; beschädigte und zukünftige Daten bleiben
+unverändert. Alle zusätzlichen Tests nutzen ausschließlich künstliche Dateien
+und einen eigenen macOS-Einstellungsbereich.
 
 Kompakte Oberfläche und Erscheinungsbild
 Die zusätzliche native Prüfung bedient Ortsleisten, anklickbare Pfadbestandteile,

@@ -4,7 +4,7 @@ import CryptoKit
 public enum PaneDisplayMode: String, Codable, CaseIterable {
     case details, thumbnails, icons
     public var title: String {
-        switch self { case .details: return "Details"; case .thumbnails: return "Vorschauliste"; case .icons: return "Symbole" }
+        switch self { case .details: return "Details"; case .thumbnails: return "Miniaturbilder"; case .icons: return "Symbole" }
     }
 }
 

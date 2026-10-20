@@ -149,6 +149,7 @@ extension MainWindow {
                 guard ensureWritable(other),let url = requireSelection()?.first,let name = prompt("Symbolische Verknüpfung",value:url.lastPathComponent+" Link",message:"Zielordner: "+other.currentURL.path) else { return }
                 try FileSystem.validateName(name); try FileManager.default.createSymbolicLink(at:other.currentURL.appendingPathComponent(name),withDestinationURL:url); refresh()
             case "settings": settings()
+            case "customizeToolbar": customizeToolbar()
             case "importSettings": importSettings()
             case "importReport":
                 if let profile = Preferences.state.importedProfile { showText("Einstellungsimport",importReport(profile)) }

@@ -142,7 +142,14 @@ def fixtures(base):
         write(compare, "Rechts/" + name, text)
     os.utime(compare / "Links/Bericht.txt", (1700000200, 1700000200))
     os.utime(compare / "Rechts/Bericht.txt", (1700000000, 1700000000))
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare
+    ux = base / "ux"
+    for name in ("Links/Leer", "Links/Projekte", "Rechts/Sicherung"):
+        (ux / name).mkdir(parents=True)
+    write(ux, "Links/Notizen.txt", "Neue Notizen\n")
+    write(ux, "Links/Budget.csv", "Posten;Betrag\nPlan;42\n")
+    write(ux, "Rechts/Notizen.txt", "Vorhandene Notizen\n")
+    (ux / "Links/Bild.png").write_bytes(preview_png((60, 150, 200)))
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux
 
 
 def main():
@@ -166,6 +173,8 @@ def main():
             ("main", "--smoke-test", roots[0], str(prefix) + "-Import-Vorschau.png", "UI PASS ", "SMOKE PASS", 20),
             ("appearance-save", "--appearance-smoke", roots[0], str(prefix), "APPEARANCE UI PASS ", "APPEARANCE SMOKE PASS 47 checks", 47),
             ("appearance-reload", "--appearance-smoke", roots[0], str(prefix), "APPEARANCE UI PASS ", "APPEARANCE SMOKE PASS 9 checks", 9),
+            ("ux-save", "--ux-smoke", roots[12], str(prefix), "UX UI PASS ", "UX SMOKE PASS 55 checks", 55),
+            ("ux-reload", "--ux-smoke", roots[12], str(prefix), "UX UI PASS ", "UX SMOKE PASS 6 checks", 6),
             ("operations", "--operations-smoke", roots[1], str(prefix), "OPS UI PASS ", "OPS SMOKE PASS 14 checks", 14),
             ("filters", "--filters-smoke", roots[2], str(prefix), "FILTER UI PASS ", "FILTER SMOKE PASS 22 checks", 22),
             ("merge", "--merge-smoke", roots[3], str(prefix), "MERGE UI PASS ", "MERGE SMOKE PASS 29 checks", 29),
@@ -195,6 +204,7 @@ def main():
         search_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         compare_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         appearance_suite = "local.zweicommander.tests." + str(uuid.uuid4())
+        ux_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         try:
             for name, flag, root, image, pass_prefix, marker, expected in cases:
                 command = [str(binary), flag, str(root), image]
@@ -206,6 +216,10 @@ def main():
                     command += ["--appearance-test-suite", appearance_suite]
                     if name == "appearance-reload":
                         command += ["--reload-appearance"]
+                if name.startswith("ux-"):
+                    command += ["--ux-test-suite", ux_suite]
+                    if name == "ux-reload":
+                        command += ["--reload-ux"]
                 if name.startswith("profiles-"):
                     command += ["--profile-test-suite", suite]
                     if name == "profiles-reload":
@@ -248,6 +262,7 @@ def main():
             subprocess.run(["defaults", "delete", search_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", compare_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", appearance_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["defaults", "delete", ux_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-# Funktionsstand 0.13.0
+# Funktionsstand 0.14.0
 
 ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet implementiert; die tatsächlich geprüften Bereiche und verbleibenden Grenzen sind separat aufgeführt.
 
@@ -9,15 +9,15 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 | Tabs | Vorhanden | Neu, schließen, benennen, sperren, duplizieren, Reihenfolge per Ziehen/Menü, Wechsel mit Tastatur; andere ungesperrte Tabs schließen; Reihenfolge, ausgewählten Tab und manuelle Ansicht wiederherstellen |
 | Ordnerbaum | Vorhanden | Pro Dateifenster zuschaltbar, Unterordner bei Bedarf geladen |
 | Dateilisten | Vorhanden | Mehrfachauswahl, Sortierung, Ordner zuerst, konfigurierbare sichtbare Spalten |
-| Schnellfilter | Vorhanden | Teiltext, Wildcards, regulärer Ausdruck |
-| Ansichten | Vorhanden | Details, Vorschauliste und automatisch angeordnetes Symbolraster; gemeinsame Auswahl, Filter, Sortierung, Vorschau, Dateiaktionen und Datei-URLs per Drag-and-drop; keine freie Symbolplatzierung |
+| Schnellfilter | Vorhanden | Teiltext, Wildcards, regulärer Ausdruck; sichtbare Treffer-/Gesamtzahl und Aufheben-Aktion; eigene Lade-, Leer-, Fehler- und Keine-Treffer-Zustände |
+| Ansichten | Vorhanden | Details, Miniaturbilder und automatisch angeordnetes Symbolraster; gemeinsame Auswahl, Filter, Sortierung, Vorschau, Dateiaktionen und Datei-URLs per Drag-and-drop; keine freie Symbolplatzierung |
 | Vorschau | Vorhanden | Quick Look, Text, Hex, Binär, PE-/Mach-O-Dateistruktur; große Dateien werden als markierter Auszug gelesen |
 | Eingebettete Vorschau | Vorhanden | Zuschaltbares Quick-Look-Fenster rechts |
 | Dateiaktionen | Vorhanden | Kopieren, Verschieben, neue Dateien/Ordner, Umbenennen, Papierkorb |
 | Konflikte | Vorhanden | Abbrechen, überspringen, beide behalten, ersetzen mit Sicherung |
 | Drag-and-drop | Vorhanden | Datei-URLs hinein/heraus; interner Drop kopiert nach Dialog |
 | Zwischenablage | Vorhanden | Kopieren/Ausschneiden/Einfügen und Pfade kopieren |
-| Kopier-/Verschiebeplan | Teilweise | Ziel-/Konfliktvorschau, abwählbare Auswahlobjekte und vollständige Dateiliste; Kopien mit Einschluss/Ausschluss, RegEx, ausgeschlossenen Unterordnern, Rekursion, leeren Ordnern und Strukturkopie. Filter gelten pro Auftrag und nur für Kopien. Zusammenführen bestehender echter Zielordner, Metadatenvergleich und Einzelentscheidungen bei Dateikonflikten |
+| Kopier-/Verschiebeplan | Teilweise | Kompakter Grunddialog mit aufklappbaren Optionen, automatische Neuprüfung nach Eingaben und sichtbare Konfliktsperre; Ziel-/Konfliktvorschau, abwählbare Auswahlobjekte und vollständige Dateiliste; Kopien mit Einschluss/Ausschluss, RegEx, ausgeschlossenen Unterordnern, Rekursion, leeren Ordnern und Strukturkopie. Filter gelten pro Auftrag und nur für Kopien. Zusammenführen bestehender echter Zielordner, Metadatenvergleich und Einzelentscheidungen bei Dateikonflikten |
 | Kopierprofile und Metadatenfilter | Vorhanden | Bis zu 50 lokale Profile für Regeln und globale Konfliktvorgaben; Dateigröße, feste Änderungszeitpunkte oder relatives Alter in Minuten/Stunden/Tagen/Wochen mit einer gemeinsamen Bezugszeit pro Dateiplan. Keine Pfade oder Einzelentscheidungen; bei aktiven Grenzen werden Links ausgelassen |
 | Hintergrundvorgänge | Teilweise | Verwaltungsfenster mit Einzelstatus, Vormerken, Umordnen/Entfernen und als Nächstes starten; Kopien mit Byte-Fortschritt, Pause und Abbruch während der Übertragung. Verschieben nur an System-Prüfpunkten |
 | Aufträge nach Neustart | Teilweise | Privates lokales Journal für Kopier-/Verschiebeabsichten, Regeln, Reihenfolge und letzten gemeldeten Fortschritt. Wiederanlauf nur mit neuem Dateiplan und erneuten Einzelentscheidungen. Bis zu 200 Aufträge/16 MiB und 200 Fortschrittszeilen pro Auftrag. Kein Fortsetzen an Bytepositionen, kein dauerhaftes Rückgängig; andere Hintergrundvorgänge bleiben sitzungsbezogen |
@@ -43,7 +43,7 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 | Kommandozeile | Vorhanden | Untere Eingabezeile mit getrennten Modi für Ordnerpfad und zsh-Befehl, Ausgabefenster und Terminal im aktuellen Ordner; kein gespeicherter Befehlsverlauf |
 | Netzwerkvolumes | Vorhanden | macOS-gemountete Volumes, vom System verwaltete Anmeldung |
 | FTP / FTPS / SFTP | Teilweise | Eigenes Fenster für Navigation/Einzeldateitransfers; SFTP per Schlüssel/Agent; erweiterte SFTP-Nutzung im Terminal |
-| Tastenkürzel / Erscheinungsbild | Teilweise | Konfigurierbare Menübefehle; vollständige Hell-/Dunkel-/Systemfarben, passende Importfarben und Kontrastkorrektur, kompakte/größere Zeilen, Listenschrift, Werkzeugbeschriftungen; keine frei programmierbare Themen-/Toolbar-Engine |
+| Tastenkürzel / Erscheinungsbild | Teilweise | Konfigurierbare Menübefehle; vollständige Hell-/Dunkel-/Systemfarben, passende Importfarben und Kontrastkorrektur, kompakte/größere Zeilen, Listenschrift, Werkzeugbeschriftungen; vorhandene Werkzeugleistenbefehle ein-/ausblenden und umordnen, Menü bei Platzmangel; keine frei programmierbare Themen-/Toolbar-Engine |
 | INI-Einstellungsimport | Teilweise | INI-/SHC-Import unterstützter Farben, Spalten, Sortierung, Tasten, Such-/Archiv-/Zählervorgaben; Rücksetzung; Favoriten und Laufwerkspfade bewusst ausgelassen |
 | Dateistruktur-Vorschau | Teilweise | PE-/Mach-O-Köpfe, Architektur, PE-Sektionen und Versionsfelder; keine komplette Ressourcen-/Symboloberfläche |
 | Dokumentvorschau | Teilweise | System-Quick-Look und Office-XML-Textextraktion; zusätzliche Formate hängen von Vorschauanbietern ab |
@@ -60,7 +60,7 @@ ZweiCommander ist ein nativer Dateimanager für macOS. „Vorhanden“ bedeutet 
 
 200 Dateikern- und Integrationstests prüfen unter anderem Ordnerregeln, Favoriten und strukturierte Programmaufrufe, das lokale Auftragsjournal, Wiederanlauf ohne automatische Ausführung, Speichergrenzen und Dateirechte, Kopierfortschritt, Pause/Abbruch, Metadaten, Dateifilter, Zusammenführen, Konfliktentscheidungen, Sicherungen, Rückgängig, veränderte Quellen und Ziele, symbolische Verknüpfungen, Umbenennungszyklen, Suche, Hashwerte, Archive, Pfadmanipulationen und einen lokalen FTP-Server.
 
-Die vierundzwanzig nativen Oberflächendurchläufe mit 481 Prüfungen kontrollieren vollständige Hell-/Dunkelflächen und Spaltentitel, Kontrastkorrektur, kompakte Navigation, Tabs und Darstellung nach Neustart, Ordnervergleich, gemischte Synchronisation und Vergleichsprofile, Suche und lokale Suchprofile, laufende/abgebrochene Treffer und Aktionen aus Ergebnissen, Mehrfachumbenennen und Profile, Dateifenster und Import, Symbolansicht und Dateikopie, Tabs, Favoriten und Ordnerregeln, Warteschlange, Kopierfilter, Zusammenführen, Kopierprofile, relative Altersregeln sowie gespeicherte und unterbrochene Dateiübertragungen über getrennte App-Prozesse. Sie bedienen die tatsächlichen Auswahlfelder und Konfliktmenüs und vergleichen das Ergebnis mit dem geplanten Bestand. Details stehen in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+Die sechsundzwanzig nativen Oberflächendurchläufe mit 542 Prüfungen kontrollieren kompakte Transferdialoge, Konfliktsperren, Richtungsanzeigen, Filter- und Leerzustände, Hintergrundaktualisierung, Leistenanpassung samt Neustart sowie vollständige Hell-/Dunkelflächen und Spaltentitel, Kontrastkorrektur, kompakte Navigation, Tabs und Darstellung nach Neustart, Ordnervergleich, gemischte Synchronisation und Vergleichsprofile, Suche und lokale Suchprofile, laufende/abgebrochene Treffer und Aktionen aus Ergebnissen, Mehrfachumbenennen und Profile, Dateifenster und Import, Symbolansicht und Dateikopie, Tabs, Favoriten und Ordnerregeln, Warteschlange, Kopierfilter, Zusammenführen, Kopierprofile, relative Altersregeln sowie gespeicherte und unterbrochene Dateiübertragungen über getrennte App-Prozesse. Sie bedienen die tatsächlichen Auswahlfelder und Konfliktmenüs und vergleichen das Ergebnis mit dem geplanten Bestand. Details stehen in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 FTPS und SFTP sind bisher nicht Ende zu Ende gegen einen Server geprüft. Große Bestände, Cloud-Platzhalter, ACL-Sonderfälle, externe Datenträger, lange Alltagssitzungen sowie Apple Silicon und ältere macOS-Versionen benötigen weitere Laufzeitprüfungen.
 
@@ -69,5 +69,5 @@ FTPS und SFTP sind bisher nicht Ende zu Ende gegen einen Server geprüft. Große
 1. Fortsetzen großer Dateien an geprüften Bytepositionen, erweiterte Auftrags-/Sicherungsverwaltung und gefiltertes Verschieben.
 2. Remote-Profile mit Keychain, rekursive Übertragungen, Fortsetzen und Remote-Umbenennen/Löschen.
 3. Archivbearbeitung, weitere Codec-Prüfungen sowie zusätzliche Metadaten- und EXIF-/ID3-Regeln.
-4. Frei belegbare Werkzeugleiste, weitergehende Ansichtsregeln und weitere Lokalisierung.
+4. Eigene Werkzeugleistenaktionen, weitergehende Ansichtsregeln und weitere Lokalisierung.
 5. Geräteprotokolle, weitere Plattformtests und signierte, notarisierte Auslieferung.
