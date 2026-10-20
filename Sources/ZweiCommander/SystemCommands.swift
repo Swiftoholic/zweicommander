@@ -71,7 +71,7 @@ extension MainWindow {
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.14.1
+        ZWEICOMMANDER · Version 0.15.0
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -87,7 +87,9 @@ extension MainWindow {
 
         DARSTELLUNG UND NAVIGATION
         Oben rechts zwischen System, Hell und Dunkel wählen. Hell verwendet helle Dateilisten und Dokumentflächen; Dunkel Grautöne mit heller Schrift. Die aktive Seite erhält eine blaue Pfadzeile. Importierte Hintergrundfarben gelten nur im passenden Modus; Schrift- und Dateitypfarben werden bei Bedarf für ausreichenden Kontrast angepasst. Über Einstellungen lassen sich kompakte oder größere Zeilen, Listenschriftgröße, Werkzeugbeschriftungen und importierte Farben wählen. Die Darstellungsvorgaben werden getrennt von Tabs und Importprofil lokal gespeichert.
-        Beide Seiten haben eigene Ortsleisten. Pfadbestandteile sind anklickbar; „…“ zeigt alle übergeordneten Ordner. Cmd+L öffnet den Pfadeditor, Escape kehrt zur Pfadzeile zurück. Jeder ungesperrte Tab hat bei mehreren Tabs einen eigenen Schließen-Knopf. Die mittlere Funktionsleiste bietet verteilte Gruppen für Tausch, Vergleich, gleichen Ordner, verknüpftes Navigieren, Anordnung und Einzelansicht; der Papierkorb steht am Ende. Nur die schmale Kante daneben verändert die Fensteraufteilung. Die Funktionsleiste verwendet den normalen Mauszeiger.
+        Beide Seiten haben eigene Ortsleisten. Pfadbestandteile sind anklickbar; „…“ zeigt alle übergeordneten Ordner. Die Pfeile neben den Segmenten zeigen ihre Unterordner. Ein Rechtsklick bietet Pfadkopie und Öffnen im Finder. Ein einzelner Ordner kann auf die Pfadzeile gezogen werden, um ihn dort zu öffnen.
+        Cmd+L, das Stiftsymbol oder ein Klick auf freien Pfadzeilenplatz öffnet den Pfadeditor. Beim Tippen erscheinen passende Ordner. Pfeil hoch/runter wählt, Tab ergänzt mit abschließendem Schrägstrich, Enter oder ein Klick öffnet den Ordner. Escape schließt zuerst eine offene Vorschlagsliste und anschließend den Editor. Absolute und relative Pfade, ~ und lokale file://-Adressen funktionieren ohne Anführungszeichen. Leere Eingaben zeigen den Sitzungsverlauf des aktuellen Tabs. Bis zu 200 Ordner werden vorgeschlagen; bei größeren Beständen genauer tippen. Eingabefehler stehen direkt an der Adresse, die Eingabe bleibt erhalten.
+        Werkzeugknöpfe heben sich beim Überfahren sichtbar ab. Ihre Tooltips erklären die Funktion und das zugewiesene Tastenkürzel. Vor-/Zurückknöpfe zeigen ihr Ziel oder erklären die fehlende Verlaufsmöglichkeit. Jeder ungesperrte Tab hat bei mehreren Tabs einen eigenen Schließen-Knopf. Die mittlere Funktionsleiste bietet verteilte Gruppen für Tausch, Vergleich, gleichen Ordner, verknüpftes Navigieren, Anordnung und Einzelansicht; der Papierkorb steht am Ende. Nur die schmale Kante daneben verändert die Fensteraufteilung. Die Funktionsleiste verwendet den normalen Mauszeiger.
         Die untere Eingabezeile startet im Modus „Pfad“ und öffnet mit Enter einen absoluten oder zum aktiven Ordner relativen Ordnerpfad. Im ausdrücklich gewählten Modus „Befehl“ führt Enter zsh mit deinen Benutzerrechten im aktiven Ordner aus und zeigt die Textausgabe. Shell-Befehle können Dateien verändern; für interaktive Programme den Terminal-Knopf verwenden. Es wird kein Befehlsverlauf gespeichert.
 
         KOPIEREN, VERSCHIEBEN UND FILTER

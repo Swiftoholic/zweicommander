@@ -47,7 +47,7 @@ extension AppDelegate {
             check(nonoverlappingButtons(),"small action targets fit without overlap")
             check(button("swap").frame.midY > rail.bounds.height*0.85 && button("compare").frame.midY < rail.bounds.height*0.8,"top and compare actions occupy separate groups")
             check(button("sameFolder").frame.midY < rail.bounds.height*0.65 && button("orientation").frame.midY < rail.bounds.height*0.45,"navigation and layout groups are distributed down the strip")
-            check(button("trash").frame.midY < 30 && button("trash").toolTip == "In den Papierkorb …","trash action is anchored at the bottom")
+            check(button("trash").frame.midY < 30 && button("trash").toolTip?.contains("Papierkorb") == true,"trash action is anchored at the bottom")
             NSCursor.resizeLeftRight.set();rail.cursorUpdate(with:event(.mouseMoved,blank,in:rail))
             check(NSCursor.current == .arrow,"entering the action strip restores the arrow after a resize cursor")
             let before = main.left.frame.width

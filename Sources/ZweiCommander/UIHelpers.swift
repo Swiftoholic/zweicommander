@@ -3,16 +3,38 @@ import CommanderCore
 
 final class ActionButton: NSButton {
     var perform: (() -> Void)?
-    var flat = false { didSet { isBordered = !flat;invalidateIntrinsicContentSize();needsDisplay = true } }
+    private var hoverTracking: NSTrackingArea?
+    private(set) var isHovered = false
+    var flat = false { didSet { isBordered = !flat;invalidateIntrinsicContentSize();updateTrackingAreas();needsDisplay = true } }
     var verticalLabel = false { didSet { invalidateIntrinsicContentSize();needsDisplay = true } }
     var symbolTint: NSColor = .systemBlue
+    override var toolTip: String? { didSet { setAccessibilityHelp(toolTip) } }
+    override var isEnabled: Bool { didSet { needsDisplay = true } }
     convenience init(_ title: String, symbol: String? = nil, action: @escaping () -> Void) {
         self.init(frame: .zero)
         self.title = title; self.perform = action; target = self; self.action = #selector(invoke)
         bezelStyle = .rounded; controlSize = .small
+        if !title.isEmpty { setAccessibilityLabel(title) }
         if let symbol { image = NSImage(systemSymbolName: symbol, accessibilityDescription: title); imagePosition = title.isEmpty ? .imageOnly : .imageLeading }
     }
     @objc private func invoke() { perform?() }
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTracking { removeTrackingArea(hoverTracking) };hoverTracking = nil
+        if flat {
+            let area = NSTrackingArea(rect:.zero,options:[.mouseEnteredAndExited,.activeInActiveApp,.inVisibleRect],owner:self,userInfo:nil)
+            hoverTracking = area;addTrackingArea(area)
+        }
+        isHovered = flat && window?.isVisible == true && bounds.contains(convert(window?.mouseLocationOutsideOfEventStream ?? .zero,from:nil));needsDisplay = true
+    }
+    override func mouseEntered(with event:NSEvent) { isHovered = true;needsDisplay = true }
+    override func mouseExited(with event:NSEvent) { isHovered = false;needsDisplay = true }
+    override func viewDidMoveToWindow() { super.viewDidMoveToWindow();if window == nil { isHovered = false };needsDisplay = true }
+    override func resetCursorRects() { if flat { addCursorRect(bounds,cursor:.arrow) } else { super.resetCursorRects() } }
+    func setHelp(_ title:String,_ detail:String,shortcut:String = "") {
+        toolTip = title+(shortcut.isEmpty ? "" : " · "+shortcut)+(detail.isEmpty ? "" : "\n"+detail)
+        setAccessibilityLabel(title)
+    }
     override var alignmentRectInsets: NSEdgeInsets { flat ? NSEdgeInsets(top:0,left:0,bottom:0,right:0) : super.alignmentRectInsets }
     override var intrinsicContentSize: NSSize {
         guard flat else { return super.intrinsicContentSize }
@@ -23,7 +45,12 @@ final class ActionButton: NSButton {
     override func draw(_ dirtyRect: NSRect) {
         guard flat else { super.draw(dirtyRect);return }
         let p = CommanderPalette.current(in:self),selected = state == .on
-        if selected || isHighlighted { (selected ? p.activePath : p.hover).setFill();bounds.insetBy(dx:1,dy:1).fill(using:.sourceOver) }
+        let hovered = isEnabled && (isHovered || isHighlighted)
+        if selected || hovered {
+            (selected ? p.activePath : p.hover).setFill();bounds.insetBy(dx:1,dy:1).fill(using:.sourceOver)
+            if selected && hovered { NSColor.white.withAlphaComponent(isHighlighted ? 0.28 : 0.16).setFill();bounds.insetBy(dx:1,dy:1).fill(using:.sourceOver) }
+            if hovered { (selected ? NSColor.white.withAlphaComponent(0.4) : p.separator).setStroke();NSBezierPath(rect:bounds.insetBy(dx:1.5,dy:1.5)).stroke() }
+        }
         let color: NSColor = !isEnabled ? p.secondaryText.withAlphaComponent(0.55) : selected ? .white : p.text
         if let image {
             let tint: NSColor = selected ? .white : symbolTint

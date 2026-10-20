@@ -1,6 +1,8 @@
 import AppKit
 
 final class FolderTabButton: NSButton, NSDraggingSource {
+    private var hoverTracking: NSTrackingArea?
+    private var hovered = false
     static let dragType = NSPasteboard.PasteboardType("local.zweicommander.folder-tab")
     weak var pane: PaneView?
     let tabID: UUID
@@ -9,7 +11,7 @@ final class FolderTabButton: NSButton, NSDraggingSource {
         tabID = tab.id;self.pane = pane;super.init(frame:.zero);self.title = title
         target = self;action = #selector(choose);controlSize = .small;registerForDraggedTypes([Self.dragType])
         isBordered = false
-        closeButton.flat = true;closeButton.symbolTint = .secondaryLabelColor;closeButton.toolTip = "Diesen Tab schließen"
+        closeButton.flat = true;closeButton.symbolTint = .secondaryLabelColor;CommandHelp.apply(closeButton,id:"closeTab",title:"Diesen Tab schließen")
         closeButton.setAccessibilityLabel("Tab schließen: "+title);closeButton.perform = { [weak self] in guard let self else { return };self.pane?.closeTab(self.tabID) }
         closeButton.isHidden = tab.locked || pane.tabs.count == 1;addSubview(closeButton)
         let menu = NSMenu()
@@ -19,6 +21,12 @@ final class FolderTabButton: NSButton, NSDraggingSource {
         self.menu = menu
     }
     required init?(coder: NSCoder) { fatalError() }
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas();if let hoverTracking { removeTrackingArea(hoverTracking) }
+        let area = NSTrackingArea(rect:.zero,options:[.mouseEnteredAndExited,.activeInActiveApp,.inVisibleRect],owner:self,userInfo:nil);hoverTracking = area;addTrackingArea(area)
+    }
+    override func mouseEntered(with event:NSEvent) { hovered = true;needsDisplay = true }
+    override func mouseExited(with event:NSEvent) { hovered = false;needsDisplay = true }
     override var intrinsicContentSize: NSSize {
         let width = (title as NSString).size(withAttributes:[.font:font ?? NSFont.systemFont(ofSize:11)]).width
         return NSSize(width:max(80,min(220,width+45)),height:25)
@@ -26,7 +34,7 @@ final class FolderTabButton: NSButton, NSDraggingSource {
     override func layout() { super.layout();closeButton.frame = NSRect(x:bounds.width-23,y:2,width:20,height:21) }
     override func draw(_ dirtyRect: NSRect) {
         let p = CommanderPalette.current(in:self),selected = state == .on
-        (selected ? p.activeTab : p.chrome).setFill();bounds.fill(using:.sourceOver)
+        (selected ? p.activeTab : hovered ? p.hover : p.chrome).setFill();bounds.fill(using:.sourceOver)
         if selected { (pane?.isActive == true ? p.accent : p.separator).setFill();NSRect(x:0,y:0,width:bounds.width,height:2).fill(using:.sourceOver) }
         p.separator.setFill();NSRect(x:bounds.maxX-1,y:0,width:1,height:bounds.height).fill(using:.sourceOver)
         let paragraph = NSMutableParagraphStyle();paragraph.lineBreakMode = .byTruncatingMiddle

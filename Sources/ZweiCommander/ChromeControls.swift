@@ -49,7 +49,7 @@ final class SplitActionRail: CommanderSurface {
     }
     func configure(_ items: [(String,String,String)],perform: @escaping (String)->Void) {
         for (title,symbol,id) in items {
-            let b = ActionButton("",symbol:symbol,action:{ perform(id) });b.flat = true;b.toolTip = title;b.identifier = .init(id);b.setAccessibilityLabel(title)
+            let b = ActionButton("",symbol:symbol,action:{ perform(id) });b.flat = true;b.identifier = .init(id);CommandHelp.apply(b,id:id,title:title)
             b.symbolTint = id == "sameFolder" ? .systemOrange : id == "trash" ? .systemRed : id == "compare" ? .systemPurple : .systemBlue
             buttons.append(b);addSubview(b)
         }
@@ -92,7 +92,7 @@ final class LocationStrip: NSScrollView {
         stack.arrangedSubviews.forEach { stack.removeArrangedSubview($0);$0.removeFromSuperview() }
         for (name,url) in items {
             let symbol = url.path == "/" ? "internaldrive" : url.path.hasPrefix("/Volumes/") ? "externaldrive" : "folder"
-            let b = ActionButton(name,symbol:symbol,action:{ [weak self] in self?.onChoose?(url) });b.flat = true;b.font = .systemFont(ofSize:11);b.toolTip = url.path;b.identifier = .init(url.path)
+            let b = ActionButton(name,symbol:symbol,action:{ [weak self] in self?.onChoose?(url) });b.flat = true;b.font = .systemFont(ofSize:11);b.setHelp(name,"Diesen Ort auf dieser Seite öffnen.\n"+url.path);b.identifier = .init(url.path)
             b.widthAnchor.constraint(equalToConstant:min(150,max(58,b.intrinsicContentSize.width))).isActive = true
             b.heightAnchor.constraint(equalToConstant:23).isActive = true;stack.addArrangedSubview(b)
         }
@@ -109,57 +109,122 @@ final class LocationStrip: NSScrollView {
 
 final class BreadcrumbBar: NSView {
     var active = false { didSet { updateColors() } }
+    var showHiddenFolders = false
     var onChoose: ((URL)->Void)?
     var onEdit: (()->Void)?
     private(set) var components: [(URL,ActionButton)] = []
+    private(set) var childButtons: [(URL,ActionButton)] = []
     let more = ActionButton("…",action:{})
-    var url: URL? { didSet { rebuild() } }
+    let dropdown = AddressDropdown()
+    private var request = 0
+    private weak var openAnchor: ActionButton?
+    private var acceptingDrop = false
+    var url: URL? { didSet { if oldValue != url { rebuild() } } }
     override init(frame: NSRect) {
-        super.init(frame:frame);wantsLayer = false;more.flat = true;more.toolTip = "Übergeordnete Ordner";more.setAccessibilityLabel("Übergeordnete Ordner")
+        super.init(frame:frame);wantsLayer = false;more.flat = true
+        more.setHelp("Übergeordnete Ordner","Die vollständige Ordnerhierarchie anzeigen, auch ausgeblendete Pfadsegmente.")
         more.perform = { [weak self] in self?.showAncestors() };addSubview(more)
+        dropdown.onChoose = { [weak self] item in self?.request += 1;self?.onChoose?(item.url) }
+        dropdown.onDismiss = { [weak self] in self?.request += 1;self?.openAnchor = nil }
+        registerForDraggedTypes([.fileURL]);setAccessibilityLabel("Ordnerpfad")
     }
     required init?(coder:NSCoder) { fatalError() }
     private func rebuild() {
-        components.forEach { $0.1.removeFromSuperview() };components = [];toolTip = url?.path
+        request += 1;dropdown.close();openAnchor = nil
+        (components+childButtons).forEach { $0.1.removeFromSuperview() };components = [];childButtons = []
+        toolTip = (url?.path ?? "")+"\nLeeren Bereich anklicken oder ⌘L drücken, um die Adresse zu bearbeiten."
+        menu = contextMenu(for:url)
         if var current = url {
             var urls = [current]
             while current.path != "/" { let parent = current.deletingLastPathComponent();if parent == current { break };urls.insert(parent,at:0);current = parent }
-            for (i,url) in urls.enumerated() {
-                let title = (url.path == "/" ? "/" : url.lastPathComponent)+(i == urls.count-1 ? "" : " ›")
-                let b = ActionButton(title,action:{ [weak self] in self?.onChoose?(url) });b.flat = true;b.font = .systemFont(ofSize:11);b.toolTip = url.path;b.setAccessibilityLabel(url.path);addSubview(b);components.append((url,b))
+            for url in urls {
+                let title = url.path == "/" ? "/" : url.lastPathComponent
+                let button = ActionButton(title,action:{ [weak self] in self?.onChoose?(url) });button.flat = true;button.font = .systemFont(ofSize:11)
+                button.setHelp(title,"Diesen Ordner öffnen.\n"+url.path);button.menu = contextMenu(for:url)
+                addSubview(button);components.append((url,button))
+                let arrow = ActionButton("",symbol:"chevron.right",action:{})
+                arrow.flat = true;arrow.symbolTint = .secondaryLabelColor;arrow.setHelp("Unterordner von "+title,"Unterordner auswählen, ohne die Adresse einzutippen.\n"+url.path)
+                arrow.perform = { [weak self,weak arrow] in if let arrow { self?.showChildren(of:url,from:arrow) } }
+                addSubview(arrow);childButtons.append((url,arrow))
             }
         }
         updateColors();needsLayout = true
     }
+    func showChildren(of folder:URL,from button:ActionButton) {
+        if dropdown.isVisible && openAnchor === button { request += 1;dropdown.close();openAnchor = nil;return }
+        request += 1;let generation = request,original = url,hidden = showHiddenFolders;openAnchor = button
+        dropdown.show(under:button,title:"Unterordner werden gelesen …",keyboard:true)
+        DispatchQueue.global(qos:.userInitiated).async { [weak self,weak button] in
+            let result = Result { try FolderAddress.folders(in:folder,showHidden:hidden) }
+            DispatchQueue.main.async {
+                guard let self,let button,self.request == generation,self.url == original,self.dropdown.isVisible else { return }
+                switch result {
+                case .success(let value):
+                    self.dropdown.show(under:button,title:value.limited ? "200 Unterordner · zum Eingrenzen Adresse bearbeiten" : "Unterordner · "+(folder.lastPathComponent.isEmpty ? "/" : folder.lastPathComponent),rows:value.items,message:value.items.isEmpty ? "Keine Unterordner" : nil,keyboard:true)
+                    if let index = value.items.firstIndex(where:{ $0.url == self.url || self.url?.path.hasPrefix($0.url.path+"/") == true }) { self.dropdown.select(index) }
+                case .failure(let error): self.dropdown.show(under:button,title:"Unterordner",message:error.localizedDescription,error:true,keyboard:true)
+                }
+            }
+        }
+    }
     @objc private func chooseAncestor(_ item: NSMenuItem) { if let url = item.representedObject as? URL { onChoose?(url) } }
     private func showAncestors() {
+        request += 1;dropdown.close()
         let menu = NSMenu()
         for (url,_) in components { let item = NSMenuItem(title:url.path,action:#selector(chooseAncestor(_:)),keyEquivalent:"");item.target = self;item.representedObject = url;menu.addItem(item) }
         menu.popUp(positioning:nil,at:NSPoint(x:0,y:bounds.height),in:self)
     }
+    func contextMenu(for folder:URL?) -> NSMenu {
+        let menu = NSMenu()
+        for (title,action) in [("Adresse bearbeiten",#selector(editAddress(_:))),("Ordnerpfad kopieren",#selector(copyAddress(_:))),("Ordner im Finder öffnen",#selector(openInFinder(_:)))] {
+            let item = NSMenuItem(title:title,action:action,keyEquivalent:"");item.target = self;item.representedObject = folder;menu.addItem(item)
+        }
+        return menu
+    }
+    @objc private func editAddress(_ item:NSMenuItem) { dropdown.close();onEdit?() }
+    @objc private func copyAddress(_ item:NSMenuItem) {
+        guard let folder = item.representedObject as? URL else { return }
+        NSPasteboard.general.clearContents();NSPasteboard.general.setString(folder.path,forType:.string)
+    }
+    @objc private func openInFinder(_ item:NSMenuItem) { if let folder = item.representedObject as? URL { NSWorkspace.shared.open(folder) } }
     override func layout() {
         super.layout();let available = max(0,bounds.width-4)
-        var start = 0,total = components.reduce(CGFloat(0)) { $0+min(185,$1.1.intrinsicContentSize.width) }
-        while start < components.count-1 && total > available-26 { total -= min(185,components[start].1.intrinsicContentSize.width);start += 1 }
+        let widths = components.map { min(170,$0.1.intrinsicContentSize.width)+18 }
+        var start = 0,total = widths.reduce(0,+)
+        while start < components.count-1 && total > available-(start == 0 ? 0 : 26) { total -= widths[start];start += 1 }
         more.isHidden = start == 0;more.frame = NSRect(x:2,y:0,width:24,height:bounds.height)
         var x: CGFloat = start == 0 ? 2 : 27
         for (i,item) in components.enumerated() {
-            item.1.isHidden = i < start
+            let arrow = childButtons[i].1
+            item.1.isHidden = i < start;arrow.isHidden = i < start
             guard i >= start else { continue }
-            let width = min(185,min(item.1.intrinsicContentSize.width,max(1,bounds.width-x-2)))
+            let width = min(170,min(item.1.intrinsicContentSize.width,max(1,bounds.width-x-20)))
             item.1.frame = NSRect(x:x,y:0,width:width,height:bounds.height);x += width
+            arrow.frame = NSRect(x:x,y:0,width:min(18,max(0,bounds.width-x-2)),height:bounds.height);x += 18
         }
     }
-    override func mouseDown(with event: NSEvent) { if event.clickCount == 2 { onEdit?() } else { super.mouseDown(with:event) } }
+    override func mouseDown(with event:NSEvent) { request += 1;dropdown.close();onEdit?() }
+    override func resetCursorRects() { addCursorRect(bounds,cursor:.iBeam) }
+    override func viewDidMoveToWindow() { super.viewDidMoveToWindow();if window == nil { request += 1;dropdown.close() } }
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance();updateColors() }
-    override func draw(_ dirtyRect: NSRect) { let p = CommanderPalette.current(in:self);(active ? p.activePath : p.chrome).setFill();bounds.fill(using:.sourceOver) }
+    override func draw(_ dirtyRect: NSRect) {
+        let p = CommanderPalette.current(in:self);(active ? p.activePath : p.chrome).setFill();bounds.fill(using:.sourceOver)
+        if acceptingDrop { p.accent.setStroke();let ring = NSBezierPath(rect:bounds.insetBy(dx:1,dy:1));ring.lineWidth = 2;ring.stroke() }
+    }
     func updateColors() {
         let p = CommanderPalette.current(in:self);layer?.backgroundColor = (active ? p.activePath : p.chrome).cgColor
-        ([more]+components.map { $0.1 }).forEach { $0.state = active ? .on : .off;$0.needsDisplay = true };needsDisplay = true
+        ([more]+components.map { $0.1 }+childButtons.map { $0.1 }).forEach { $0.state = active ? .on : .off;$0.needsDisplay = true };needsDisplay = true
     }
-}
-
-final class PathEditor: NSTextField {
-    var onCancel: (()->Void)?
-    override func cancelOperation(_ sender: Any?) { onCancel?() }
+    func droppedFolder(from pasteboard:NSPasteboard) -> URL? {
+        guard let values = pasteboard.readObjects(forClasses:[NSURL.self],options:[.urlReadingFileURLsOnly:true]) as? [URL],values.count == 1,values[0].isFileURL else { return nil }
+        var directory:ObjCBool = false
+        return FileManager.default.fileExists(atPath:values[0].path,isDirectory:&directory) && directory.boolValue ? values[0] : nil
+    }
+    override func draggingEntered(_ sender:NSDraggingInfo) -> NSDragOperation { acceptingDrop = droppedFolder(from:sender.draggingPasteboard) != nil;needsDisplay = true;return acceptingDrop ? .link : [] }
+    override func draggingUpdated(_ sender:NSDraggingInfo) -> NSDragOperation { draggingEntered(sender) }
+    override func draggingExited(_ sender:NSDraggingInfo?) { acceptingDrop = false;needsDisplay = true }
+    override func performDragOperation(_ sender:NSDraggingInfo) -> Bool {
+        acceptingDrop = false;needsDisplay = true
+        guard let folder = droppedFolder(from:sender.draggingPasteboard) else { return false };onChoose?(folder);return true
+    }
 }

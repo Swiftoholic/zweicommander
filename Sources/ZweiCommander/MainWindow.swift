@@ -22,17 +22,19 @@ final class MainContent: CommanderSurface, NSSplitViewDelegate {
         toolbar.orientation = .horizontal;toolbar.spacing = 3;toolbar.alignment = .centerY;toolbar.detachesHiddenViews = true
         utilityBar.orientation = .horizontal;utilityBar.spacing = 5;utilityBar.alignment = .centerY
         toolbarScroll.drawsBackground = false;toolbarScroll.documentView = toolbar;toolbarScroll.hasHorizontalScroller = false
-        toolbarMore.flat = true;toolbarMore.toolTip = "Weitere Befehle und Werkzeugleiste anpassen";toolbarMore.setAccessibilityLabel("Weitere Werkzeugleistenbefehle")
+        toolbarMore.flat = true;toolbarMore.setHelp("Weitere Werkzeugleistenbefehle","Befehle öffnen, die nicht mehr ins Fenster passen, oder die Werkzeugleiste anpassen.")
         functionBar.orientation = .horizontal;functionBar.distribution = .fillEqually;functionBar.spacing = 1
         split.isVertical = true;split.dividerStyle = .thin;split.delegate = self
         commandMode.addItems(withTitles:["Pfad","Befehl"]);commandMode.controlSize = .small
         commandMode.toolTip = "Pfad öffnet einen Ordner. Befehl führt zsh im aktiven Ordner aus."
         commandField.font = .monospacedSystemFont(ofSize:11,weight:.regular)
-        commandGo.flat = true;commandGo.toolTip = "Eingabe ausführen";commandGo.setAccessibilityLabel("Eingabe ausführen")
-        terminal.flat = true;terminal.toolTip = "Terminal im aktiven Ordner öffnen";terminal.setAccessibilityLabel("Terminal öffnen")
+        commandGo.flat = true;commandGo.setHelp("Eingabe ausführen","Die Eingabe im links gewählten Modus ausführen.")
+        terminal.flat = true;CommandHelp.apply(terminal,id:"terminal")
         progress.style = .bar;progress.controlSize = .small;progress.isDisplayedWhenStopped = false;progress.minValue = 0;progress.maxValue = 1
         quick.isHidden = true;cancel.isHidden = true;pause.isHidden = true
         [pause,cancel,queueButton].forEach { $0.flat = true;$0.font = .systemFont(ofSize:11) }
+        pause.setHelp("Pause","Den laufenden Dateivorgang pausieren oder fortsetzen.");cancel.setHelp("Abbrechen","Den laufenden Vorgang abbrechen. Bereits fertiggestellte Schritte bleiben erhalten.")
+        queueButton.setHelp("Aufträge","Wartende, laufende und frühere Dateivorgänge ansehen.",shortcut:CommandHelp.shortcut("operations"))
         [toolbarScroll,toolbarMore,utilityBar,split,rail,quick,functionBar,commandMode,commandField,commandGo,terminal,status,progress,cancel,pause,queueButton].forEach { addSubview($0) }
     }
     required init?(coder:NSCoder) { fatalError() }
@@ -187,7 +189,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             if let previousGroup,previousGroup != item.group { let separator = NSBox();separator.boxType = .separator;separator.widthAnchor.constraint(equalToConstant:1).isActive = true;separator.heightAnchor.constraint(equalToConstant:labels ? 35 : 20).isActive = true;content.toolbar.addArrangedSubview(separator) }
             previousGroup = item.group
             let b = ActionButton(labels ? item.title : "",symbol:item.symbol,action:{ [weak self] in self?.command(id) })
-            b.flat = true;b.verticalLabel = labels;b.font = .systemFont(ofSize:10);b.symbolTint = item.tint;b.identifier = .init(id);b.toolTip = item.title;b.setAccessibilityLabel(item.title)
+            b.flat = true;b.verticalLabel = labels;b.font = .systemFont(ofSize:10);b.symbolTint = item.tint;b.identifier = .init(id);CommandHelp.apply(b,id:id,title:item.title)
             b.setContentCompressionResistancePriority(.required,for:.horizontal);content.toolbar.addArrangedSubview(b)
         }
         favoriteMenu.target = self;favoriteMenu.action = #selector(favoriteChosen);favoriteMenu.controlSize = .small
@@ -221,18 +223,22 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     }
     func updateChromeState() {
         guard isWindowLoaded else { return }
+        left.updateNavigationHelp();right.updateNavigationHelp()
         if content.commandMode.indexOfSelectedItem == 0,!(content.commandField.currentEditor() is NSTextView) { content.commandField.stringValue = active.currentURL.path }
         for case let button as NSButton in content.toolbar.arrangedSubviews {
             let id = button.identifier?.rawValue
+            if let button = button as? ActionButton,let id { CommandHelp.apply(button,id:id,title:ToolbarCommand.all.first { $0.id == id }?.title) }
+            if let id,["back","forward"].contains(id),let navigation = active.navigationButtons[id] { button.isEnabled = navigation.isEnabled;button.toolTip = navigation.toolTip }
             button.state = (id == "details" && active.displayMode == .details) || (id == "thumbnails" && active.displayMode == .thumbnails) || (id == "icons" && active.displayMode == .icons) || (id == "tree" && active.treeVisible) || (id == "quickView" && content.quickVisible) ? .on : .off
         }
-        for button in content.rail.buttons { button.state = button.identifier?.rawValue == "linked" && linked ? .on : .off }
+        for button in content.rail.buttons { let id = button.identifier?.rawValue ?? "";button.state = id == "linked" && linked ? .on : .off;CommandHelp.apply(button,id:id) }
         updateFunctionLabels()
     }
     func updateFunctionLabels() {
         let values:[String:(String,String)] = ["preview":("F3","Ansehen"),"edit":("F4","Bearbeiten"),"copy":("F5","Kopieren"),"move":("F6","Verschieben"),"newFolder":("F7","Neuer Ordner"),"trash":("F8","Papierkorb")]
         for case let button as NSButton in content.functionBar.arrangedSubviews {
             guard let id = button.identifier?.rawValue,let value = values[id] else { continue }
+            if let button = button as? ActionButton { CommandHelp.apply(button,id:id) }
             var key = (Preferences.state.shortcuts[id] ?? value.0).lowercased()
             if key == "space" { key = "Leertaste" }
             for (word,symbol) in [("cmd+","⌘"),("shift+","⇧"),("option+","⌥"),("alt+","⌥"),("control+","⌃"),("ctrl+","⌃")] { key = key.replacingOccurrences(of:word,with:symbol) }
@@ -244,6 +250,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
                 if id == "copy",other.tab.collection != nil { button.toolTip = "Verweise zur Dateisammlung hinzufügen. Die Originaldateien bleiben an ihrem bisherigen Ort." }
                 button.setAccessibilityLabel(button.title+" · "+(button.toolTip ?? other.currentURL.path))
                 button.isEnabled = !active.selectedURLs.isEmpty && (id == "copy" ? !other.readOnly : !active.readOnly && !other.readOnly && other.tab.collection == nil)
+                if !button.isEnabled { button.toolTip = (button.toolTip ?? "")+"\n"+(active.selectedURLs.isEmpty ? "Zuerst Dateien oder Ordner auswählen." : "Für diesen Vorgang werden beschreibbare Ordner benötigt.") }
             } else { button.title = key.uppercased()+" "+value.1 }
         }
     }

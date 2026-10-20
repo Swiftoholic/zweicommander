@@ -149,7 +149,11 @@ def fixtures(base):
     write(ux, "Links/Budget.csv", "Posten;Betrag\nPlan;42\n")
     write(ux, "Rechts/Notizen.txt", "Vorhandene Notizen\n")
     (ux / "Links/Bild.png").write_bytes(preview_png((60, 150, 200)))
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux
+    navigation = base / "navigation"
+    for name in ("Links/Dokumente", "Links/Dokumente und Bilder", "Links/Grüße aus Wien", "Links/Projekte", "Links/.Versteckt", "Rechts/Sicherung"):
+        (navigation / name).mkdir(parents=True)
+    write(navigation, "Links/Dokumente.txt", "Adressprüfung\n")
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation
 
 
 def main():
@@ -174,6 +178,7 @@ def main():
             ("appearance-save", "--appearance-smoke", roots[0], str(prefix), "APPEARANCE UI PASS ", "APPEARANCE SMOKE PASS 47 checks", 47),
             ("appearance-reload", "--appearance-smoke", roots[0], str(prefix), "APPEARANCE UI PASS ", "APPEARANCE SMOKE PASS 9 checks", 9),
             ("rail", "--rail-smoke", roots[0], str(prefix), "RAIL UI PASS ", "RAIL SMOKE PASS 26 checks", 26),
+            ("navigation", "--navigation-smoke", roots[13], str(prefix), "NAV UI PASS ", "NAV SMOKE PASS 46 checks", 46),
             ("ux-save", "--ux-smoke", roots[12], str(prefix), "UX UI PASS ", "UX SMOKE PASS 55 checks", 55),
             ("ux-reload", "--ux-smoke", roots[12], str(prefix), "UX UI PASS ", "UX SMOKE PASS 6 checks", 6),
             ("operations", "--operations-smoke", roots[1], str(prefix), "OPS UI PASS ", "OPS SMOKE PASS 14 checks", 14),

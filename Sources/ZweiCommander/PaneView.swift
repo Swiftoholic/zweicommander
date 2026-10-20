@@ -58,6 +58,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     let tabsScroll = NSScrollView()
     let tabsStack = NSStackView()
     let nav = NSStackView()
+    private(set) var navigationButtons: [String:ActionButton] = [:]
     let viewMode = NSPopUpButton()
     let sortMode = NSPopUpButton()
     let sortDirection = ActionButton("",symbol:"arrow.up.arrow.down",action:{})
@@ -159,6 +160,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         pathField.target = self;pathField.action = #selector(pathEntered);pathField.delegate = self;pathField.font = .monospacedSystemFont(ofSize:11,weight:.regular)
         pathField.isEditable = true;pathField.isSelectable = true;pathField.isBordered = true;pathField.drawsBackground = true;pathField.isHidden = true
         pathField.onCancel = { [weak self] in self?.endPathEditing() }
+        pathField.onChoose = { [weak self] url in self?.endPathEditing(restoreFocus:false);self?.navigate(url) }
         pathField.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
         breadcrumb.setContentHuggingPriority(.defaultLow,for:.horizontal);breadcrumb.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
         breadcrumb.onChoose = { [weak self] in self?.navigate($0) };breadcrumb.onEdit = { [weak self] in self?.beginPathEditing() }
@@ -170,7 +172,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         let edit = ActionButton("",symbol:"square.and.pencil") { [weak self] in self?.beginPathEditing() };edit.toolTip = "Pfad bearbeiten · Cmd+L"
         nav.orientation = .horizontal;nav.spacing = 1;nav.detachesHiddenViews = true
         [breadcrumb,pathField].forEach { $0.heightAnchor.constraint(equalToConstant:24).isActive = true;nav.addArrangedSubview($0) }
-        for b in [back,forward,up,home,edit] { b.flat = true;b.widthAnchor.constraint(equalToConstant:23).isActive = true;b.heightAnchor.constraint(equalToConstant:24).isActive = true;b.setAccessibilityLabel(b.toolTip);nav.addArrangedSubview(b) }
+        for (id,b) in [("back",back),("forward",forward),("parent",up),("home",home),("path",edit)] { navigationButtons[id] = b;b.identifier = .init(id);b.flat = true;b.widthAnchor.constraint(equalToConstant:23).isActive = true;b.heightAnchor.constraint(equalToConstant:24).isActive = true;CommandHelp.apply(b,id:id);nav.addArrangedSubview(b) }
         tabsStack.orientation = .horizontal; tabsStack.spacing = 1; tabsStack.alignment = .centerY
         tabsScroll.documentView = tabsStack; tabsScroll.hasHorizontalScroller = true; tabsScroll.autohidesScrollers = true;tabsScroll.drawsBackground = false
         viewMode.addItems(withTitles:PaneDisplayMode.allCases.map(\.title));viewMode.target = self;viewMode.action = #selector(viewModeChanged)
@@ -188,7 +190,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         filterRegex.target = self; filterRegex.action = #selector(filterChanged)
         filterRegex.toolTip = "Reguläre Ausdrücke verwenden";filterRegex.setAccessibilityLabel("Filter als regulären Ausdruck auswerten")
         filterInfo.lineBreakMode = .byTruncatingTail
-        filterClear.flat = true;filterClear.font = .systemFont(ofSize:11);filterClear.perform = { [weak self] in self?.clearFilter();self?.focus() }
+        filterClear.flat = true;filterClear.font = .systemFont(ofSize:11);filterClear.setHelp("Filter aufheben","Wieder alle Objekte dieses Ordners anzeigen.");filterClear.perform = { [weak self] in self?.clearFilter();self?.focus() }
         filterBar.addSubview(filterInfo);filterBar.addSubview(filterClear);filterBar.isHidden = true;stateView.isHidden = true
         tree.isHidden = true; tree.onChoose = { [weak self] url in self?.navigate(url) }
         [marker,locations,tabsScroll,nav,viewBar,scroll,filterField,filterRegex,status,tree,filterBar,stateView].forEach { addSubview($0) }
@@ -288,10 +290,26 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         status.frame = NSRect(x:5,y:4,width:max(1,w-filterWidth-41),height:18)
     }
     func beginPathEditing() {
-        activate();breadcrumb.isHidden = true;pathField.isHidden = false;pathField.stringValue = currentURL.path
-        nav.needsLayout = true;window?.makeFirstResponder(pathField);pathField.selectText(nil)
+        activate();breadcrumb.dropdown.dismiss();breadcrumb.isHidden = true;pathField.isHidden = false
+        nav.needsLayout = true;nav.layoutSubtreeIfNeeded()
+        pathField.begin(at:currentURL,history:tab.history,showHidden:showHidden)
+        window?.makeFirstResponder(pathField);(pathField.currentEditor() as? NSTextView)?.selectAll(nil)
     }
-    func endPathEditing() { pathField.isHidden = true;breadcrumb.isHidden = false;nav.needsLayout = true;focus() }
+    func endPathEditing(restoreFocus:Bool = true) { pathField.end();pathField.isHidden = true;breadcrumb.isHidden = false;nav.needsLayout = true;if restoreFocus { focus() } }
+    func updateNavigationHelp() {
+        for (id,button) in navigationButtons {
+            CommandHelp.apply(button,id:id)
+            switch id {
+            case "back","forward":
+                let index = tab.position+(id == "back" ? -1 : 1),available = tab.history.indices.contains(index)
+                button.isEnabled = available
+                let detail = available ? "Öffnen: "+tab.history[index].path : id == "back" ? "In diesem Tab gibt es noch keinen vorherigen Ordner." : "In diesem Tab gibt es keinen nächsten Ordner."
+                CommandHelp.apply(button,id:id,context:detail)
+            case "parent": button.isEnabled = currentURL.path != "/";CommandHelp.apply(button,id:id,context:button.isEnabled ? "Öffnen: "+(tab.archiveRoot == currentURL ? tab.archiveOrigin?.deletingLastPathComponent().path ?? currentURL.deletingLastPathComponent().path : currentURL.deletingLastPathComponent().path) : "Die oberste Ordnerebene ist bereits geöffnet.")
+            default: break
+            }
+        }
+    }
     func activate() { onActivate?(self) }
     func focus() { activate(); window?.makeFirstResponder(displayMode == .icons ? grid : table) }
     func rebuildTabs() {
@@ -303,7 +321,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
             b.font = .systemFont(ofSize: 12, weight: i == tabIndex ? .semibold : .regular)
             tabsStack.addArrangedSubview(b)
         }
-        let add = ActionButton("",symbol:"plus",action:{ [weak self] in self?.newTab() });add.flat = true;add.toolTip = "Neuer Tab · Cmd+T";add.setAccessibilityLabel("Neuer Tab");tabsStack.addArrangedSubview(add)
+        let add = ActionButton("",symbol:"plus",action:{ [weak self] in self?.newTab() });add.flat = true;CommandHelp.apply(add,id:"newTab");tabsStack.addArrangedSubview(add)
         tabsStack.frame = NSRect(origin: .zero, size: NSSize(width: max(180,tabsStack.fittingSize.width),height:25))
         if tabsStack.arrangedSubviews.indices.contains(tabIndex) { tabsStack.scrollToVisible(tabsStack.arrangedSubviews[tabIndex].frame) }
         onState?()
@@ -354,8 +372,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     }
     func showArchive(root: URL, original: URL) { newTab(url: root); tab.archiveRoot = root; tab.archiveOrigin = original; tab.title = original.lastPathComponent;restoreTabView(); rebuildTabs(); refresh() }
     @objc func pathEntered() {
-        activate(); let path = (pathField.stringValue as NSString).expandingTildeInPath
-        navigate(path.hasPrefix("/") ? URL(fileURLWithPath:path) : currentURL.appendingPathComponent(path));endPathEditing()
+        activate();pathField.submit()
     }
     private var selectionRequest: (directory: URL,urls: Set<URL>)?
     func reveal(_ url: URL) {
@@ -370,7 +387,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         replacesContents = displayedDirectory != FileSystem.canonical(url) || displayedTabID != tab.id || displayedCollection != collection || loadError != nil
         isLoading = true;loadError = nil
         if replacesContents { entries = [];visibleEntries = [];table.reloadData();grid.reloadData() }
-        if pathField.currentEditor() == nil { pathField.stringValue = url.path };breadcrumb.url = url;locations.select(url);pathField.toolTip = readOnly ? "Temporäre Archivansicht · schreibgeschützt" : url.path
+        if !pathField.sessionActive { pathField.stringValue = url.path };breadcrumb.showHiddenFolders = hidden;breadcrumb.url = url;locations.select(url);updateNavigationHelp()
         status.stringValue = "Lese Ordner …"
         updatePanePresentation();onSelection?(selectedURLs)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -426,9 +443,17 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     }
     func clearFilter() { filterField.stringValue = "";filterRegex.state = .off;applyFilter() }
     @objc func filterChanged() { activate(); applyFilter() }
-    func controlTextDidChange(_ obj: Notification) { if obj.object as? NSSearchField === filterField { filterChanged() } }
+    func controlTextDidChange(_ obj: Notification) { if obj.object as? NSSearchField === filterField { filterChanged() };if obj.object as? PathEditor === pathField { pathField.edited() } }
+    func controlTextDidEndEditing(_ obj:Notification) {
+        guard obj.object as? PathEditor === pathField else { return }
+        // AppKit can briefly end editing while replacing its shared field editor.
+        DispatchQueue.main.async { [weak self] in
+            guard let self,self.pathField.sessionActive,self.pathField.currentEditor() == nil else { return }
+            self.endPathEditing(restoreFocus:false)
+        }
+    }
     func control(_ control: NSControl,textView: NSTextView,doCommandBy commandSelector: Selector) -> Bool {
-        if control === pathField,commandSelector == #selector(NSResponder.cancelOperation(_:)) { endPathEditing();return true }
+        if control === pathField { return pathField.handle(commandSelector) }
         return false
     }
     func updateStatus() {

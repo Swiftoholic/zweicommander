@@ -1,10 +1,11 @@
-ZweiCommander 0.14.1 — Prüfung vom 20. Oktober 2026
+ZweiCommander 0.15.0 — Prüfung vom 20. Oktober 2026
 
 Ergebnis
 - 200/200 Dateikern- und Integrationstests bestanden.
-- 568/568 native UI-Prüfungen am universellen Release-Build bestanden:
+- 614/614 native UI-Prüfungen am universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
   Darstellung nach erneutem App-Start 9, Mittelstreifen und Mausbedienung 26,
+  Hover-Hilfe und Ordneradressen 46,
   UX-Arbeitsabläufe 55,
   Werkzeugleiste nach erneutem App-Start 6, Warteschlange 14,
   Kopierfilter 22, Ordner zusammenführen 29, Profile speichern 19,
@@ -17,9 +18,6 @@ Ergebnis
   Mehrfachumbenennen und Profile speichern 20, nach Neustart verwenden 27,
   Sucharbeitsbereich und Profile speichern 22, nach Neustart verwenden 25,
   Ordnervergleich und Profile speichern 24, nach Neustart verwenden 30.
-- Ein Vergleichslauf erreichte den erwarteten Fensterfokus nicht. Beide
-  Vergleichsfälle wurden mit unverändertem Release-Build und frischen
-  Testdaten wiederholt: 24/24 und 30/30 Prüfungen bestanden.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
 - App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
 - Debug-Pfadverweise vor Signierung entfernt; Release-Binärdatei auf lokale
@@ -39,6 +37,37 @@ Bei einer früheren Entwicklungsprüfung blieb ein Start aus dem Entwicklungsord
 Anwendungsinitialisierung hängen. Derselbe unveränderte Build startete aus
 dem Benutzer-Programmeordner regulär. Die genaue Ursache des ersten Hängers
 ist nicht abschließend bestimmt; die Verwendung aus Programme wird empfohlen.
+
+Hover-Hilfe und Ordneradressen
+46 neue native Prüfungen kontrollieren Hover-Pixel in Hell und Dunkel,
+Rücknahme beim Verlassen, Rückmeldung bei bereits ausgewählten Knöpfen und
+unveränderte deaktivierte Knöpfe. Tooltips und Bedienungshilfen beschreiben
+die Aktionen; eine geänderte Tastenzuweisung erscheint auch in der Hilfe.
+Nicht verfügbare Verlaufsknöpfe erklären ihren Zustand.
+
+Die Prüfungen tippen in den nativen Texteditor, wählen Vorschläge mit
+Pfeiltasten und ergänzen mit Tab. Enter und Auswahl per Maus öffnen den
+Ordner auf der zugehörigen Seite. Leerzeichen, Unicode, relative Pfade,
+Punkt-Präfixe für versteckte Ordner und lokale Datei-URLs werden geprüft.
+Unbekannte Adressen und Dateien bleiben mit Fehler an der Eingabe stehen;
+protokollfremde und entfernte file://-Hosts werden abgewiesen. Leere Eingaben
+bieten den deduplizierten Verlauf des aktuellen Tabs aus der Sitzung.
+Alte Anfragen dürfen neue Vorschläge nicht ersetzen oder einen beendeten
+Editor erneut öffnen. Hintergrundaktualisierung erhält den Entwurf.
+Escape schließt erst die Liste, danach den Editor; ohne Liste sofort den
+Editor. Die Vorschlagsliste übernimmt den Textfokus nicht.
+
+Weitere Prüfungen öffnen den Unterordnerwähler eines Pfadsegments,
+kontrollieren Dateiausschluss und die Anzeige versteckter Ordner, schließen
+mit einem durch die App-Ereignisschleife gesendeten Escape und wählen einen
+Unterordner. Pfadsegment-Kontextmenüs, die Annahme eines einzelnen
+Ordner-URLs aus einer eigenen Zwischenablage sowie die Ablehnung gewöhnlicher
+Dateien und das Layout bei minimaler Fensterbreite werden geprüft. Das
+physische Ziehen aus einer anderen App und die tatsächliche Finder-Übergabe
+sind nicht Ende zu Ende automatisiert. Vorschläge und Unterordnerlisten
+werden im Hintergrund gelesen und auf 200 Treffer begrenzt; sehr große oder
+nicht antwortende Netzwerkordner benötigen weitere Alltagstests. Der neue
+Eingabeverlauf ist sitzungsbezogen und wird nicht zusätzlich gespeichert.
 
 Mittelstreifen und Mausbedienung
 Die Funktionsleiste ist von einer fünf Punkte breiten Griffkante getrennt.
