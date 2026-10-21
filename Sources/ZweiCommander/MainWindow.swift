@@ -112,6 +112,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     var keySearchController: SearchController? { secondaryWindows.compactMap { $0 as? SearchController }.first { $0.window === NSApp.keyWindow } }
     var pendingWork:Int { secondaryWindows.compactMap { $0 as? CompareController }.filter { $0.isComparing || $0.isPreparingPlan }.count + secondaryWindows.compactMap { $0 as? SearchController }.filter(\.isSearching).count + jobs.pending + secondaryWindows.compactMap { $0 as? RemoteWindow }.reduce(0) { $0+$1.jobs.pending } }
     var canTerminate: Bool {
+        !left.inlineRename.hasPendingCommit && !right.inlineRename.hasPendingCommit &&
         secondaryWindows.compactMap { $0 as? CompareController }.allSatisfy { !$0.isComparing && !$0.isPreparingPlan } && secondaryWindows.compactMap { $0 as? SearchController }.allSatisfy { !$0.isSearching } && jobs.canClose && secondaryWindows.compactMap { $0 as? RemoteWindow }.allSatisfy { $0.jobs.pending == 0 } &&
             !jobs.scheduler.snapshots.filter(\.isPending).contains { snapshot in jobs.journal?.entry(snapshot.id)?.intent.sources.contains { FileSystem.isInside($0,cache) } == true }
     }
@@ -141,6 +142,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             pane.onDrop = { [weak self] urls,dest in self?.transfer(urls,to:dest,kind:.copy) }
             pane.onCollectionDrop = { [weak pane] urls in pane?.addToCollection(urls) }
             pane.onCommand = { [weak self] cmd in self?.command(cmd) }
+            pane.onRename = { [weak self,weak pane] item,request in self?.renameInline(item,in:pane,request:request) }
             pane.onState = { [weak self] in self?.saveState();self?.updateChromeState() }
             pane.onSelection = { [weak self, weak pane] urls in
                 guard let self else { return };self.updateChromeState()
@@ -303,6 +305,39 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         else if old.deletingLastPathComponent() == new { candidate = target.currentURL.deletingLastPathComponent() }
         else { return }
         if FileSystem.isDirectory(candidate) { target.navigate(candidate,linked:true); pane.focus() }
+    }
+    func renameInline(_ item:RenameItem,in pane:PaneView?,request:UUID) {
+        jobs.submitReported("Umbenennen · "+item.source.lastPathComponent,notifyQueuedCancellation:true,body:{ token,reporter in
+            try RenameEngine.apply([item],token:token) { reporter.report("Umbenennen · "+$0.name) }
+        },completion:{ [weak self,weak pane] result in
+            guard let self else { return }
+            switch result {
+            case .success(let undo):
+                self.renameUndo = undo;self.undoSteps = []
+                self.reflectRenames([item])
+                if pane?.inlineRename.sessionID == request { pane?.inlineRename.completed(.success(())) }
+                self.refresh()
+            case .failure(let error):
+                if pane?.inlineRename.sessionID == request { pane?.inlineRename.completed(.failure(error)) }
+                else if case CommanderError.cancelled = error {} else { self.content.status.stringValue = error.localizedDescription }
+            }
+        })
+    }
+    func reflectRenames(_ items:[RenameItem]) {
+        let targets = Dictionary(uniqueKeysWithValues:items.filter(\.changed).map { ($0.source.path,$0.target) })
+        guard !targets.isEmpty else { return }
+        var parents: [String:URL] = [:]
+        func renamed(_ url:URL) -> URL {
+            let parent = url.deletingLastPathComponent(),key = parent.path
+            let canonical = parents[key] ?? FileSystem.canonical(parent);parents[key] = canonical
+            return targets[canonical.appendingPathComponent(url.lastPathComponent).path] ?? url
+        }
+        for side in [left,right] {
+            let collection = side.tab.collection,selected = side.rawSelectedURLs
+            for tab in side.tabs { if let values = tab.collection { tab.collection = values.map(renamed) } }
+            let updated = Set(selected.map(renamed))
+            if updated != selected || collection != side.tab.collection { side.requestSelection(updated) }
+        }
     }
     func refresh() { left.refresh(); right.refresh(); refreshLocations() }
     func showText(_ title:String,_ text:String) { let w = TextWindow(title:title,text:text); secondaryWindows.append(w); w.showWindow(nil) }

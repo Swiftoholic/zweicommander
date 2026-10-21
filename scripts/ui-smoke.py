@@ -153,7 +153,17 @@ def fixtures(base):
     for name in ("Links/Dokumente", "Links/Dokumente und Bilder", "Links/Grüße aus Wien", "Links/Projekte", "Links/.Versteckt", "Rechts/Sicherung"):
         (navigation / name).mkdir(parents=True)
     write(navigation, "Links/Dokumente.txt", "Adressprüfung\n")
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation
+    files = base / "files"
+    for name in ("Links/Ziel/Unterordner", "Links/Ordner.mit.Punkt", "Rechts/TabZiel", "Archiv", "Groß"):
+        (files / name).mkdir(parents=True)
+    write(files, "Links/Bericht.txt", "Original\n")
+    write(files, "Links/Konflikt.txt", "Erhalten\n")
+    write(files, "Außen/Eingang.txt", "Drop-Inhalt\n")
+    (files / "Links/Bild.png").write_bytes(preview_png((60, 150, 200)))
+    (files / "Abbruch.png").write_bytes(preview_png((180, 100, 80)))
+    for index in range(3000):
+        write(files, "Groß/Datei " + str(index) + ".txt", "Eintrag\n")
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files
 
 
 def main():
@@ -162,12 +172,20 @@ def main():
     parser.add_argument("--results", required=True, type=Path, help="Ordner für native Testprotokolle")
     parser.add_argument("--screenshots", required=True, type=Path, help="Ordner für native Fensteransichten")
     parser.add_argument("--settings", type=Path, default=Path(__file__).resolve().parents[1] / "Tests/fixtures/INISettings.sample.ini", help="Nur gelesene INI-Datei oder Settings-Ordner; Standard: künstliches Testprofil")
+    parser.add_argument("--interactive", action="store_true", help="Bei verweigerter Hintergrundaktivierung auf einen Klick in das Adressleisten-Prüffenster warten")
+    parser.add_argument("--skip-foreground", action="store_true", help="Fünf Vordergrundprüfungen ausdrücklich auslassen, etwa bei gesperrtem Bildschirm")
     args = parser.parse_args()
     binary = args.app.resolve()
     if binary.suffix == ".app":
         binary /= "Contents/MacOS/ZweiCommander"
     if not binary.is_file():
         parser.error("Ausführbare ZweiCommander-Datei nicht gefunden")
+    if not args.skip_foreground:
+        probe = subprocess.run(["swift", "-e", 'import Foundation; import CoreGraphics; if let s = CGSessionCopyCurrentDictionary() as? [String:Any] { print(s["CGSSessionScreenIsLocked"] as? Bool == true ? "locked" : "available") } else { print("unavailable") }'], capture_output=True, text=True, timeout=10)
+        if probe.returncode:
+            parser.error("Der Status der GUI-Sitzung konnte nicht geprüft werden.")
+        if probe.stdout.strip() != "available":
+            parser.error("Die vollständige Serie benötigt eine entsperrte GUI-Sitzung. --skip-foreground führt die übrigen Prüfungen aus und kennzeichnet die ausgelassenen Fälle.")
     args.results.mkdir(parents=True, exist_ok=True)
     args.screenshots.mkdir(parents=True, exist_ok=True)
     prefix = args.screenshots.resolve() / "ZweiCommander"
@@ -179,6 +197,7 @@ def main():
             ("appearance-reload", "--appearance-smoke", roots[0], str(prefix), "APPEARANCE UI PASS ", "APPEARANCE SMOKE PASS 9 checks", 9),
             ("rail", "--rail-smoke", roots[0], str(prefix), "RAIL UI PASS ", "RAIL SMOKE PASS 26 checks", 26),
             ("navigation", "--navigation-smoke", roots[13], str(prefix), "NAV UI PASS ", "NAV SMOKE PASS 46 checks", 46),
+            ("files", "--file-ux-smoke", roots[14], str(prefix), "FILE UX PASS ", "FILE UX SMOKE PASS 62 checks", 62),
             ("ux-save", "--ux-smoke", roots[12], str(prefix), "UX UI PASS ", "UX SMOKE PASS 55 checks", 55),
             ("ux-reload", "--ux-smoke", roots[12], str(prefix), "UX UI PASS ", "UX SMOKE PASS 6 checks", 6),
             ("operations", "--operations-smoke", roots[1], str(prefix), "OPS UI PASS ", "OPS SMOKE PASS 14 checks", 14),
@@ -203,6 +222,11 @@ def main():
             ("compare-save", "--compare-smoke", roots[11], str(prefix), "COMPARE UI PASS ", "COMPARE SMOKE PASS 24 checks", 24),
             ("compare-reload", "--compare-smoke", roots[11], str(prefix), "COMPARE UI PASS ", "COMPARE SMOKE PASS 30 checks", 30),
         ]
+        if args.skip_foreground:
+            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload"}
+            skipped = [case for case in cases if case[0] in foreground]
+            cases = [case for case in cases if case[0] not in foreground]
+            print("Ausgelassen: " + ", ".join(case[0] for case in skipped) + " · " + str(sum(case[-1] for case in skipped)) + " Vordergrundprüfungen offen", flush=True)
         suite = "local.zweicommander.tests." + str(uuid.uuid4())
         age_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         workspace_suite = "local.zweicommander.tests." + str(uuid.uuid4())
@@ -250,9 +274,11 @@ def main():
                     command += ["--compare-test-suite", compare_suite]
                     if name == "compare-reload":
                         command += ["--reload-compare"]
+                if name == "navigation" and args.interactive:
+                    command += ["--wait-for-foreground"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
-                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=45)
+                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180 if name == "navigation" and args.interactive else 45)
                     except subprocess.TimeoutExpired:
                         raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
                 output = (args.results / (name + ".log")).read_text(encoding="utf-8")

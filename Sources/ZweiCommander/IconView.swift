@@ -1,12 +1,12 @@
 import AppKit
-import ImageIO
 import CommanderCore
 
 final class FileGrid: NSCollectionView {
     weak var pane: PaneView?
-    override func becomeFirstResponder() -> Bool { pane?.activate();return super.becomeFirstResponder() }
+    override func becomeFirstResponder() -> Bool { pane?.activate();let result = super.becomeFirstResponder();DispatchQueue.main.async { [weak self] in self?.pane?.redrawFileFocus() };return result }
+    override func resignFirstResponder() -> Bool { let result = super.resignFirstResponder();DispatchQueue.main.async { [weak self] in self?.pane?.redrawFileFocus() };return result }
     override func mouseDown(with event: NSEvent) {
-        pane?.activate();super.mouseDown(with:event)
+        let index = indexPathForItem(at:convert(event.locationInWindow,from:nil));pane?.activate();super.mouseDown(with:event);if let index { pane?.focusEntry(at:index.item) }
         if event.clickCount == 2 { pane?.openSelection() }
     }
     override func rightMouseDown(with event: NSEvent) {
@@ -25,11 +25,21 @@ final class FileGrid: NSCollectionView {
             default: break
             }
         }
-        super.keyDown(with:event)
+        super.keyDown(with:event);if let index = selectionIndexPaths.sorted(by:{$0.item < $1.item}).first { pane?.focusEntry(at:index.item) }
     }
+    override func draw(_ dirtyRect:NSRect) {
+        super.draw(dirtyRect)
+        if pane?.dropOnBackground == true,pane?.dropHint != nil { pane?.palette.accent.setStroke();let ring = NSBezierPath(rect:visibleRect.insetBy(dx:2,dy:2));ring.lineWidth = 2;ring.stroke() }
+    }
+    override func draggingExited(_ sender:NSDraggingInfo?) { pane?.endFileDrop();super.draggingExited(sender) }
+    override func draggingEnded(_ sender:NSDraggingInfo) { pane?.endFileDrop();super.draggingEnded(sender) }
 }
 
 final class FileIconItem: NSCollectionViewItem {
+    var entryURL: URL?
+    var iconRequest: Operation?
+    override func prepareForReuse() { super.prepareForReuse();iconRequest?.cancel();iconRequest = nil;entryURL = nil }
+    deinit { iconRequest?.cancel() }
     var normalColor: NSColor = .labelColor
     weak var pane: PaneView?
     override func loadView() {
@@ -43,8 +53,11 @@ final class FileIconItem: NSCollectionViewItem {
     override var highlightState: NSCollectionViewItem.HighlightState { didSet { updateSelection() } }
     func updateSelection() {
         guard let pane else { return };let p = pane.palette
-        view.layer?.backgroundColor = (isSelected ? (pane.isActive ? p.accent : p.inactiveSelection) : .clear).cgColor
-        textField?.textColor = isSelected ? (pane.isActive ? .white : p.text) : normalColor
+        view.layer?.backgroundColor = (isSelected ? (pane.isFileListFocused ? p.accent : p.inactiveSelection) : .clear).cgColor
+        textField?.textColor = isSelected ? (pane.isFileListFocused ? .white : p.text) : normalColor
+        let drop = !pane.dropOnBackground && pane.dropTargetURL == entryURL,focus = pane.isFileListFocused && pane.focusedEntryURL == entryURL
+        view.layer?.borderWidth = drop ? 2 : focus ? 1.5 : 0
+        view.layer?.borderColor = (drop ? p.accent : isSelected ? NSColor.white.withAlphaComponent(0.9) : p.accent).cgColor
     }
 }
 
@@ -64,7 +77,11 @@ extension PaneView: NSCollectionViewDataSource, NSCollectionViewDelegate {
         guard visibleEntries.indices.contains(indexPath.item) else { return item }
         let entry = visibleEntries[indexPath.item]
         item.textField?.stringValue = entry.name;item.view.toolTip = entry.url.path+(entry.isSymbolicLink ? " (Verknüpfung)" : "")
-        item.imageView?.image = fileIcon(entry,preview:true)
+        if let iconItem = item as? FileIconItem {
+            iconItem.iconRequest?.cancel();iconItem.entryURL = entry.url
+            let (image,request) = fileImages.load(entry,preview:true) { [weak iconItem] image in guard iconItem?.entryURL == entry.url else { return };iconItem?.imageView?.image = image }
+            item.imageView?.image = image;iconItem.iconRequest = request
+        }
         if let iconItem = item as? FileIconItem {
             iconItem.pane = self;iconItem.normalColor = fileTextColor(entry.name);iconItem.textField?.font = listFont
             iconItem.updateSelection()
@@ -72,31 +89,18 @@ extension PaneView: NSCollectionViewDataSource, NSCollectionViewDelegate {
         item.view.setAccessibilityLabel(entry.name);item.view.setAccessibilityRole(.button)
         return item
     }
-    func fileIcon(_ entry: FileEntry,preview: Bool) -> NSImage {
-        let key = entry.url.path+"|\(entry.modified.timeIntervalSince1970)|\(entry.size)|\(preview)"
-        if let cached = icons[key] { return cached }
-        var result = NSWorkspace.shared.icon(forFile:entry.url.path)
-        if preview,!entry.isDirectory,!entry.isSymbolicLink,entry.size < 10_000_000,
-           ["png","jpg","jpeg","gif","heic","tif","tiff","webp"].contains(entry.fileExtension.lowercased()),
-           let source = CGImageSourceCreateWithURL(entry.url as CFURL,nil),
-           let image = CGImageSourceCreateThumbnailAtIndex(source,0,[kCGImageSourceCreateThumbnailFromImageAlways:true,kCGImageSourceCreateThumbnailWithTransform:true,kCGImageSourceThumbnailMaxPixelSize:144] as CFDictionary) {
-            result = NSImage(cgImage:image,size:NSSize(width:image.width,height:image.height))
-        }
-        if icons.count > 1500 { icons.removeAll() };icons[key] = result;return result
-    }
-    func collectionView(_ collectionView: NSCollectionView,didSelectItemsAt indexPaths: Set<IndexPath>) { if !syncingSelection { updateStatus() } }
-    func collectionView(_ collectionView: NSCollectionView,didDeselectItemsAt indexPaths: Set<IndexPath>) { if !syncingSelection { updateStatus() } }
+    func collectionView(_ collectionView: NSCollectionView,didSelectItemsAt indexPaths: Set<IndexPath>) { if !syncingSelection { redrawFileFocus();updateStatus() } }
+    func collectionView(_ collectionView: NSCollectionView,didDeselectItemsAt indexPaths: Set<IndexPath>) { if !syncingSelection { redrawFileFocus();updateStatus() } }
     func collectionView(_ collectionView: NSCollectionView,pasteboardWriterForItemAt indexPath: IndexPath) -> NSPasteboardWriting? {
         guard visibleEntries.indices.contains(indexPath.item) else { return nil };return visibleEntries[indexPath.item].url as NSURL
     }
-    func collectionView(_ collectionView: NSCollectionView,validateDrop draggingInfo: NSDraggingInfo,proposedIndexPath: AutoreleasingUnsafeMutablePointer<NSIndexPath>,dropOperation: UnsafeMutablePointer<NSCollectionView.DropOperation>) -> NSDragOperation {
-        readOnly ? [] : .copy
+    func collectionView(_ collectionView:NSCollectionView,validateDrop info:NSDraggingInfo,proposedIndexPath:AutoreleasingUnsafeMutablePointer<NSIndexPath>,dropOperation:UnsafeMutablePointer<NSCollectionView.DropOperation>) -> NSDragOperation {
+        let hit = collectionView.indexPathForItem(at:collectionView.convert(info.draggingLocation,from:nil))
+        let index = hit?.item ?? (dropOperation.pointee == .on ? proposedIndexPath.pointee.item : -1),folder = dropFolder(at:index)
+        if folder != nil { proposedIndexPath.pointee = IndexPath(item:index,section:0) as NSIndexPath;dropOperation.pointee = .on }
+        return updateFileDrop(info.draggingPasteboard,folder:folder)
     }
-    func collectionView(_ collectionView: NSCollectionView,acceptDrop draggingInfo: NSDraggingInfo,indexPath: IndexPath,dropOperation: NSCollectionView.DropOperation) -> Bool {
-        acceptFiles(draggingInfo.draggingPasteboard)
-    }
-    @discardableResult func acceptFiles(_ pasteboard: NSPasteboard) -> Bool {
-        guard !readOnly,let urls = pasteboard.readObjects(forClasses:[NSURL.self],options:[.urlReadingFileURLsOnly:true]) as? [URL],!urls.isEmpty else { return false }
-        if tab.collection != nil { onCollectionDrop?(urls) } else { onDrop?(urls,currentURL) };return true
+    func collectionView(_ collectionView:NSCollectionView,acceptDrop info:NSDraggingInfo,indexPath:IndexPath,dropOperation:NSCollectionView.DropOperation) -> Bool {
+        acceptFiles(info.draggingPasteboard,into:dropOperation == .on ? dropFolder(at:indexPath.item) : nil)
     }
 }

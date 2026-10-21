@@ -34,9 +34,7 @@ extension MainWindow {
                 guard ensureWritable(active),let name = prompt("Neue Datei",value:"Neu.txt") else { return }
                 _ = try FileOperations.newFile(in:active.currentURL,name:name); active.refresh()
             case "rename":
-                guard ensureWritable(active),let url = requireSelection()?.first,let name = prompt("Umbenennen",value:url.lastPathComponent) else { return }
-                var rule = RenameRule(); rule.pattern = name; if !url.pathExtension.isEmpty { rule.pattern = "{full}"; rule.search = url.lastPathComponent; rule.replacement = name }
-                let items = try RenameEngine.preview([url],rule:rule); renameUndo = try RenameEngine.apply(items); undoSteps = []; refresh()
+                guard ensureWritable(active) else { return };active.beginInlineRename()
             case "batchRename": batchRename()
             case "search": search()
             case "duplicates": duplicates()
@@ -127,7 +125,7 @@ extension MainWindow {
                         try RenameEngine.apply(items,token:token) { progress in if progress.completed == 0 || progress.completed == progress.total { reporter.report("Namen zurücknehmen · "+progress.name) } }
                     },completion:{ [weak self] result in
                         switch result {
-                        case .success: self?.renameUndo = nil
+                        case .success: self?.renameUndo = nil;self?.reflectRenames(items)
                         case .failure(let error): if case CommanderError.cancelled = error {} else { showFailure(error) }
                         }
                         self?.refresh()
@@ -178,7 +176,7 @@ extension MainWindow {
                     reporter.report(text,fraction:fraction);DispatchQueue.main.async { controller?.updateProgress(text) }
                 }
             },completion:{ [weak self,weak controller] result in
-                if case .success(let undo) = result { self?.renameUndo = undo;self?.undoSteps = [] }
+                if case .success(let undo) = result { self?.renameUndo = undo;self?.undoSteps = [];self?.reflectRenames(items) }
                 controller?.finished(result);self?.refresh()
             })
         }

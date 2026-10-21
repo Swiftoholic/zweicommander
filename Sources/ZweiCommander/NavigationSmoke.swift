@@ -8,7 +8,8 @@ extension AppDelegate {
             func check(_ value:Bool,_ name:String) { checks += 1;print("NAV UI \(value ? "PASS" : "FAIL") \(name)");if !value { failures.append(name) } }
             func require<T>(_ value:T?,_ name:String) -> T { guard let value else { print("NAV SMOKE FAIL missing "+name);exit(1) };return value }
             @MainActor func wait(_ name:String,_ predicate:()->Bool) async {
-                for _ in 0..<140 { if predicate() { return };try? await Task.sleep(nanoseconds:50_000_000) }
+                let attempts = name == "foreground" && CommandLine.arguments.contains("--wait-for-foreground") ? 3200 : 140
+                for _ in 0..<attempts { if predicate() { return };try? await Task.sleep(nanoseconds:50_000_000) }
                 let field = self.main.left.pathField
                 print("NAV SMOKE FAIL timed out "+name+" active=\(NSApp.isActive) key=\(NSApp.keyWindow === self.main.window) editing=\(field.sessionActive) querying=\(field.isQuerying) rows=\(field.suggestions.count) popup=\(field.dropdown.isVisible)");exit(1)
             }
@@ -75,6 +76,13 @@ extension AppDelegate {
             pane.selectionIndexes = [];hover(copy,false);let disabled = pixel(copy);hover(copy,true)
             check(!copy.isEnabled && abs(CommanderPalette.luminance(pixel(copy))-CommanderPalette.luminance(disabled)) < 0.001,"disabled controls retain their disabled appearance on hover");hover(copy,false)
             check(pane.navigationButtons["back"]?.isEnabled == false && pane.navigationButtons["back"]?.toolTip?.contains("noch keinen") == true,"unavailable history explains why its button is disabled")
+            if CommandLine.arguments.contains("--wait-for-foreground"),!NSApp.isActive || !window.isKeyWindow {
+                window.title = "ZweiCommander · Bedienungsprüfung"
+                main.content.status.stringValue = "Für die Bedienungsprüfung bitte dieses Fenster anklicken und kurz vorne lassen."
+                window.orderFrontRegardless();print("NAV WAITING FOR FOREGROUND")
+                await wait("foreground") { NSApp.isActive && window.isKeyWindow }
+                print("NAV FOREGROUND READY")
+            }
             main.command("path")
             check(field.sessionActive && field.currentEditor() != nil,"address editing keeps native text focus")
             type("Dok");await wait("prefix completion") { !field.isQuerying && field.suggestions.count == 2 && field.dropdown.isVisible }

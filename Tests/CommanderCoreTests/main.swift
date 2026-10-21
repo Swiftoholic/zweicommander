@@ -625,7 +625,10 @@ let tests: [(String, (CoreTests) throws -> Void)] = [
     ("testArchiveDoesNotFollowSymlinks", { try $0.testArchiveDoesNotFollowSymlinks() }),
     ("testSplitJoinAndTamperDetection", { try $0.testSplitJoinAndTamperDetection() }),
     ("testSplitJoinEmptyFile", { try $0.testSplitJoinEmptyFile() }),
-    ("testTopLevelSelectionDoesNotDoubleProcessDescendants", { try $0.testTopLevelSelectionDoesNotDoubleProcessDescendants() })
+    ("testTopLevelSelectionDoesNotDoubleProcessDescendants", { try $0.testTopLevelSelectionDoesNotDoubleProcessDescendants() }),
+    ("testListingBatchesPreserveMetadataAndHiddenRules", { try $0.testListingBatchesPreserveMetadataAndHiddenRules() }),
+    ("testListingCancellationStopsAfterPublishedBatch", { try $0.testListingCancellationStopsAfterPublishedBatch() }),
+    ("testEditedSingleNameRetainsOriginalVersionAndLiteralText", { try $0.testEditedSingleNameRetainsOriginalVersionAndLiteralText() })
 ]
 var failed = 0
 for (name, test) in tests {

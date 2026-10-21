@@ -3,13 +3,15 @@ import AppKit
 final class FolderTabButton: NSButton, NSDraggingSource {
     private var hoverTracking: NSTrackingArea?
     private var hovered = false
+    private var fileDrop = false
+    private let hoverOpen = HoverOpen()
     static let dragType = NSPasteboard.PasteboardType("local.zweicommander.folder-tab")
     weak var pane: PaneView?
     let tabID: UUID
     let closeButton = ActionButton("",symbol:"xmark",action:{})
     init(title: String,tab: FolderTab,pane: PaneView) {
         tabID = tab.id;self.pane = pane;super.init(frame:.zero);self.title = title
-        target = self;action = #selector(choose);controlSize = .small;registerForDraggedTypes([Self.dragType])
+        target = self;action = #selector(choose);controlSize = .small;registerForDraggedTypes([Self.dragType,.fileURL])
         isBordered = false
         closeButton.flat = true;closeButton.symbolTint = .secondaryLabelColor;CommandHelp.apply(closeButton,id:"closeTab",title:"Diesen Tab schließen")
         closeButton.setAccessibilityLabel("Tab schließen: "+title);closeButton.perform = { [weak self] in guard let self else { return };self.pane?.closeTab(self.tabID) }
@@ -21,6 +23,12 @@ final class FolderTabButton: NSButton, NSDraggingSource {
         self.menu = menu
     }
     required init?(coder: NSCoder) { fatalError() }
+    func configure(title:String,tab:FolderTab,active:Bool) {
+        self.title = title;state = active ? .on : .off;font = .systemFont(ofSize:12,weight:active ? .semibold : .regular)
+        closeButton.isHidden = tab.locked || pane?.tabs.count == 1;closeButton.setAccessibilityLabel("Tab schließen: "+title)
+        toolTip = tab.url.path+"\nDateien hier ablegen; kurzes Verweilen öffnet den Tab."
+        invalidateIntrinsicContentSize();needsDisplay = true
+    }
     override func updateTrackingAreas() {
         super.updateTrackingAreas();if let hoverTracking { removeTrackingArea(hoverTracking) }
         let area = NSTrackingArea(rect:.zero,options:[.mouseEnteredAndExited,.activeInActiveApp,.inVisibleRect],owner:self,userInfo:nil);hoverTracking = area;addTrackingArea(area)
@@ -37,6 +45,7 @@ final class FolderTabButton: NSButton, NSDraggingSource {
         (selected ? p.activeTab : hovered ? p.hover : p.chrome).setFill();bounds.fill(using:.sourceOver)
         if selected { (pane?.isActive == true ? p.accent : p.separator).setFill();NSRect(x:0,y:0,width:bounds.width,height:2).fill(using:.sourceOver) }
         p.separator.setFill();NSRect(x:bounds.maxX-1,y:0,width:1,height:bounds.height).fill(using:.sourceOver)
+        if fileDrop { p.accent.setStroke();let ring = NSBezierPath(rect:bounds.insetBy(dx:1.5,dy:1.5));ring.lineWidth = 2;ring.stroke() }
         let paragraph = NSMutableParagraphStyle();paragraph.lineBreakMode = .byTruncatingMiddle
         let attributes: [NSAttributedString.Key:Any] = [.font:font ?? NSFont.systemFont(ofSize:11),.foregroundColor:p.text,.paragraphStyle:paragraph]
         (title as NSString).draw(in:NSRect(x:7,y:(bounds.height-16)/2,width:max(1,bounds.width-(closeButton.isHidden ? 13 : 31)),height:16),withAttributes:attributes)
@@ -68,14 +77,31 @@ final class FolderTabButton: NSButton, NSDraggingSource {
               let value = sender.draggingPasteboard.string(forType:Self.dragType),let id = UUID(uuidString:value),
               pane?.tabs.contains(where: { $0.id == id }) == true else { return nil };return id
     }
-    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation { draggedID(sender) == nil ? [] : .move }
-    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation { draggingEntered(sender) }
-    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        guard let id = draggedID(sender),let pane,let old = pane.tabs.firstIndex(where: { $0.id == id }),let target = pane.tabs.firstIndex(where: { $0.id == tabID }) else { return false }
-        let after = convert(sender.draggingLocation,from:nil).x >= bounds.midX
-        let insertion = target+(after ? 1 : 0)
-        pane.moveTab(id,to:insertion-(old < insertion ? 1 : 0));return true
+    override func draggingEntered(_ sender:NSDraggingInfo) -> NSDragOperation { draggingUpdated(sender) }
+    override func draggingUpdated(_ sender:NSDraggingInfo) -> NSDragOperation {
+        if draggedID(sender) != nil { return .move }
+        guard let pane,let target = pane.tabs.first(where:{ $0.id == tabID }),target.archiveRoot == nil,!pane.fileURLs(sender.draggingPasteboard).isEmpty else { clearFileDrop();return [] }
+        fileDrop = true;needsDisplay = true
+        pane.dropHint = target.collection == nil ? "Kopieren in Tab „"+(target.title ?? target.url.lastPathComponent)+"“ · Loslassen öffnet die Vorschau" : "Verweise zum Sammlungstab hinzufügen"
+        pane.updateStatus()
+        if pane.tab.id != tabID {
+            hoverOpen.update(tabID.uuidString) { [weak self,weak pane] in guard let self,self.fileDrop else { return };pane?.selectTab(self.tabID) }
+        }
+        return .copy
     }
+    private func clearFileDrop() { hoverOpen.cancel();if fileDrop { fileDrop = false;needsDisplay = true;pane?.endFileDrop() } }
+    override func draggingExited(_ sender:NSDraggingInfo?) { clearFileDrop() }
+    override func draggingEnded(_ sender:NSDraggingInfo) { clearFileDrop() }
+    override func performDragOperation(_ sender:NSDraggingInfo) -> Bool {
+        defer { clearFileDrop() }
+        guard let pane else { return false }
+        if let id = draggedID(sender),let old = pane.tabs.firstIndex(where:{ $0.id == id }),let target = pane.tabs.firstIndex(where:{ $0.id == tabID }) {
+            let after = convert(sender.draggingLocation,from:nil).x >= bounds.midX,insertion = target+(after ? 1 : 0)
+            pane.moveTab(id,to:insertion-(old < insertion ? 1 : 0));return true
+        }
+        return pane.acceptFiles(sender.draggingPasteboard,tabID:tabID)
+    }
+
 }
 
 extension PaneView {

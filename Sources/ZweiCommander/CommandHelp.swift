@@ -16,6 +16,7 @@ enum CommandHelp {
         "icons":"Dateien als Symbolraster anzeigen.",
         "search":"Dateinamen und Inhalte suchen; Suchort und Regeln im Suchfenster festlegen.",
         "compare":"Beide Ordner gegenüberstellen und gewählte Unterschiede vor dem Kopieren prüfen.",
+        "rename":"Den ausgewählten Namen direkt bearbeiten. Enter übernimmt, Escape verwirft.",
         "batchRename":"Mehrere Dateien mit einer Livevorschau der neuen Namen umbenennen.",
         "quickView":"Die Vorschau neben den Dateifenstern ein- oder ausblenden.",
         "refresh":"Den Inhalt beider Dateifenster neu einlesen.",

@@ -1,11 +1,12 @@
-ZweiCommander 0.15.0 — Prüfung vom 20. Oktober 2026
+ZweiCommander 0.16.0 — Prüfung vom 21. Oktober 2026
 
 Ergebnis
-- 200/200 Dateikern- und Integrationstests bestanden.
-- 614/614 native UI-Prüfungen am universellen Release-Build bestanden:
+- 203/203 Dateikern- und Integrationstests bestanden.
+- 529/529 ausgeführte native UI-Prüfungen in 24 Durchläufen am finalen
+  universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
   Darstellung nach erneutem App-Start 9, Mittelstreifen und Mausbedienung 26,
-  Hover-Hilfe und Ordneradressen 46,
+  Direkte Dateibedienung 62,
   UX-Arbeitsabläufe 55,
   Werkzeugleiste nach erneutem App-Start 6, Warteschlange 14,
   Kopierfilter 22, Ordner zusammenführen 29, Profile speichern 19,
@@ -15,9 +16,15 @@ Ergebnis
   Speicherfehler während Kopie 10, beschädigte Auftragsablage 5,
   relative Altersregeln und Speichern 12, Altersregeln nach Neustart 19,
   Ansichten/Tabs/Favoriten und Speichern 44, Arbeitsbereich nach Neustart 16,
-  Mehrfachumbenennen und Profile speichern 20, nach Neustart verwenden 27,
-  Sucharbeitsbereich und Profile speichern 22, nach Neustart verwenden 25,
-  Ordnervergleich und Profile speichern 24, nach Neustart verwenden 30.
+  Mehrfachumbenennen und Profile speichern 20, nach Neustart verwenden 27.
+- Fünf Durchläufe mit 147 Vordergrundprüfungen sind am finalen Build offen:
+  Adressleiste 46, Sucharbeitsbereich 22/25, Ordnervergleich 24/30.
+  Sie benötigen eine entsperrte GUI-Sitzung mit aktivierbaren Fenstern.
+  Ausgelassene Durchläufe werden ausdrücklich gemeldet und nicht als
+  erfolgreiche Prüfungen gezählt. Die 46 Adressleistenprüfungen bestanden
+  an einer früheren universellen Baufassung dieses Pakets; die Komponenten
+  für Pfade und Vorschläge blieben unverändert. Das Markieren eines
+  Suchtreffers nach Navigation wurde danach separat korrigiert und geprüft.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
 - App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
 - Debug-Pfadverweise vor Signierung entfernt; Release-Binärdatei auf lokale
@@ -38,7 +45,55 @@ Anwendungsinitialisierung hängen. Derselbe unveränderte Build startete aus
 dem Benutzer-Programmeordner regulär. Die genaue Ursache des ersten Hängers
 ist nicht abschließend bestimmt; die Verwendung aus Programme wird empfohlen.
 
+Direktes Umbenennen, Ablageziele und große Dateilisten
+62 neue native Prüfungen bedienen F2, den echten Texteditor sowie Enter und
+Escape in Details und Symbolansicht. Die Dateiendung bleibt beim ersten
+Markieren ausgespart, Ordnernamen mit Punkten werden vollständig markiert.
+Die Prüfungen vergleichen Dateiinhalte nach Umbenennen und Rückgängig,
+kontrollieren belegte Ziele und externe Änderungen sowie ungültige Namen.
+Markierungen im anderen Dateifenster bleiben auch beim gleichen Ordner
+erhalten. Sammlungsverweise folgen dem Namen vorwärts und bei Rücknahme,
+ohne fremde Markierungen zu ersetzen. Mehrfachauswahl startet keine
+willkürliche Einzelumbenennung. Hintergrund-
+aktualisierung erhält den Entwurf; Navigation verwirft ihn.
+
+Die Ablageprüfungen übergeben Datei-URLs über eine eigene Zwischenablage an
+die nativen Zielmethoden von Tabelle, Symbolraster und Tabs. Sie prüfen
+Zielrahmen und Hinweis, die Verzögerung von 0,8 Sekunden, Abbruch beim
+Verlassen, inaktive Tabs, unveränderte Tab-Ansichten nach dem Wechsel,
+Archive und Sammlungen. Ein tatsächlicher Dateiplan wird bestätigt; Inhalte
+am exakten Unterordnerziel und der Erhalt der Quelle werden verglichen.
+Physisches Ziehen aus Finder ist nicht Ende zu Ende automatisiert.
+
+3.000 künstliche lokale Dateien prüfen vollständiges Einlesen, natürliche
+Sortierung, Pfadindex für Auswahl, Filter, veraltete Leseergebnisse und den
+Erhalt einer Markierung außerhalb des ersten Einlesepakets bei einer
+Hintergrundaktualisierung. Weitere Prüfungen markieren ein Objekt im
+gleichen und in einem anderen Ordner nach dem Wiederaufbau der Ansicht.
+Ein Timer misst die laufende Ereignisschleife;
+die Prüfung verlangt unter 0,75 Sekunden zwischen ihren Aufrufen während
+des ersten Ladens. Das ist keine allgemeine Geschwindigkeitsgarantie.
+Bildanforderungen laufen außerhalb der Ereignisschleife mit begrenzter
+Parallelität und Cache; Abbruch und auf 144 Pixel begrenzte Dekodierung
+werden am eingeblendeten Eintrag geprüft. Die Prüfung lässt das Nachladen
+weiterlaufen. Wiederverwendete Zellen übernehmen keine alten Bildantworten.
+Fokusprüfungen berücksichtigen den tatsächlichen aktiven Fensterstatus;
+eine erzwungene Aktivierung aus dem Hintergrund wird nicht vorausgesetzt.
+
+Drei zusätzliche Dateikerntests prüfen Paketgrenzen und Metadaten des
+Einlesens, versteckte Dateien, Links, kooperativen Leseabbruch sowie die
+Erhaltung des ursprünglichen Versionsstands während der Namenseingabe.
+Wesentlich größere Bestände, Cloud-Platzhalter und nicht antwortende
+Netzwerkvolumes benötigen weitere Alltagstests. Laufende Betriebssystem-
+Dateizugriffe werden durch einen Ansichtswechsel nicht zwangsweise beendet;
+ihre veralteten Ergebnisse werden verworfen.
+
 Hover-Hilfe und Ordneradressen
+Die Adressleistenprüfung benötigt ein aktives Fenster. Der optionale
+interaktive Prüfstart wartet bei verweigerter Hintergrundaktivierung auf
+einen Klick in das Prüffenster. Der gesamte Prozess ist auf 180 Sekunden
+begrenzt. Ohne Aktivierung
+wird die Prüfung mit Fehler beendet, nicht als bestanden gezählt.
 46 neue native Prüfungen kontrollieren Hover-Pixel in Hell und Dunkel,
 Rücknahme beim Verlassen, Rückmeldung bei bereits ausgewählten Knöpfen und
 unveränderte deaktivierte Knöpfe. Tooltips und Bedienungshilfen beschreiben

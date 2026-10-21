@@ -47,6 +47,12 @@ public struct RenameItem {
         self.source = source;self.target = target;self.version = version;parentVersion = parent
     }
     public var changed: Bool { source.path != target.path }
+    /// Keep the original file and parent snapshots while the user edits a name.
+    public func renaming(to name:String) throws -> RenameItem {
+        try FileSystem.validateName(name)
+        guard let version,let parentVersion else { throw CommanderError.message("Quelle oder Elternordner ist nicht mehr verfügbar.") }
+        return RenameItem(source:source,target:source.deletingLastPathComponent().appendingPathComponent(name),version:version,parent:parentVersion)
+    }
 }
 public struct RenamePreviewRow {
     public let source: URL

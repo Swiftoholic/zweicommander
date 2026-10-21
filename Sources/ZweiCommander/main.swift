@@ -29,8 +29,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let uxSmoke = args.firstIndex(of:"--ux-smoke")
         let railSmoke = args.firstIndex(of:"--rail-smoke")
         let navigationSmoke = args.firstIndex(of:"--navigation-smoke")
+        let fileUXSmoke = args.firstIndex(of:"--file-ux-smoke")
         let compareSmoke = args.firstIndex(of:"--compare-smoke")
-        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke].compactMap { $0 }.first
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke].compactMap { $0 }.first
         Preferences.testMode = testIndex != nil
         if Preferences.testMode { setvbuf(stdout,nil,_IOLBF,0) }
         if Preferences.testMode { Preferences.state = SavedState() }
@@ -80,6 +81,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         }
         if let railSmoke,args.indices.contains(railSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runRailSmoke(root:root,prefix:args[railSmoke+2]) }
+        }
+        if let fileUXSmoke,args.indices.contains(fileUXSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runFileUXSmoke(root:root,prefix:args[fileUXSmoke+2]) }
         }
         if let navigationSmoke,args.indices.contains(navigationSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runNavigationSmoke(root:root,prefix:args[navigationSmoke+2]) }

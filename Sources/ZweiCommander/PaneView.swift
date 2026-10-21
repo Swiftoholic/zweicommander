@@ -17,11 +17,12 @@ final class FolderTab {
 final class FileTable: CommanderTableView {
     weak var pane: PaneView?
     override func updateSurface() { super.updateSurface();if let pane { backgroundColor = pane.palette.list(active:pane.isActive,profile:pane.importedProfile);enclosingScrollView?.backgroundColor = backgroundColor } }
-    override func becomeFirstResponder() -> Bool { pane?.activate(); return super.becomeFirstResponder() }
-    override func mouseDown(with event: NSEvent) { pane?.activate(); super.mouseDown(with: event) }
+    override func becomeFirstResponder() -> Bool { pane?.activate();let result = super.becomeFirstResponder();DispatchQueue.main.async { [weak self] in self?.pane?.redrawFileFocus() };return result }
+    override func resignFirstResponder() -> Bool { let result = super.resignFirstResponder();DispatchQueue.main.async { [weak self] in self?.pane?.redrawFileFocus() };return result }
+    override func mouseDown(with event: NSEvent) { pane?.activate();let index = row(at:convert(event.locationInWindow,from:nil));super.mouseDown(with:event);pane?.focusEntry(at:index) }
     override func rightMouseDown(with event: NSEvent) {
         pane?.activate()
-        let r = row(at: convert(event.locationInWindow, from: nil))
+        let r = row(at: convert(event.locationInWindow, from: nil));pane?.focusEntry(at:r)
         if r >= 0 && !selectedRowIndexes.contains(r) { selectRowIndexes(IndexSet(integer: r), byExtendingSelection: false) }
         super.rightMouseDown(with: event)
     }
@@ -36,13 +37,27 @@ final class FileTable: CommanderTableView {
             default: break
             }
         }
-        super.keyDown(with: event)
+        super.keyDown(with:event);pane?.focusEntry(at:selectedRow)
     }
+    override func draw(_ dirtyRect:NSRect) {
+        super.draw(dirtyRect)
+        if pane?.dropOnBackground == true,pane?.dropHint != nil { pane?.palette.accent.setStroke();let ring = NSBezierPath(rect:visibleRect.insetBy(dx:2,dy:2));ring.lineWidth = 2;ring.stroke() }
+    }
+    override func draggingExited(_ sender:NSDraggingInfo?) { pane?.endFileDrop();super.draggingExited(sender) }
+    override func draggingEnded(_ sender:NSDraggingInfo) { pane?.endFileDrop();super.draggingEnded(sender) }
 }
 
 final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
     let table = FileTable()
     let grid = FileGrid()
+    let inlineRename = InlineRenameEditor(frame:.zero)
+    let fileImages = FileImages()
+    let hoverOpen = HoverOpen()
+    var focusedEntryURL: URL?
+    var dropTargetURL: URL?
+    var dropOnBackground = false
+    var dropHint: String?
+    var dropPasteboardCache: (name:NSPasteboard.Name,change:Int,urls:[URL])?
     let scroll = NSScrollView()
     let pathField = PathEditor(frame:.zero)
     let breadcrumb = BreadcrumbBar(frame:.zero)
@@ -78,7 +93,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     var defaultView: FolderViewSettings?
     var changingView = false
     var syncingSelection = false
-    var isActive = false { didSet { if oldValue != isActive { applyImportedAppearance() } } }
+    var isActive = false { didSet { if oldValue != isActive { applyImportedAppearance(reload:false) } } }
     var freeSpace: Int64?
     var foldersFirst = true
     var importedProfile: SettingsProfile?
@@ -87,13 +102,20 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     var sortKey = "name", ascending = true
     var generation = 0
     private(set) var isLoading = false
+    private(set) var isSorting = false
+    private(set) var visibleByteTotal: Int64 = 0
+    private var entryIndexes: [String:Int] = [:]
+    private var loadToken = CancellationToken(),sortToken = CancellationToken(),sortVersion = 0
+    private let listingQueue: OperationQueue = { let q = OperationQueue();q.maxConcurrentOperationCount = 2;q.qualityOfService = .userInitiated;return q }()
+    private let sortingQueue: OperationQueue = { let q = OperationQueue();q.maxConcurrentOperationCount = 1;q.qualityOfService = .userInitiated;return q }()
+    private var scrollObserver: NSObjectProtocol?
     private(set) var loadError: String?
     private(set) var filterError: String?
     private var displayedDirectory: URL?
     private var displayedTabID: UUID?
     private var displayedCollection: [URL]?
     private var replacesContents = false
-    var canUseDisplayedEntries: Bool { !(isLoading && replacesContents) && loadError == nil && filterError == nil }
+    var canUseDisplayedEntries: Bool { !isSorting && !(isLoading && replacesContents) && loadError == nil && filterError == nil }
     var filterActive: Bool { !filterField.stringValue.isEmpty }
     var watcher: DispatchSourceFileSystemObject?
     var delayedRefresh: DispatchWorkItem?
@@ -106,15 +128,17 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     var onCollectionDrop: (([URL]) -> Void)?
     var onSelection: (([URL]) -> Void)?
     var onCommand: ((String) -> Void)?
+    var onRename: ((RenameItem,UUID)->Void)?
     var onState: (() -> Void)?
-    var icons: [String: NSImage] = [:]
     var selectionIndexes: IndexSet {
         get { displayMode == .icons ? IndexSet(grid.selectionIndexPaths.map(\.item)) : table.selectedRowIndexes }
         set {
             syncingSelection = true
             table.selectRowIndexes(newValue,byExtendingSelection:false)
             grid.selectionIndexPaths = Set(newValue.map { IndexPath(item:$0,section:0) })
-            syncingSelection = false;updateStatus()
+            syncingSelection = false
+            if focusedEntryURL == nil || !newValue.contains(where:{ visibleEntries.indices.contains($0) && visibleEntries[$0].url == focusedEntryURL }) { if let first = newValue.first,visibleEntries.indices.contains(first) { focusedEntryURL = visibleEntries[first].url } }
+            redrawFileFocus();updateStatus()
         }
     }
     var selectedURLs: [URL] { guard canUseDisplayedEntries else { return [] };return selectionIndexes.compactMap { visibleEntries.indices.contains($0) ? visibleEntries[$0].url : nil } }
@@ -193,11 +217,15 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         filterClear.flat = true;filterClear.font = .systemFont(ofSize:11);filterClear.setHelp("Filter aufheben","Wieder alle Objekte dieses Ordners anzeigen.");filterClear.perform = { [weak self] in self?.clearFilter();self?.focus() }
         filterBar.addSubview(filterInfo);filterBar.addSubview(filterClear);filterBar.isHidden = true;stateView.isHidden = true
         tree.isHidden = true; tree.onChoose = { [weak self] url in self?.navigate(url) }
-        [marker,locations,tabsScroll,nav,viewBar,scroll,filterField,filterRegex,status,tree,filterBar,stateView].forEach { addSubview($0) }
+        inlineRename.onCommit = { [weak self] item in guard let self else { return };self.onRename?(item,self.inlineRename.sessionID) }
+        inlineRename.onClose = { [weak self] restore in self?.redrawFileFocus();if restore { self?.focus() } }
+        [marker,locations,tabsScroll,nav,viewBar,scroll,filterField,filterRegex,status,tree,filterBar,stateView,inlineRename].forEach { addSubview($0) }
+        scroll.contentView.postsBoundsChangedNotifications = true
+        scrollObserver = NotificationCenter.default.addObserver(forName:NSView.boundsDidChangeNotification,object:scroll.contentView,queue:.main) { [weak self] _ in self?.positionInlineRename() }
         rebuildTabs(); refresh()
     }
     required init?(coder: NSCoder) { fatalError() }
-    deinit { watcher?.cancel() }
+    deinit { watcher?.cancel();loadToken.cancel();sortToken.cancel();listingQueue.cancelAllOperations();sortingQueue.cancelAllOperations();if let scrollObserver { NotificationCenter.default.removeObserver(scrollObserver) } }
     private var appearanceRefresh: DispatchWorkItem?
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance();appearanceRefresh?.cancel()
@@ -257,7 +285,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         for c in table.tableColumns { let i = NSMenuItem(title:c.title,action:#selector(toggleColumn(_:)),keyEquivalent:"");i.target = self;i.representedObject = c;i.state = c.isHidden ? .off : .on;columns.addItem(i) }
         table.headerView?.menu = columns
     }
-    func applyImportedAppearance() {
+    func applyImportedAppearance(reload:Bool = true) {
         let p = palette,selection = selectionIndexes
         layer?.backgroundColor = p.chrome.cgColor;marker.layer?.backgroundColor = (isActive ? p.accent : p.separator).cgColor
         let background = p.list(active:isActive,profile:importedProfile)
@@ -267,8 +295,8 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         tree.outline.backgroundColor = background;tree.backgroundColor = background;tree.outline.rowHeight = max(Preferences.appearanceSettings().rowHeight,listFont.pointSize+7)
         breadcrumb.active = isActive;breadcrumb.updateColors()
         status.textColor = p.secondaryText
-        syncingSelection = true;table.reloadData();grid.reloadData();syncingSelection = false
-        selectionIndexes = selection;table.updateHeaderColors();tabsStack.subviews.forEach { $0.needsDisplay = true };updatePanePresentation();needsDisplay = true
+        if reload { syncingSelection = true;table.reloadData();grid.reloadData();syncingSelection = false;selectionIndexes = selection }
+        redrawFileFocus();table.updateHeaderColors();tabsStack.subviews.forEach { $0.needsDisplay = true };updatePanePresentation();needsDisplay = true
     }
     override func layout() {
         super.layout();let w = bounds.width,h = bounds.height
@@ -288,8 +316,10 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         filterField.frame = NSRect(x:w-filterWidth-31,y:2,width:filterWidth,height:22)
         filterRegex.frame = NSRect(x:w-29,y:2,width:28,height:22);filterRegex.controlSize = .mini
         status.frame = NSRect(x:5,y:4,width:max(1,w-filterWidth-41),height:18)
+        positionInlineRename()
     }
     func beginPathEditing() {
+        inlineRename.cancel()
         activate();breadcrumb.dropdown.dismiss();breadcrumb.isHidden = true;pathField.isHidden = false
         nav.needsLayout = true;nav.layoutSubtreeIfNeeded()
         pathField.begin(at:currentURL,history:tab.history,showHidden:showHidden)
@@ -313,16 +343,20 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     func activate() { onActivate?(self) }
     func focus() { activate(); window?.makeFirstResponder(displayMode == .icons ? grid : table) }
     func rebuildTabs() {
-        tabsStack.arrangedSubviews.forEach { tabsStack.removeArrangedSubview($0); $0.removeFromSuperview() }
-        for (i,t) in tabs.enumerated() {
-            let title = (t.locked ? "🔒 " : "") + (t.title ?? (t.url.lastPathComponent.isEmpty ? "/" : t.url.lastPathComponent))
-            let b = FolderTabButton(title:title,tab:t,pane:self)
-            b.state = i == tabIndex ? .on : .off; b.toolTip = t.url.path
-            b.font = .systemFont(ofSize: 12, weight: i == tabIndex ? .semibold : .regular)
-            tabsStack.addArrangedSubview(b)
+        let existing = Dictionary(uniqueKeysWithValues:tabsStack.arrangedSubviews.compactMap { ($0 as? FolderTabButton).map { ($0.tabID,$0) } })
+        var views: [NSView] = []
+        for (index,tab) in tabs.enumerated() {
+            let title = (tab.locked ? "🔒 " : "")+(tab.title ?? (tab.url.lastPathComponent.isEmpty ? "/" : tab.url.lastPathComponent))
+            let button = existing[tab.id] ?? FolderTabButton(title:title,tab:tab,pane:self)
+            button.configure(title:title,tab:tab,active:index == tabIndex);views.append(button)
         }
-        let add = ActionButton("",symbol:"plus",action:{ [weak self] in self?.newTab() });add.flat = true;CommandHelp.apply(add,id:"newTab");tabsStack.addArrangedSubview(add)
-        tabsStack.frame = NSRect(origin: .zero, size: NSSize(width: max(180,tabsStack.fittingSize.width),height:25))
+        let add = tabsStack.arrangedSubviews.compactMap { $0 as? ActionButton }.first ?? ActionButton("",symbol:"plus",action:{ [weak self] in self?.newTab() })
+        add.flat = true;CommandHelp.apply(add,id:"newTab");views.append(add)
+        for view in tabsStack.arrangedSubviews where !views.contains(where:{ $0 === view }) { tabsStack.removeArrangedSubview(view);view.removeFromSuperview() }
+        for (index,view) in views.enumerated() {
+            if index >= tabsStack.arrangedSubviews.count || tabsStack.arrangedSubviews[index] !== view { if tabsStack.arrangedSubviews.contains(where:{ $0 === view }) { tabsStack.removeArrangedSubview(view) };tabsStack.insertArrangedSubview(view,at:index) }
+        }
+        tabsStack.frame = NSRect(origin:.zero,size:NSSize(width:max(180,tabsStack.fittingSize.width),height:25))
         if tabsStack.arrangedSubviews.indices.contains(tabIndex) { tabsStack.scrollToVisible(tabsStack.arrangedSubviews[tabIndex].frame) }
         onState?()
     }
@@ -380,26 +414,53 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         guard FileSystem.isDirectory(parent) else { return }
         selectionRequest = (FileSystem.canonical(parent),[url]);navigate(parent)
     }
+    func requestSelection(_ urls:Set<URL>) { selectionRequest = (FileSystem.canonical(currentURL),urls) }
     func refresh() {
-        generation += 1; let g = generation, url = currentURL, hidden = showHidden, collection = tab.collection
-        if let request = selectionRequest,request.directory != FileSystem.canonical(url) { selectionRequest = nil }
-        let selected = selectionRequest?.urls ?? Set(selectedURLs)
-        replacesContents = displayedDirectory != FileSystem.canonical(url) || displayedTabID != tab.id || displayedCollection != collection || loadError != nil
+        loadToken.cancel();sortToken.cancel();listingQueue.cancelAllOperations();sortingQueue.cancelAllOperations();sortVersion += 1;isSorting = false
+        generation += 1;let g = generation,url = currentURL,hidden = showHidden,collection = tab.collection,tabID = tab.id
+        let directory = FileSystem.canonical(url)
+        if let request = selectionRequest,request.directory != directory { selectionRequest = nil }
+        replacesContents = displayedDirectory != directory || displayedTabID != tabID || displayedCollection != collection || loadError != nil
+        let showPartial = replacesContents
         isLoading = true;loadError = nil
-        if replacesContents { entries = [];visibleEntries = [];table.reloadData();grid.reloadData() }
+        if replacesContents {
+            inlineRename.cancel();hoverOpen.cancel();fileImages.cancelPending();focusedEntryURL = nil
+            entries = [];visibleEntries = [];entryIndexes = [:];visibleByteTotal = 0;freeSpace = nil;table.reloadData();grid.reloadData()
+        }
         if !pathField.sessionActive { pathField.stringValue = url.path };breadcrumb.showHiddenFolders = hidden;breadcrumb.url = url;locations.select(url);updateNavigationHelp()
-        status.stringValue = "Lese Ordner …"
-        updatePanePresentation();onSelection?(selectedURLs)
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let result = Result { try collection.map { $0.compactMap { try? FileEntry(url:$0) } } ?? FileSystem.list(url,showHidden:hidden) }
-            let available = try? url.resourceValues(forKeys:[.volumeAvailableCapacityKey]).volumeAvailableCapacity
-            DispatchQueue.main.async {
-                guard let self, self.generation == g else { return }
-                switch result {
-                case .success(let entries): self.isLoading = false;self.displayedDirectory = FileSystem.canonical(url);self.displayedTabID = self.tab.id;self.displayedCollection = collection;self.freeSpace = available.map(Int64.init);self.selectionRequest = nil;self.entries = entries; self.applyFilter(); self.select(selected); self.watch(url)
-                case .failure(let error): self.isLoading = false;self.loadError = error.localizedDescription;self.entries = [];self.visibleEntries = [];self.freeSpace = nil;self.table.reloadData();self.grid.reloadData();self.updateStatus()
+        updateStatus()
+        let token = CancellationToken();loadToken = token
+        listingQueue.addOperation { [weak self] in
+            var received: [FileEntry] = []
+            let result = Result { () -> [FileEntry] in
+                if let collection { return try collection.compactMap { try token.check();return try? FileEntry(url:$0) } }
+                return try FileSystem.list(url,showHidden:hidden,token:token) { batch in
+                    // A background refresh keeps the complete displayed snapshot until it is ready.
+                    // Publishing only its first batch would discard selected items in later batches.
+                    guard showPartial else { return }
+                    received.append(contentsOf:batch)
+                    let partial = received
+                    DispatchQueue.main.async {
+                        guard let self,self.generation == g,!token.isCancelled else { return }
+                        self.entries = partial;self.displayedDirectory = directory;self.displayedTabID = tabID;self.displayedCollection = collection
+                        self.applyFilter(preserving:self.selectionRequest?.urls)
+                    }
                 }
             }
+            DispatchQueue.main.async {
+                guard let self,self.generation == g,!token.isCancelled else { return }
+                switch result {
+                case .success(let entries):
+                    self.isLoading = false;self.displayedDirectory = directory;self.displayedTabID = tabID;self.displayedCollection = collection;self.entries = entries
+                    self.applyFilter(preserving:self.selectionRequest?.urls);self.watch(url)
+                case .failure(let error):
+                    self.isLoading = false;self.isSorting = false;self.sortToken.cancel();self.sortVersion += 1;self.loadError = error.localizedDescription
+                    self.entries = [];self.visibleEntries = [];self.entryIndexes = [:];self.visibleByteTotal = 0;self.freeSpace = nil;self.table.reloadData();self.grid.reloadData();self.updateStatus()
+                }
+            }
+            guard !token.isCancelled else { return }
+            let available = try? url.resourceValues(forKeys:[.volumeAvailableCapacityKey]).volumeAvailableCapacity
+            DispatchQueue.main.async { [weak self] in guard let self,self.generation == g,!token.isCancelled else { return };self.freeSpace = available.map(Int64.init);self.updateStatus() }
         }
     }
     func watch(_ url: URL) {
@@ -426,19 +487,40 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     func select(_ urls: Set<URL>) {
         guard !urls.isEmpty else { selectionIndexes = [];return }
         var parents: [String:URL] = [:]
-        let paths = Set(urls.map { selectionPath($0,parents:&parents) })
-        selectionIndexes = IndexSet(visibleEntries.indices.filter { paths.contains(selectionPath(visibleEntries[$0].url,parents:&parents)) })
+        selectionIndexes = IndexSet(urls.compactMap { entryIndexes[selectionPath($0,parents:&parents)] })
     }
-    func applyFilter() {
+    var rawSelectedURLs: Set<URL> { Set(selectionIndexes.compactMap { visibleEntries.indices.contains($0) ? visibleEntries[$0].url : nil }) }
+    func applyFilter(preserving chosen:Set<URL>? = nil) {
+        sortVersion += 1;let version = sortVersion
+        sortToken.cancel();sortingQueue.cancelAllOperations();let token = CancellationToken();sortToken = token
         do {
-            let selection = Set(selectedURLs)
-            let filter = try NameFilter(filterField.stringValue, regex: filterRegex.state == .on)
-            filterError = nil
-            visibleEntries = FileSystem.sorted(entries.filter { filter.matches($0.name) }, key: sortKey, ascending: ascending,foldersFirst:foldersFirst)
-            filterField.textColor = .labelColor;syncingSelection = true;table.reloadData();grid.reloadData();syncingSelection = false;select(selection)
+            let filter = try NameFilter(filterField.stringValue,regex:filterRegex.state == .on),source = entries,key = sortKey,up = ascending,folders = foldersFirst
+            filterError = nil;filterField.textColor = .labelColor
+            let publish: (FileListSnapshot)->Void = { [weak self] snapshot in
+                guard let self,self.sortVersion == version,!token.isCancelled else { return }
+                let selected = chosen ?? self.rawSelectedURLs
+                self.visibleEntries = snapshot.entries;self.entryIndexes = snapshot.indexes;self.visibleByteTotal = snapshot.totalBytes
+                self.isSorting = false;self.replacesContents = false
+                self.syncingSelection = true;self.table.reloadData();self.grid.reloadData();self.syncingSelection = false
+                self.select(selected)
+                // A view change can publish the old listing before navigation starts loading.
+                // Retire an explicit selection only after a refresh actually consumed it.
+                if !self.isLoading,chosen != nil { self.selectionRequest = nil }
+                if let focus = self.focusedEntryURL,!self.visibleEntries.contains(where:{ $0.url == focus }) { self.focusedEntryURL = self.selectedURLs.first }
+                self.positionInlineRename();self.updateStatus()
+            }
+            if source.count > 1000 {
+                isSorting = true;updateStatus()
+                sortingQueue.addOperation {
+                    guard let snapshot = try? FileListSnapshot.make(source,filter:filter,key:key,ascending:up,foldersFirst:folders,token:token) else { return }
+                    DispatchQueue.main.async { publish(snapshot) }
+                }
+            } else { publish(try FileListSnapshot.make(source,filter:filter,key:key,ascending:up,foldersFirst:folders,token:token)) }
             let keys = ["name","ext","size","modified","kind","attributes","permissions","path"]
             sortMode.selectItem(at:keys.firstIndex(of:sortKey) ?? 0);sortDirection.toolTip = ascending ? "Aufsteigend · Klicken für absteigend" : "Absteigend · Klicken für aufsteigend"
-        } catch { filterError = "Ungültiger regulärer Ausdruck";filterField.textColor = .systemRed;visibleEntries = [];table.reloadData();grid.reloadData();selectionIndexes = [] }
+        } catch {
+            isSorting = false;filterError = "Ungültiger regulärer Ausdruck";filterField.textColor = .systemRed;visibleEntries = [];entryIndexes = [:];visibleByteTotal = 0;table.reloadData();grid.reloadData();selectionIndexes = []
+        }
         updatePanePresentation()
     }
     func clearFilter() { filterField.stringValue = "";filterRegex.state = .off;applyFilter() }
@@ -461,12 +543,14 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         let total = chosen.filter { !$0.isDirectory }.reduce(Int64(0)) { $0+$1.size }
         let prefix = readOnly ? "Archiv · " : ""
         let count = chosen.isEmpty ? "\(visibleEntries.count) Objekte" : "\(chosen.count)/\(visibleEntries.count) Objekte"
-        let size = chosen.isEmpty ? visibleEntries.filter { !$0.isDirectory }.reduce(Int64(0)) { let sum = $0.addingReportingOverflow($1.size);return sum.overflow ? Int64.max : sum.partialValue } : total
+        let size = chosen.isEmpty ? visibleByteTotal : total
         status.stringValue = prefix+count+" · "+bytes(size)+(freeSpace.map { " · Frei "+bytes($0) } ?? "")
         status.toolTip = status.stringValue+" · \(chosen.count) ausgewählt"
-        if isLoading { status.stringValue = "Lese Ordner …" }
+        if isLoading { status.stringValue = "Lese Ordner · \(entries.count) eingelesen …" }
+        else if isSorting { status.stringValue = "Sortiere und filtere \(entries.count) Objekte …" }
         else if let loadError { status.stringValue = loadError;status.toolTip = loadError }
         else if let filterError { status.stringValue = filterError }
+        if let dropHint { status.stringValue = dropHint;status.toolTip = dropHint }
         updatePanePresentation()
         onSelection?(selectedURLs)
     }
@@ -479,7 +563,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         stateView.background = palette.list(active:isActive,profile:importedProfile)
         stateView.heading.textColor = palette.readable(nil,on:stateView.background)
         stateView.detail.textColor = palette.readable(nil,on:stateView.background,fallback:palette.secondaryText)
-        if isLoading && (replacesContents || visibleEntries.isEmpty) { stateView.show("Ordner wird geladen …",detail:"Die Dateiliste wird eingelesen.") }
+        if (isLoading || isSorting) && visibleEntries.isEmpty { stateView.show("Ordner wird geladen …",detail:"Die Dateiliste wird eingelesen.") }
         else if let loadError { stateView.show("Ordner konnte nicht geöffnet werden",detail:loadError,button:"Erneut versuchen",perform:{ [weak self] in self?.refresh() }) }
         else if let filterError { stateView.show(filterError,detail:"Passe den Ausdruck an oder hebe den Filter auf.",button:"Filter aufheben",perform:{ [weak self] in self?.clearFilter();self?.focus() }) }
         else if visibleEntries.isEmpty && filterActive { stateView.show("Keine Treffer",detail:"Kein angezeigtes Objekt passt zum aktuellen Filter.",button:"Filter aufheben",perform:{ [weak self] in self?.clearFilter();self?.focus() }) }
@@ -497,49 +581,55 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     @objc func contextCommand(_ sender: NSMenuItem) { if let command = sender.representedObject as? String { onCommand?(command) } }
     @objc func toggleColumn(_ sender: NSMenuItem) { if let c = sender.representedObject as? NSTableColumn, c.identifier.rawValue != "name" { c.isHidden.toggle(); sender.state = c.isHidden ? .off : .on;rememberTabView() } }
     func numberOfRows(in tableView: NSTableView) -> Int { visibleEntries.count }
-    func tableViewSelectionDidChange(_ notification: Notification) { if !syncingSelection { updateStatus() } }
+    func tableViewSelectionDidChange(_ notification: Notification) { if !syncingSelection { redrawFileFocus();updateStatus() } }
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
         guard !changingView,let d = tableView.sortDescriptors.first else { return }; sortKey = d.key ?? "name"; ascending = d.ascending; applyFilter();rememberTabView()
     }
     func tableViewColumnDidResize(_ notification: Notification) { if defaultView != nil { rememberTabView() } }
     func tableViewColumnDidMove(_ notification: Notification) { if defaultView != nil { rememberTabView() } }
+    func tableView(_ tableView:NSTableView,typeSelectStringFor tableColumn:NSTableColumn?,row:Int) -> String? { visibleEntries.indices.contains(row) ? visibleEntries[row].name : nil }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard visibleEntries.indices.contains(row), let tableColumn else { return nil }
-        let e = visibleEntries[row], id = tableColumn.identifier.rawValue
+        guard visibleEntries.indices.contains(row),let tableColumn else { return nil }
+        let entry = visibleEntries[row],id = tableColumn.identifier.rawValue,identifier = NSUserInterfaceItemIdentifier("FileCell."+id)
+        let cell = (tableView.makeView(withIdentifier:identifier,owner:self) as? FileCellView) ?? FileCellView(frame:.zero)
+        cell.frame = NSRect(x:0,y:0,width:tableColumn.width,height:table.rowHeight)
+        cell.identifier = identifier;cell.iconRequest?.cancel();cell.iconRequest = nil;cell.pane = self;cell.entryURL = entry.url
+        cell.normalColor = fileTextColor(entry.name,secondary:id != "name")
+        if cell.textField == nil { let text = label("",size:listFont.pointSize);cell.addSubview(text);cell.textField = text }
+        let text = cell.textField!;text.font = listFont;text.alignment = id == "size" ? .right : .left;text.autoresizingMask = [.width]
+        let height = ceil(listFont.pointSize*1.35)
         if id == "name" {
-            let cell = FileCellView(frame:NSRect(x:0,y:0,width:tableColumn.width,height:table.rowHeight));cell.pane = self;let image = NSImageView();let text = label(e.name,size:listFont.pointSize)
-            text.font = listFont;cell.normalColor = fileTextColor(e.name);text.textColor = cell.normalColor
-            let iconSize: CGFloat = thumbnails ? 40 : 16,textHeight = ceil(listFont.pointSize*1.35)
-            image.frame = NSRect(x:2,y:(table.rowHeight-iconSize)/2,width:iconSize,height:iconSize);image.image = fileIcon(e,preview:thumbnails)
-            text.frame = NSRect(x:iconSize+7,y:(table.rowHeight-textHeight)/2,width:max(10,tableColumn.width-iconSize-12),height:textHeight);text.autoresizingMask = [.width]
-            cell.addSubview(image);cell.addSubview(text);cell.imageView = image;cell.textField = text
-            cell.toolTip = e.url.path+(e.isSymbolicLink ? " (Verknüpfung)" : "");return cell
+            if cell.imageView == nil { let image = NSImageView();cell.addSubview(image);cell.imageView = image }
+            let size:CGFloat = thumbnails ? 40 : 16
+            cell.imageView?.frame = NSRect(x:2,y:(table.rowHeight-size)/2,width:size,height:size)
+            let (image,request) = fileImages.load(entry,preview:thumbnails) { [weak cell] image in guard cell?.entryURL == entry.url else { return };cell?.imageView?.image = image }
+            cell.iconRequest = request;cell.imageView?.image = image
+            text.stringValue = entry.name;text.frame = NSRect(x:size+7,y:(table.rowHeight-height)/2,width:max(10,tableColumn.width-size-12),height:height)
+            cell.toolTip = entry.url.path+(entry.isSymbolicLink ? " (Verknüpfung)" : "")
+        } else {
+            switch id {
+            case "ext": text.stringValue = entry.fileExtension
+            case "size": text.stringValue = entry.isDirectory ? "—" : bytes(entry.size)
+            case "modified": text.stringValue = displayDate.string(from:entry.modified)
+            case "kind": text.stringValue = entry.kind
+            case "permissions": text.stringValue = String(format:"%03o",entry.permissions)
+            case "attributes": text.stringValue = entry.attributeText;text.toolTip = "macOS: D Ordner, L Verknüpfung, H versteckter Name, R ohne Besitzer-Schreibbit"
+            case "path": text.stringValue = entry.url.deletingLastPathComponent().path
+            default: text.stringValue = ""
+            }
+            text.frame = NSRect(x:2,y:(table.rowHeight-height)/2,width:max(1,tableColumn.width-4),height:height)
         }
-        let value: String
-        switch id {
-        case "ext": value = e.fileExtension
-        case "size": value = e.isDirectory ? "—" : bytes(e.size)
-        case "modified": value = displayDate.string(from: e.modified)
-        case "kind": value = e.kind
-        case "permissions": value = String(format: "%03o",e.permissions)
-        case "attributes":
-            value = e.attributeText
-        case "path": value = e.url.deletingLastPathComponent().path
-        default: value = ""
-        }
-        let cell = FileCellView(frame:NSRect(x:0,y:0,width:tableColumn.width,height:table.rowHeight));cell.pane = self;cell.normalColor = fileTextColor(e.name,secondary:true)
-        let text = label(value,size:listFont.pointSize,color:cell.normalColor);text.font = listFont
-        text.frame = NSRect(x:2,y:(table.rowHeight-ceil(listFont.pointSize*1.35))/2,width:max(1,tableColumn.width-4),height:ceil(listFont.pointSize*1.35));text.autoresizingMask = [.width]
-        if id == "attributes" { text.toolTip = "macOS: D Ordner, L Verknüpfung, H versteckter Name, R ohne Besitzer-Schreibbit" }
-        if id == "size" { text.alignment = .right };cell.addSubview(text);cell.textField = text;return cell
+        cell.updateColors();return cell
     }
-    func tableView(_ tableView: NSTableView,rowViewForRow row: Int) -> NSTableRowView? { let view = FileRowView();view.pane = self;return view }
-    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? { guard canUseDisplayedEntries,visibleEntries.indices.contains(row) else { return nil };return visibleEntries[row].url as NSURL }
-    func tableView(_ tableView: NSTableView, validateDrop info: NSDraggingInfo, proposedRow row: Int, proposedDropOperation dropOperation: NSTableView.DropOperation) -> NSDragOperation {
-        guard !readOnly else { return [] }; tableView.setDropRow(-1, dropOperation: .on); return .copy
+    func tableView(_ tableView:NSTableView,rowViewForRow row:Int) -> NSTableRowView? { let view = FileRowView();view.pane = self;view.entryURL = visibleEntries.indices.contains(row) ? visibleEntries[row].url : nil;return view }
+    func tableView(_ tableView:NSTableView,pasteboardWriterForRow row:Int) -> NSPasteboardWriting? { guard canUseDisplayedEntries,visibleEntries.indices.contains(row) else { return nil };return visibleEntries[row].url as NSURL }
+    func tableView(_ tableView:NSTableView,validateDrop info:NSDraggingInfo,proposedRow row:Int,proposedDropOperation operation:NSTableView.DropOperation) -> NSDragOperation {
+        let hit = tableView.row(at:tableView.convert(info.draggingLocation,from:nil)),index = hit >= 0 ? hit : operation == .on ? row : -1
+        let folder = dropFolder(at:index),result = updateFileDrop(info.draggingPasteboard,folder:folder)
+        tableView.setDropRow(folder == nil ? -1 : index,dropOperation:.on);return result
     }
-    func tableView(_ tableView: NSTableView, acceptDrop info: NSDraggingInfo, row: Int, dropOperation: NSTableView.DropOperation) -> Bool {
-        acceptFiles(info.draggingPasteboard)
+    func tableView(_ tableView:NSTableView,acceptDrop info:NSDraggingInfo,row:Int,dropOperation operation:NSTableView.DropOperation) -> Bool {
+        acceptFiles(info.draggingPasteboard,into:operation == .on ? dropFolder(at:row) : nil)
     }
     var savedTabs: [SavedTab] { tabs.filter { $0.archiveRoot == nil && $0.collection == nil }.map { SavedTab(path:$0.url.path,title:$0.title,locked:$0.locked,view:$0.view,selected:tabIndex > 0 && $0 === tab ? true : nil) } }
 }

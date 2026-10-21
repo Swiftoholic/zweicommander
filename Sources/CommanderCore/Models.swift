@@ -36,6 +36,7 @@ public final class CancellationToken: @unchecked Sendable {
 }
 
 public struct FileEntry: Identifiable, Hashable {
+    static let metadataKeys: Set<URLResourceKey> = [.isDirectoryKey,.isSymbolicLinkKey,.isRegularFileKey,.isPackageKey,.fileSizeKey,.contentModificationDateKey,.localizedTypeDescriptionKey]
     public let url: URL
     public let name: String
     public let isDirectory: Bool
@@ -52,7 +53,7 @@ public struct FileEntry: Identifiable, Hashable {
         [(isDirectory ? "D" : ""),(isSymbolicLink ? "L" : ""),(name.hasPrefix(".") ? "H" : ""),(permissions & 0o200 == 0 ? "R" : "")].filter { !$0.isEmpty }.joined(separator:" ")
     }
     public init(url: URL) throws {
-        let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey, .isRegularFileKey, .isPackageKey, .fileSizeKey, .contentModificationDateKey, .localizedTypeDescriptionKey])
+        let values = try url.resourceValues(forKeys:Self.metadataKeys)
         let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
         self.url = url
         name = url.lastPathComponent
@@ -96,9 +97,25 @@ public enum FileSystem {
             throw CommanderError.message("Ungültiger Dateiname: \(name)")
         }
     }
-    public static func list(_ directory: URL, showHidden: Bool) throws -> [FileEntry] {
-        try fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey], options: showHidden ? [] : [.skipsHiddenFiles])
-            .compactMap { try? FileEntry(url: $0) }
+    public static func list(_ directory: URL, showHidden: Bool,token: CancellationToken = .init(),onBatch: (([FileEntry])->Void)? = nil) throws -> [FileEntry] {
+        try token.check()
+        let urls = try fm.contentsOfDirectory(at:directory,includingPropertiesForKeys:Array(FileEntry.metadataKeys),options:showHidden ? [] : [.skipsHiddenFiles])
+        var result: [FileEntry] = [],batch: [FileEntry] = [],last = ProcessInfo.processInfo.systemUptime
+        result.reserveCapacity(urls.count)
+        for url in urls {
+            try token.check()
+            guard let entry = try? FileEntry(url:url) else { continue }
+            result.append(entry)
+            if let onBatch {
+                batch.append(entry)
+                if result.count == 100 || (batch.count >= 512 && ProcessInfo.processInfo.systemUptime-last >= 0.12) {
+                    onBatch(batch);batch.removeAll(keepingCapacity:true);last = ProcessInfo.processInfo.systemUptime
+                }
+            }
+        }
+        try token.check()
+        if !batch.isEmpty { onBatch?(batch) }
+        return result
     }
     public static func sorted(_ entries: [FileEntry], key: String = "name", ascending: Bool = true, foldersFirst: Bool = true) -> [FileEntry] {
         entries.sorted { a, b in

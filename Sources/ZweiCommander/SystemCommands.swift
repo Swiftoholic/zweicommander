@@ -71,7 +71,7 @@ extension MainWindow {
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.15.0
+        ZWEICOMMANDER · Version 0.16.0
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -96,6 +96,11 @@ extension MainWindow {
         F5 und F6 zeigen die Zielrichtung; ohne Auswahl sind die Knöpfe deaktiviert. Bei einer Dateisammlung als Ziel fügt F5 Verweise hinzu und erhält die Originaldateien. Der Übertragungsdialog zeigt zuerst Quelle, Ziel, Konfliktregel und Vorschau. „Weitere Optionen“ blendet Kopierprofile, Namens-/Größen-/Datumsfilter und Ordnerregeln ein. Aktive Regeln bleiben bei geschlossenen Optionen sichtbar. Änderungen werden nach kurzer Tippause neu geprüft. Offene Konflikte sowie „Abbrechen bei Konflikt“ mit belegten Zielen sperren Kopieren und Vormerken bis zu einer anderen Entscheidung.
         Eine zusätzliche Filterzeile zeigt Trefferzahl und Gesamtzahl der eingelesenen Objekte. „Filter aufheben“ entfernt Muster und RegEx-Modus. Leere Ordner, fehlende Treffer, ungültige Ausdrücke und Ladefehler werden direkt in der Dateifläche erklärt. Bei Ladefehlern steht „Erneut versuchen“ bereit. Eine Hintergrundaktualisierung des gleichen Ordners erhält Auswahl und Dateiaktionen.
         Über „Ansicht → Werkzeugleiste anpassen …“ oder das Menü am rechten Ende der Werkzeugleiste Befehle einblenden, ausblenden und ordnen. Erst „Übernehmen“ speichert die Auswahl lokal. Bei schmalen Fenstern enthält das Menü die nicht mehr passenden Befehle. „Miniaturbilder“ ändert die Dateiansicht; „Schnellansicht“ öffnet die Vorschau rechts.
+
+        DIREKTE DATEIBEDIENUNG
+        F2 bearbeitet den Namen genau eines ausgewählten Objekts direkt in Liste oder Symbolansicht. Bei Dateien ist zunächst der Name ohne letzte Endung markiert, bei Ordnern der vollständige Name. Enter übernimmt, Escape verwirft. Ungültige Namen, belegte Ziele und veränderte Quellen werden an der Eingabe erklärt; vorhandene Ziele bleiben erhalten. Umbenennen läuft als Hintergrundauftrag mit Versionsprüfung und Sitzungsrücknahme per Cmd+Z. Für mehrere Objekte Cmd+Shift+M verwenden. Ein Ordnerwechsel verwirft einen unbestätigten Namen.
+        Beim Ziehen von Dateien zeigt ein Rahmen den Zielordner oder Tab an; die Statuszeile nennt das Ziel. Etwa 0,8 Sekunden Verweilen öffnet einen echten Unterordner beziehungsweise wechselt in einen inaktiven Tab. Verlassen beendet den wartenden Wechsel. Sofortiges Ablegen verwendet den Ordner des Tabs. Kopiert wird nach Bestätigung der Vorschau. Sammlungen erhalten Verweise; Archivtabs sind schreibgeschützt. Pakete und symbolische Ordnerlinks werden nicht als Unterordnerziele angeboten.
+        Neue Ordner werden schrittweise eingelesen. Große Listen werden im Hintergrund gefiltert und sortiert; Symbole und verkleinerte Bilder werden nachgeladen. Eine Hintergrundaktualisierung desselben Ordners erhält die vollständige bisherige Anzeige und die Auswahl bis zum Ergebnis. Ein Fokusrahmen kennzeichnet das fokussierte Objekt getrennt von der Mehrfachauswahl. Die inaktive Seite behält ihre Auswahl mit zurückhaltender Hervorhebung.
 
         ANSICHTEN, TABS UND FAVORITEN
         Cmd+1 zeigt Details, Cmd+2 Miniaturbilder, Cmd+3 Symbole. Darstellung, Sortierspalte und Richtung lassen sich auch direkt über der Dateiliste wählen. Auswahl, Schnellfilter, Vorschau, Zwischenablage und Dateiaktionen gelten in allen drei Darstellungen. Bildvorschauen werden verkleinert geladen; andere Dateien behalten ihr Programmsymbol.
