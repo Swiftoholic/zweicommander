@@ -2,10 +2,11 @@ ZweiCommander 0.16.0 — Prüfung vom 21. Oktober 2026
 
 Ergebnis
 - 203/203 Dateikern- und Integrationstests bestanden.
-- 529/529 ausgeführte native UI-Prüfungen in 24 Durchläufen am finalen
+- 676/676 native UI-Prüfungen in 29 Durchläufen am finalen
   universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
   Darstellung nach erneutem App-Start 9, Mittelstreifen und Mausbedienung 26,
+  Adressleiste und Ordnervervollständigung 46,
   Direkte Dateibedienung 62,
   UX-Arbeitsabläufe 55,
   Werkzeugleiste nach erneutem App-Start 6, Warteschlange 14,
@@ -16,15 +17,14 @@ Ergebnis
   Speicherfehler während Kopie 10, beschädigte Auftragsablage 5,
   relative Altersregeln und Speichern 12, Altersregeln nach Neustart 19,
   Ansichten/Tabs/Favoriten und Speichern 44, Arbeitsbereich nach Neustart 16,
-  Mehrfachumbenennen und Profile speichern 20, nach Neustart verwenden 27.
-- Fünf Durchläufe mit 147 Vordergrundprüfungen sind am finalen Build offen:
-  Adressleiste 46, Sucharbeitsbereich 22/25, Ordnervergleich 24/30.
-  Sie benötigen eine entsperrte GUI-Sitzung mit aktivierbaren Fenstern.
-  Ausgelassene Durchläufe werden ausdrücklich gemeldet und nicht als
-  erfolgreiche Prüfungen gezählt. Die 46 Adressleistenprüfungen bestanden
-  an einer früheren universellen Baufassung dieses Pakets; die Komponenten
-  für Pfade und Vorschläge blieben unverändert. Das Markieren eines
-  Suchtreffers nach Navigation wurde danach separat korrigiert und geprüft.
+  Mehrfachumbenennen und Profile speichern 20, nach Neustart verwenden 27,
+  Sucharbeitsbereich und Profile speichern 22, nach Neustart verwenden 25,
+  Ordnervergleich und Profile speichern 24, nach Neustart verwenden 30.
+- Die Serie wurde in zwei Gruppen am identischen Release-Build ausgeführt:
+  24 Durchläufe mit 529 Prüfungen sowie fünf nachgeholte Durchläufe mit
+  147 Prüfungen für aktive Adress-, Such- und Vergleichsfenster in einer
+  entsperrten GUI-Sitzung. Alle Durchläufe sind vollständig bestanden;
+  es stehen keine ausgelassenen Vordergrundprüfungen mehr aus.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
 - App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
 - Debug-Pfadverweise vor Signierung entfernt; Release-Binärdatei auf lokale
