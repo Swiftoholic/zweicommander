@@ -18,7 +18,7 @@ final class FTPTransport: RemoteTransport {
     let connection: RemoteConnection,token: CancellationToken
     var endpointID: String { connection.endpointID }
     init(_ connection: RemoteConnection,token: CancellationToken) { self.connection = connection;self.token = token }
-    func request(_ path: String,directory: Bool = false,operation: Int32 = 0,command: String = "",fd: Int32 = -1,size: Int64 = 0,progress: @escaping (Int64)->Void = { _ in }) throws -> String {
+    func request(_ path: String,directory: Bool = false,operation: Int32 = 0,command: String = "",second: String = "",fd: Int32 = -1,size: Int64 = 0,progress: @escaping (Int64)->Void = { _ in }) throws -> String {
         let path = try RemoteService.normalized(path)
         var components = URLComponents();components.scheme = "ftp";components.host = connection.host;components.port = connection.port
         let allowed = CharacterSet(charactersIn:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~/")
@@ -27,7 +27,7 @@ final class FTPTransport: RemoteTransport {
         guard let address = components.url?.absoluteString else { throw CommanderError.message("Ungültige Serveradresse.") }
         let bridge = FTPProgress(token,progress)
         var output: UnsafeMutablePointer<CChar>?,length = 0,error = [CChar](repeating:0,count:1024)
-        let result = zr_request(address,connection.user,connection.password,connection.kind == .ftps ? 1 : 0,connection.caFile?.path ?? "",operation,command,fd,size,&output,&length,&error,error.count,{ raw,count in
+        let result = zr_request(address,connection.user,connection.password,connection.kind == .ftps ? 1 : 0,connection.caFile?.path ?? "",operation,command,second,fd,size,&output,&length,&error,error.count,{ raw,count in
             guard let raw else { return 1 };return Unmanaged<FTPProgress>.fromOpaque(raw).takeUnretainedValue().report(count)
         },Unmanaged.passUnretained(bridge).toOpaque())
         defer { zr_free(output) }
@@ -51,5 +51,13 @@ final class FTPTransport: RemoteTransport {
     func mkdir(_ path: String) throws {
         let path = try RemoteService.normalized(path)
         _ = try request("/",directory:true,operation:3,command:"MKD "+path)
+    }
+    func rename(_ source: String,to destination: String) throws {
+        let source = try RemoteService.normalized(source),destination = try RemoteService.normalized(destination)
+        _ = try request("/",directory:true,operation:3,command:"RNFR "+source,second:"RNTO "+destination)
+    }
+    func remove(_ path: String,directory: Bool) throws {
+        let path = try RemoteService.normalized(path)
+        _ = try request("/",directory:true,operation:3,command:(directory ? "RMD " : "DELE ")+path)
     }
 }

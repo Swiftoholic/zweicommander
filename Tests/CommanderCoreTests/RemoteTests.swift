@@ -12,7 +12,7 @@ private final class MemoryPasswords: RemotePasswordStore {
 private final class RemoteTestState: @unchecked Sendable {
     var error: Error?,completed = false,paused = false
 }
-private final class FTPFixture {
+final class FTPFixture {
     let process = Process(),connection: RemoteConnection
     init(root: URL,tls: Bool = false,delay: Double = 0,certificateName: String = "DNS:localhost,IP:127.0.0.1",requirePassword: Bool = false) throws {
         let script = URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("fixtures/ftp_server.py")

@@ -2,7 +2,7 @@
 
 ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Tabs und Tastaturbedienung. Er wird in Swift und AppKit entwickelt und verwendet Systembibliotheken für Dateivorgänge, Vorschau und Archive.
 
-**Version 0.18.0 ist eine frühe, ausführbare Version.** Serververbindungen lassen sich lokal speichern; FTP-/FTPS-Passwörter können im macOS-Schlüsselbund bleiben. Dateien und ganze Ordner lassen sich mit Vorschau über die gemeinsame Warteschlange übertragen, einschließlich Byte-Fortschritt, Pause und Abbruch. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+**Version 0.19.0 ist eine frühe, ausführbare Version.** Serverordner öffnen als Tabs links oder rechts im Hauptfenster. Lokale Dateien und Serverdateien teilen Filter, Sortierung und Auswahl; F5/F6 übertragen mit Vorschau zwischen den beiden Seiten. F2 benennt Serverobjekte um, F7 erstellt Ordner und F8 öffnet eine ausdrückliche Vorschau zum endgültigen Löschen. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 ## Funktionen
 
@@ -23,7 +23,7 @@ ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Ta
 - Duplikate und Prüfsummen.
 - Ordnervergleich mit lokalen Profilen und Einzelentscheidungen; Synchronisieren in beide Richtungen ohne Löschen zusätzlicher Dateien.
 - ZIP-, 7z- und TAR-Archive, Quick Look sowie Text-, Hex- und Binärvorschau.
-- Eingebundene Netzwerkvolumes, Verbindungsprofile und rekursive FTP-/FTPS-/SFTP-Übertragungen mit gemeinsamer Warteschlange.
+- Eingebundene Netzwerkvolumes, Server-Tabs und Verbindungsprofile; rekursive FTP-/FTPS-/SFTP-Übertragungen mit gemeinsamer Warteschlange, Serverordner erstellen, umbenennen und nach Vorschau endgültig löschen.
 - Anpassbare Tastenkürzel und optionaler [INI-Einstellungsimport](IMPORT.md).
 
 ## Bauen und starten
@@ -234,6 +234,18 @@ Profile und Aufträge mit Altersregeln verwenden die neue Formatversion 2 und be
 
 **Gehe zu → Serververbindungen …** (**⌘⇧K**) öffnet die Profilverwaltung. Bis zu 50 benannte Profile speichern Server, Protokoll, Benutzer, Port, Serverordner und optionale Schlüssel-/CA-Dateipfade in den lokalen Benutzereinstellungen. **⌘S** speichert; **⌘↩** verbindet mit den angezeigten Feldern. Verbinden ohne Speichern gilt nur für die Sitzung.
 
+**Öffnen in** wählt einen neuen Server-Tab auf der aktiven, linken oder rechten Seite; ein eigenes Serverfenster bleibt optional. Vorhandene lokale Tabs bleiben erhalten. Server-Tabs und ihre Anmeldedaten gelten nur für die Sitzung und werden nicht im gespeicherten Arbeitsbereich abgelegt. Beim nächsten Start wird wieder der zuvor aktive lokale Tab gewählt. Ein gespeichertes Verbindungsprofil kann erneut geöffnet werden.
+
+Server-Tabs verwenden die gewöhnliche Liste oder Symbolansicht mit Mehrfachauswahl, Namens-/Wildcard-/RegEx-Filter, Sortierung, Spalten, Verlauf und Tab-Verwaltung. **⌘L** bearbeitet einen absoluten oder relativen Serverpfad; Vorschläge und Unterordnerwahl stammen aus der geöffneten Verbindung. Eine Adresse mit anderem Server, Benutzer oder Protokoll benötigt eine eigene Verbindung. Ungültige Adressen bleiben an der Eingabe sichtbar. Während der Adresseingabe und während des Ladens sind Serverdateiaktionen gesperrt.
+
+Bei genau einem lokalen und einem Serverordner überträgt **F5 die Auswahl der aktiven Seite zur Gegenseite**. **F6 überträgt die Auswahl der Gegenseite zurück**. Leiste und Menü zeigen jeweils **Hochladen** oder **Herunterladen** mit Quelle und Ziel. Uploads erhalten ihre lokalen Quellen. Bei zwei lokalen Ordnern behalten F5 und F6 ihre bisherige Bedeutung Kopieren/Verschieben. Server-zu-Server-Übertragungen sind nicht enthalten. Ein lokaler Zielordner muss eine normale Ordneransicht sein.
+
+**F2** öffnet die Umbenennung eines einzelnen Serverobjekts; **F7** erstellt einen Serverordner. Bereits belegte Namen sperren die Vorschau. Reine Änderungen der Schreibweise werden in diesem Serverdialog abgewiesen. **F8** bzw. Vorwärts-Löschen öffnet die Vorschau für eine endgültige Serverlöschung. Sie zählt alle ausgewählten Dateien und Unterordner; **Abbrechen** ändert nichts. Erst **Endgültig löschen** bzw. **⌘↩** startet die geprüfte Auswahl. Einfaches Enter ist keine Löschbestätigung. Es gibt keinen Serverpapierkorb und kein Remote-Rückgängig; bei Abbruch bleiben schon gelöschte Objekte gelöscht.
+
+Löschpläne sind auf 10.000 Objekte und 100 Ebenen begrenzt. Auswahl, vollständiger Baum und übergeordnete Serverordner werden geprüft; Verknüpfungen im ausgewählten Baum oder im Ordnerpfad sperren die Mutation. Der direkte Serverpfad und seine Eltern müssen lesbar sein. Erkannte neue oder geänderte Einträge seit der Vorschau sperren den Start, neue Einträge während der Ausführung bleiben bei erkannter Änderung erhalten. Die Prüfung beruht auf Servermetadaten und ist keine transaktionale Sperre gegen gleichzeitige Änderungen durch andere Benutzer. FTP/FTPS kann ein gleichzeitiges Anlegen des Umbenennungsziels vor `RNTO` nicht atomar ausschließen; SFTP verwendet die normale Umbenennung ohne Ersetzen.
+
+Direktes Remote-Öffnen, Remote-Vorschau und Datei-Drag-and-drop aus Server-Tabs sind nicht enthalten; Dateien zuerst in einen lokalen Ordner herunterladen. Finder-, Shell-, Archiv- und andere ausschließlich lokale Aktionen werden für Serverauswahlen deaktiviert.
+
 **Passwort beim Speichern im Schlüsselbund sichern** legt FTP-/FTPS-Passwörter ausschließlich im macOS-Schlüsselbund ab. Die Profilbeschreibung enthält kein Passwort. Leere Passwortfelder behalten einen vorhandenen Eintrag nur für denselben Server, Benutzer, Port und dasselbe Protokoll. Änderungen dieser Anmeldedaten übernehmen kein früheres Passwort. Löschen eines Profils entfernt nach Rückfrage seinen zugeordneten Schlüsselbund-Eintrag; Serverdateien bleiben erhalten. Nicht lesbare Profile werden nicht überschrieben. macOS kann den Schlüsselbundzugriff selbst bestätigen lassen.
 
 SFTP nutzt SSH-Schlüssel oder den SSH-Agenten und bereits geprüfte Hostschlüssel. Optional kann ein lokaler privater Schlüssel gewählt werden; ohne Pfad gelten die SSH-Standardeinstellungen. Passwortanmeldung erfolgt weiterhin über **SFTP im Terminal**. FTPS verwendet **explizites AUTH TLS**, mit Zertifikatsprüfung auf Steuer- und Datenverbindung. Eine optionale lokale CA-Datei ergänzt die Prüfung; es gibt keinen unsicheren Abschaltmodus. Unverschlüsseltes FTP ist ausdrücklich als solches bezeichnet.
@@ -257,7 +269,7 @@ Uploads erhalten die lokalen Quellen. SFTP legt Dateien exklusiv an. FTP/FTPS pr
 - Kopieren und die Kopierphase gefilterter Verschiebeaufträge messen Dateidaten in Bytes und unterstützen Pause innerhalb einer Datei. Ungefiltertes Verschieben nutzt die Systemoperation und pausiert an Prüfpunkten.
 - Zusammenführen prüft eingehende Zielnamen vorsorglich ohne Groß-/Kleinschreibung. Dadurch werden auch auf einem Dateisystem mit beachteter Schreibweise manche Namenskombinationen abgewiesen.
 - Archive erhalten in dieser Version keine Finder-Tags, Resource Forks oder erweiterten Attribute. Entpacken erfolgt in neue Ordner mit Pfad- und Größenprüfung.
-- Remote-Aufträge bleiben sitzungsbezogen; Fortsetzen nach App-Neustart, Remote-Rückgängig, Umbenennen und Löschen sind noch offen. Bei Upload-Abbruch können neue Teilinhalte auf dem Server bleiben. FTP/FTPS kann gleichzeitiges Anlegen derselben Zieldatei durch andere Servernutzer nicht atomisch ausschließen.
+- Remote-Aufträge und Server-Tabs bleiben sitzungsbezogen; Fortsetzen nach App-Neustart und Remote-Rückgängig sind noch offen. Bei Upload-Abbruch können neue Teilinhalte auf dem Server bleiben. FTP/FTPS kann gleichzeitiges Anlegen derselben Zieldatei durch andere Servernutzer nicht atomisch ausschließen.
 
 ## Tests
 
@@ -267,15 +279,23 @@ python3 scripts/ui-smoke.py --app ../ZweiCommander.app --results /tmp/ZweiComman
 python3 scripts/check-public.py
 ```
 
-Die 244 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die 33 nativen Oberflächendurchläufe mit 776 Prüfungen verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil. Sie verändern keine persönlichen Benutzereinstellungen; eigene Einstellungsbereiche werden anschließend entfernt.
+Die 260 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die 34 nativen Oberflächendurchläufe mit 823 Prüfungen verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil. Sie verändern keine persönlichen Benutzereinstellungen; eigene Einstellungsbereiche werden anschließend entfernt.
 
-Die Serie prüft Dateiaktionen und Vorschau, Ordner- und Tab-Ablageziele, Ordneradressen mit Maus/Tastatur, 3.000 Dateien, Hell-/Dunkelflächen und Darstellung nach Neustart, Suche, Vergleich, Umbenennen und deren Profile. Getrennte App-Prozesse prüfen gespeicherte Aufträge, relative Altersfilter, abruptes Prozessende, beschädigte oder extern geänderte Ablagen, Byte-Fortsetzung, Sicherungswiederherstellung und die neuen Tastaturabläufe. Ausgeführte Dateiaktionen werden anhand ihrer tatsächlichen Inhalte geprüft. Die Dateikerntests beenden außerdem echte Kindprozesse während einer Kopie und vor dem Entfernen einer gefiltert verschobenen Quelle. Weitere Prüfungen verwenden den echten System-SFTP-Server über lokale Pipes und einen lokalen FTP-/FTPS-Server mit temporären Testzertifikaten; verschachtelte Dateien, Pause, Abbruch, Zertifikats- und Profilfehler werden am tatsächlichen Ergebnis geprüft. Die nativen Profilprüfungen verwenden einen künstlichen Passwortspeicher; der echte Schlüsselbund wird getrennt mit einem anschließend entfernten künstlichen Eintrag geprüft.
+Die Serie prüft Dateiaktionen und Vorschau, Ordner- und Tab-Ablageziele, Ordneradressen mit Maus/Tastatur, 3.000 Dateien, Hell-/Dunkelflächen und Darstellung nach Neustart, Suche, Vergleich, Umbenennen und deren Profile. Getrennte App-Prozesse prüfen gespeicherte Aufträge, relative Altersfilter, abruptes Prozessende, beschädigte oder extern geänderte Ablagen, Byte-Fortsetzung, Sicherungswiederherstellung und die neuen Tastaturabläufe. Ausgeführte Dateiaktionen werden anhand ihrer tatsächlichen Inhalte geprüft. Die Dateikerntests beenden außerdem echte Kindprozesse während einer Kopie und vor dem Entfernen einer gefiltert verschobenen Quelle. Weitere Prüfungen verwenden den echten System-SFTP-Server über lokale Pipes und einen lokalen FTP-/FTPS-Server mit temporären Testzertifikaten; verschachtelte Dateien, Pause, Abbruch, Zertifikats- und Profilfehler werden am tatsächlichen Ergebnis geprüft. Die Server-Tab-Prüfung verwendet einen eigenen FTP-Server und prüft tatsächliche Übertragungen und Mutationen über Menü- und Tastaturaktionen. Die nativen Profilprüfungen verwenden einen künstlichen Passwortspeicher; der echte Schlüsselbund wird getrennt mit einem anschließend entfernten künstlichen Eintrag geprüft.
 
 Drag-and-drop wird an den nativen Schnittstellen geprüft; physisches Ziehen aus anderen Apps und nicht antwortende Netzwerkfreigaben sind nicht Ende zu Ende automatisiert. Programmaufrufe werden an der macOS-Aufrufschnittstelle abgefangen und lösen keinen externen Programmstart aus. Die native Upload-Auswahl erhält an der Dateidialogschnittstelle künstliche Datei-URLs; das tatsächliche Auswählen im macOS-Dateidialog ist nicht Ende zu Ende automatisiert. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
 
+Ein zusätzlicher vollständiger SSH/SFTP-Lauf verwendet den nativen `/usr/bin/ssh` und den echten System-SFTP-Server in einem verschlüsselten Loopback-Transport. Dazu benötigt nur die Testumgebung Paramiko, die App selbst hat diese Abhängigkeit nicht. Eine eigene Python-Umgebung mit `pip install --only-binary=:all: paramiko` vorbereiten und anschließend ausführen:
+
+```bash
+python3 scripts/ssh-smoke.py --python /Pfad/zur/Testumgebung/bin/python --tests /Pfad/CommanderCoreTests --results /Pfad/Pruefprotokolle
+```
+
+Die neun zusätzlichen SSH-Prüfungen erzeugen eigene Anmelde- und Hostschlüssel, prüfen unbekannte/geänderte Hosts und falsche Schlüssel, rekursive Transfers, Mutationen und Abbruch innerhalb einer Datei. Der Testserver lauscht ausschließlich auf `127.0.0.1`; temporäre Schlüssel werden entfernt. Systemdienste, persönliche SSH-Konfiguration und bekannte Hosts bleiben unverändert. Diese Zusatzprüfungen werden getrennt von den 260 Kerntests gezählt; ohne Testabhängigkeit wird kein SSH-Erfolg behauptet.
+
 `check-public.py` prüft die im Git-Index enthaltenen Dateien vor einer Veröffentlichung. Erlaubt sind die Projektdateien, Quellcode, Werkzeuge und künstlichen Testdaten. Lokale Protokolle, Buildprodukte und Arbeitsunterlagen gehören nicht ins Repository.
 
-Die vollständige Serie mit 33 Durchläufen und 776 Prüfungen benötigt eine entsperrte GUI-Sitzung. `--skip-foreground` lässt neun Durchläufe mit 247 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs- und Serverfenster ausdrücklich aus; die übrigen 24 Durchläufe umfassen 529 Prüfungen. Ausgelassene Fälle werden nicht als bestanden gezählt. Die Adressleistenprüfung benötigt ein aktives Prüffenster. Falls macOS die Aktivierung aus dem Hintergrund ablehnt, wartet `ui-smoke.py --interactive` bei Bedarf auf einen Klick in „ZweiCommander · Bedienungsprüfung“. Dieses Fenster für den kurzen Bedienungslauf vorne lassen; für diesen Prozess gilt ein Zeitlimit von 180 Sekunden. Vorschläge werden im normalen Betrieb weiterhin nur im aktiven Fenster eingeblendet.
+Die vollständige Serie mit 34 Durchläufen und 823 Prüfungen benötigt eine entsperrte GUI-Sitzung. `--skip-foreground` lässt zehn Durchläufe mit 294 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-, Serverfenster und Server-Tabs ausdrücklich aus; die übrigen 24 Durchläufe umfassen 529 Prüfungen. Ausgelassene Fälle werden nicht als bestanden gezählt. Die Adressleistenprüfung benötigt ein aktives Prüffenster. Falls macOS die Aktivierung aus dem Hintergrund ablehnt, wartet `ui-smoke.py --interactive` bei Bedarf auf einen Klick in „ZweiCommander · Bedienungsprüfung“. Dieses Fenster für den kurzen Bedienungslauf vorne lassen; für diesen Prozess gilt ein Zeitlimit von 180 Sekunden. Vorschläge werden im normalen Betrieb weiterhin nur im aktiven Fenster eingeblendet.
 
 ## Projektstruktur
 

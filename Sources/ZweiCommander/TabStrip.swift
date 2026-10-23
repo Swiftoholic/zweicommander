@@ -26,7 +26,7 @@ final class FolderTabButton: NSButton, NSDraggingSource {
     func configure(title:String,tab:FolderTab,active:Bool) {
         self.title = title;state = active ? .on : .off;font = .systemFont(ofSize:12,weight:active ? .semibold : .regular)
         closeButton.isHidden = tab.locked || pane?.tabs.count == 1;closeButton.setAccessibilityLabel("Tab schließen: "+title)
-        toolTip = tab.url.path+"\nDateien hier ablegen; kurzes Verweilen öffnet den Tab."
+        toolTip = tab.remote == nil ? tab.url.path+"\nDateien hier ablegen; kurzes Verweilen öffnet den Tab." : tab.url.absoluteString+"\nServer-Tab für diese Sitzung. F5/F6 übertragen zwischen den beiden Seiten."
         invalidateIntrinsicContentSize();needsDisplay = true
     }
     override func updateTrackingAreas() {
@@ -80,7 +80,7 @@ final class FolderTabButton: NSButton, NSDraggingSource {
     override func draggingEntered(_ sender:NSDraggingInfo) -> NSDragOperation { draggingUpdated(sender) }
     override func draggingUpdated(_ sender:NSDraggingInfo) -> NSDragOperation {
         if draggedID(sender) != nil { return .move }
-        guard let pane,let target = pane.tabs.first(where:{ $0.id == tabID }),target.archiveRoot == nil,!pane.fileURLs(sender.draggingPasteboard).isEmpty else { clearFileDrop();return [] }
+        guard let pane,let target = pane.tabs.first(where:{ $0.id == tabID }),target.archiveRoot == nil,target.remote == nil,!pane.fileURLs(sender.draggingPasteboard).isEmpty else { clearFileDrop();return [] }
         fileDrop = true;needsDisplay = true
         pane.dropHint = target.collection == nil ? "Kopieren in Tab „"+(target.title ?? target.url.lastPathComponent)+"“ · Loslassen öffnet die Vorschau" : "Verweise zum Sammlungstab hinzufügen"
         pane.updateStatus()
@@ -107,7 +107,9 @@ final class FolderTabButton: NSButton, NSDraggingSource {
 extension PaneView {
     func selectTab(_ id: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        endPathEditing(restoreFocus:false)
         tabIndex = index;filterField.stringValue = "";restoreTabView();rebuildTabs();refresh();focus()
+        if remote == nil { lastLocalTabID = tab.id }
     }
     func stepTab(_ offset: Int) { selectTab(tabs[(tabIndex+offset+tabs.count)%tabs.count].id) }
     func moveTab(_ id: UUID,to index: Int) {
@@ -119,6 +121,7 @@ extension PaneView {
         let original = tab,t = FolderTab(original.url)
         t.title = original.title;t.history = original.history;t.position = original.position;t.view = original.view
         t.collection = original.collection;t.archiveRoot = original.archiveRoot;t.archiveOrigin = original.archiveOrigin
+        if let remote = original.remote { t.remote = RemoteFolderSession(remote.connection) }
         tabs.insert(t,at:tabIndex+1);tabIndex += 1;restoreTabView();rebuildTabs();refresh();focus()
     }
     func closeOtherTabs() {

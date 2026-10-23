@@ -1,4 +1,5 @@
 import AppKit
+import CommanderCore
 
 final class CommanderSplitView: NSSplitView {
     static let gripThickness: CGFloat = 5
@@ -108,6 +109,8 @@ final class LocationStrip: NSScrollView {
 }
 
 final class BreadcrumbBar: NSView {
+    var folderProvider: PathEditor.FolderProvider?
+    private var folderToken = CancellationToken()
     var active = false { didSet { updateColors() } }
     var showHiddenFolders = false
     var onChoose: ((URL)->Void)?
@@ -130,6 +133,7 @@ final class BreadcrumbBar: NSView {
     }
     required init?(coder:NSCoder) { fatalError() }
     private func rebuild() {
+        folderToken.cancel();folderToken = CancellationToken()
         request += 1;dropdown.close();openAnchor = nil
         (components+childButtons).forEach { $0.1.removeFromSuperview() };components = [];childButtons = []
         toolTip = (url?.path ?? "")+"\nLeeren Bereich anklicken oder ⌘L drücken, um die Adresse zu bearbeiten."
@@ -138,7 +142,7 @@ final class BreadcrumbBar: NSView {
             var urls = [current]
             while current.path != "/" { let parent = current.deletingLastPathComponent();if parent == current { break };urls.insert(parent,at:0);current = parent }
             for url in urls {
-                let title = url.path == "/" ? "/" : url.lastPathComponent
+                let title = url.path == "/" ? (url.isFileURL ? "/" : url.host ?? "/") : url.lastPathComponent
                 let button = ActionButton(title,action:{ [weak self] in self?.onChoose?(url) });button.flat = true;button.font = .systemFont(ofSize:11)
                 button.setHelp(title,"Diesen Ordner öffnen.\n"+url.path);button.menu = contextMenu(for:url)
                 addSubview(button);components.append((url,button))
@@ -152,10 +156,11 @@ final class BreadcrumbBar: NSView {
     }
     func showChildren(of folder:URL,from button:ActionButton) {
         if dropdown.isVisible && openAnchor === button { request += 1;dropdown.close();openAnchor = nil;return }
-        request += 1;let generation = request,original = url,hidden = showHiddenFolders;openAnchor = button
+        folderToken.cancel();folderToken = CancellationToken()
+        request += 1;let generation = request,original = url,hidden = showHiddenFolders,provider = folderProvider,token = folderToken;openAnchor = button
         dropdown.show(under:button,title:"Unterordner werden gelesen …",keyboard:true)
         DispatchQueue.global(qos:.userInitiated).async { [weak self,weak button] in
-            let result = Result { try FolderAddress.folders(in:folder,showHidden:hidden) }
+            let result = Result { if let provider { return try provider(folder,"",hidden,token) };return try FolderAddress.folders(in:folder,showHidden:hidden) }
             DispatchQueue.main.async {
                 guard let self,let button,self.request == generation,self.url == original,self.dropdown.isVisible else { return }
                 switch result {
@@ -177,6 +182,7 @@ final class BreadcrumbBar: NSView {
     func contextMenu(for folder:URL?) -> NSMenu {
         let menu = NSMenu()
         for (title,action) in [("Adresse bearbeiten",#selector(editAddress(_:))),("Ordnerpfad kopieren",#selector(copyAddress(_:))),("Ordner im Finder öffnen",#selector(openInFinder(_:)))] {
+            if action == #selector(openInFinder(_:)),folder?.isFileURL == false { continue }
             let item = NSMenuItem(title:title,action:action,keyEquivalent:"");item.target = self;item.representedObject = folder;menu.addItem(item)
         }
         return menu
@@ -184,7 +190,7 @@ final class BreadcrumbBar: NSView {
     @objc private func editAddress(_ item:NSMenuItem) { dropdown.close();onEdit?() }
     @objc private func copyAddress(_ item:NSMenuItem) {
         guard let folder = item.representedObject as? URL else { return }
-        NSPasteboard.general.clearContents();NSPasteboard.general.setString(folder.path,forType:.string)
+        NSPasteboard.general.clearContents();NSPasteboard.general.setString(folder.isFileURL ? folder.path : folder.absoluteString,forType:.string)
     }
     @objc private func openInFinder(_ item:NSMenuItem) { if let folder = item.representedObject as? URL { NSWorkspace.shared.open(folder) } }
     override func layout() {

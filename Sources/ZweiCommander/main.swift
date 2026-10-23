@@ -32,8 +32,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let fileUXSmoke = args.firstIndex(of:"--file-ux-smoke")
         let recoverySmoke = args.firstIndex(of:"--recovery-smoke")
         let remoteSmoke = args.firstIndex(of:"--remote-smoke")
+        let serverPaneSmoke = args.firstIndex(of:"--server-pane-smoke")
         let compareSmoke = args.firstIndex(of:"--compare-smoke")
-        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke].compactMap { $0 }.first
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke,serverPaneSmoke].compactMap { $0 }.first
         Preferences.testMode = testIndex != nil
         if Preferences.testMode { setvbuf(stdout,nil,_IOLBF,0) }
         if Preferences.testMode { Preferences.state = SavedState() }
@@ -78,6 +79,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         main.onRebuildMenus = { [weak self] in self?.buildMenus(); self?.main.updateFunctionLabels() }
         buildMenus(); main.showWindow(nil); main.left.focus()
         NSApp.activate(ignoringOtherApps:true)
+        if let serverPaneSmoke,args.indices.contains(serverPaneSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runServerPaneSmoke(root:root,prefix:args[serverPaneSmoke+2]) }
+        }
         if let remoteSmoke,args.indices.contains(remoteSmoke+3),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runRemoteSmoke(root:root,prefix:args[remoteSmoke+2],reload:args[remoteSmoke+3] == "reload") }
         }
@@ -197,14 +201,17 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if ["operations","recovery"].contains(id) { return true }
         if let compare = main?.keyCompareController { return compare.canPerformCommand(id) }
         if let search = main?.keySearchController { return search.canPerformCommand(id) }
+        if id == "copy" || id == "move" { item.title = (main?.serverTransferTitle(id) ?? (id == "copy" ? "Kopieren" : "Verschieben"))+" …" }
+        if id == "trash" { item.title = main?.active.remote == nil ? "In den Papierkorb …" : "Endgültig auf Server löschen …" }
         if let mode = ["details":PaneDisplayMode.details,"thumbnails":.thumbnails,"icons":.icons][id] { item.state = main?.active.displayMode == mode ? .on : .off }
         if id == "tree" { item.state = main?.active.treeVisible == true ? .on : .off }
         if id == "lockTab" { item.state = main?.active.tab.locked == true ? .on : .off }
+        if let enabled = main?.serverCommandEnabled(id) { return enabled }
         if id == "removeCollectionItem" { return main?.active.tab.collection != nil && NSApp.keyWindow === main?.window }
         if item.keyEquivalentModifierMask.isEmpty, item.keyEquivalent == " ", NSApp.keyWindow?.firstResponder is NSTextView { return false }
         return true
     }
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:"0.15.0",.version:"16",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "0.19.0",.version:Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "20",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
     func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply {
         if main?.canTerminate == false { _ = dialog("Dateivorgänge laufen",message:"Laufende Vorgänge einschließlich Suchen, vorgemerkte Synchronisationen und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return .terminateCancel }
         main?.saveState(); return .terminateNow

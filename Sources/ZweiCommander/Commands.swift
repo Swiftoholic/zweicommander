@@ -13,6 +13,8 @@ extension MainWindow {
         if id == "closeTab",let key = NSApp.keyWindow,key !== window { key.performClose(nil); return }
         defer { updateChromeState();content.needsLayout = true }
         do {
+            if serverCommandEnabled(id) == false { content.status.stringValue = "Für diesen Vorgang eine passende Auswahl und einen lokalen Ordner öffnen. Serverdateien können mit F5/F6 übertragen werden.";return }
+            if try handleServerCommand(id) { return }
             switch id {
             case "open": active.openSelection()
             case "preview": preview(active.selectedURLs)

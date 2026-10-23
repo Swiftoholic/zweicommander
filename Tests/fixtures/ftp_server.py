@@ -4,6 +4,7 @@ import datetime
 import os
 import ssl
 import time
+import threading
 from pathlib import Path
 import socket
 import socketserver
@@ -17,6 +18,7 @@ parser.add_argument('--delay', type=float, default=0)
 parser.add_argument('--password')
 args = parser.parse_args()
 ROOT = args.root.resolve()
+LOGIN_LOCK = threading.Lock()
 TLS = None
 if args.cert:
     TLS = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -28,6 +30,7 @@ class FTP(socketserver.StreamRequestHandler):
         self.cwd = ROOT
         self.passive = None
         self.data_tls = False
+        self.rename_from = None
         self.reply('220 ZweiCommander test fixture')
         try:
             while True:
@@ -50,7 +53,8 @@ class FTP(socketserver.StreamRequestHandler):
                     self.reply('331 Password required')
                 elif cmd == 'PASS':
                     counter = ROOT / '.login-count'
-                    counter.write_text(str(int(counter.read_text()) + 1 if counter.exists() else 1))
+                    with LOGIN_LOCK:
+                        counter.write_text(str(int(counter.read_text()) + 1 if counter.exists() else 1))
                     if args.password is not None and arg != args.password:
                         self.reply('530 Login denied')
                     else:
@@ -78,6 +82,28 @@ class FTP(socketserver.StreamRequestHandler):
                     self.passive.settimeout(10)
                     port = self.passive.getsockname()[1]
                     self.reply('229 Entering Extended Passive Mode (|||%d|)' % port if cmd == 'EPSV' else '227 Entering Passive Mode (127,0,0,1,%d,%d)' % (port // 256, port % 256))
+                elif cmd == 'RNFR':
+                    p = self.path(arg)
+                    if p.exists():
+                        self.rename_from = p
+                        self.reply('350 Destination required')
+                    else:
+                        self.reply('550 Not found')
+                elif cmd == 'RNTO':
+                    p = self.path(arg)
+                    if self.rename_from is None or p.exists():
+                        self.reply('550 Rename rejected')
+                    else:
+                        self.rename_from.rename(p)
+                        self.rename_from = None
+                        self.reply('250 Renamed')
+                elif cmd in ('DELE', 'RMD'):
+                    p = self.path(arg)
+                    try:
+                        p.rmdir() if cmd == 'RMD' else p.unlink()
+                        self.reply('250 Removed')
+                    except OSError:
+                        self.reply('550 Remove rejected')
                 elif cmd == 'MKD':
                     p = self.path(arg)
                     try:

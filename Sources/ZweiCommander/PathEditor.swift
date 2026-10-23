@@ -3,6 +3,7 @@ import CommanderCore
 
 enum FolderAddress {
     static func resolve(_ text:String,relativeTo base:URL) throws -> URL {
+        guard base.isFileURL else { throw CommanderError.message("Serveradressen benötigen die geöffnete Serververbindung.") }
         guard !text.contains("\n"),!text.contains("\r"),!text.contains("\0") else { throw CommanderError.message("Bitte genau einen Ordnerpfad eingeben.") }
         if text.lowercased().hasPrefix("file:") {
             guard let url = URL(string:text),url.isFileURL,url.host == nil || url.host == "" || url.host == "localhost",url.query == nil,url.fragment == nil else { throw CommanderError.message("Die Datei-Adresse ist ungültig.") }
@@ -13,6 +14,7 @@ enum FolderAddress {
         return (path.hasPrefix("/") ? URL(fileURLWithPath:path) : base.appendingPathComponent(path)).standardizedFileURL
     }
     static func folders(in directory:URL,prefix:String = "",showHidden:Bool) throws -> (items:[AddressSuggestion],limited:Bool) {
+        guard directory.isFileURL else { throw CommanderError.message("Serverordner benötigen die geöffnete Serververbindung.") }
         let fm = FileManager.default,options:FileManager.DirectoryEnumerationOptions = showHidden || prefix.hasPrefix(".") ? [] : [.skipsHiddenFiles]
         let children = try fm.contentsOfDirectory(at:directory,includingPropertiesForKeys:[.isDirectoryKey,.isSymbolicLinkKey],options:options)
         var items: [AddressSuggestion] = []
@@ -29,6 +31,10 @@ enum FolderAddress {
 }
 
 final class PathEditor: NSTextField {
+    typealias FolderProvider = (URL,String,Bool,CancellationToken) throws -> (items:[AddressSuggestion],limited:Bool)
+    var addressResolver: ((String,URL)throws->URL)?
+    var folderProvider: FolderProvider?
+    var directoryValidator: ((URL,CancellationToken)throws->Void)?
     var onCancel: (()->Void)?
     var onChoose: ((URL)->Void)?
     var recentFolders: [URL] = []
@@ -40,6 +46,7 @@ final class PathEditor: NSTextField {
     let dropdown = AddressDropdown()
     private var generation = 0
     private var pending: DispatchWorkItem?
+    private var queryToken = CancellationToken()
     var suggestions: [AddressSuggestion] { dropdown.rows }
     override init(frame:NSRect) {
         super.init(frame:frame)
@@ -54,12 +61,13 @@ final class PathEditor: NSTextField {
     func begin(at url:URL,history:[URL],showHidden:Bool) {
         if !sessionActive { stringValue = url.path }
         invalidateQuery();dropdown.close();baseURL = url;recentFolders = history;showHiddenFolders = showHidden;sessionActive = true;clearError()
-        toolTip = "Ordneradresse · "+CommandHelp.shortcut("path")+"\nAbsolute oder relative Pfade, ~ und file://-Adressen. ↓ zeigt Vorschläge, Tab ergänzt, Enter öffnet.";setAccessibilityHelp(toolTip)
+        toolTip = "Ordneradresse · "+CommandHelp.shortcut("path")+(url.isFileURL ? "\nAbsolute oder relative Pfade, ~ und file://-Adressen." : "\nServer: "+(url.host ?? "")+" · Absolute oder relative Serverpfade.")+" ↓ zeigt Vorschläge, Tab ergänzt, Enter öffnet.";setAccessibilityHelp(toolTip)
     }
     func end() {
         sessionActive = false;invalidateQuery();dropdown.close();clearError()
     }
-    private func invalidateQuery() { generation += 1;pending?.cancel();pending = nil;isQuerying = false }
+    private func invalidateQuery() { generation += 1;pending?.cancel();pending = nil;queryToken.cancel();queryToken = CancellationToken();isQuerying = false }
+    private func resolve(_ text:String,base:URL) throws -> URL { if let addressResolver { return try addressResolver(text,base) };return try FolderAddress.resolve(text,relativeTo:base) }
     private func clearError() { validationMessage = nil;textColor = .labelColor;setAccessibilityHelp(toolTip) }
     func edited() {
         guard sessionActive else { return };clearError();requestSuggestions(debounce:true)
@@ -74,18 +82,19 @@ final class PathEditor: NSTextField {
             if selectFirst { dropdown.moveSelection(1) };if completeFirst { completeSelection() };return
         }
         let resolved: URL
-        do { resolved = try FolderAddress.resolve(text,relativeTo:base) } catch { showError(error.localizedDescription);return }
+        do { resolved = try resolve(text,base:base) } catch { showError(error.localizedDescription);return }
         let children = text.hasSuffix("/") || text == "~" || (selectFirst && text == base.path)
         // Keep a typed dot prefix before URL normalization turns "." into the base folder.
-        let inputPath = text.lowercased().hasPrefix("file:") ? resolved.path : (text as NSString).expandingTildeInPath
+        let inputPath = text.lowercased().hasPrefix("file:") || text.contains("://") ? resolved.path : base.isFileURL ? (text as NSString).expandingTildeInPath : text
         let prefix = children ? "" : (inputPath as NSString).lastPathComponent
         let directory: URL
-        do { directory = children ? resolved : try FolderAddress.resolve((inputPath as NSString).deletingLastPathComponent,relativeTo:base) }
+        do { directory = children ? resolved : try resolve((inputPath as NSString).deletingLastPathComponent,base:base) }
         catch { showError(error.localizedDescription);return }
         isQuerying = true
         if !debounce { dropdown.show(under:self,title:"Ordner werden gesucht …") }
+        let provider = folderProvider,token = queryToken
         let work = DispatchWorkItem { [weak self] in
-            let result = Result { try FolderAddress.folders(in:directory,prefix:prefix,showHidden:hidden) }
+            let result = Result { if let provider { return try provider(directory,prefix,hidden,token) };return try FolderAddress.folders(in:directory,prefix:prefix,showHidden:hidden) }
             DispatchQueue.main.async {
                 guard let self,self.sessionActive,self.generation == request,self.stringValue == text,self.window?.isVisible == true else { return }
                 self.isQuerying = false
@@ -127,7 +136,7 @@ final class PathEditor: NSTextField {
     }
     func submit() {
         guard sessionActive else { return }
-        do { open(try FolderAddress.resolve(stringValue,relativeTo:baseURL)) } catch { showError(error.localizedDescription) }
+        do { open(try resolve(stringValue,base:baseURL)) } catch { showError(error.localizedDescription) }
     }
     private func open(_ url:URL) {
         guard sessionActive else { return }
@@ -137,8 +146,11 @@ final class PathEditor: NSTextField {
             guard let self,self.sessionActive,self.generation == request,self.isQuerying else { return }
             self.dropdown.show(under:self,title:"Ordner wird geöffnet …")
         }
+        let validator = directoryValidator,token = queryToken
         DispatchQueue.global(qos:.userInitiated).async { [weak self] in
             let result = Result { () -> URL in
+                if let validator { try validator(url,token);return url }
+                guard url.isFileURL else { throw CommanderError.message("Serververbindung nicht verfügbar.") }
                 var isDirectory:ObjCBool = false
                 guard FileManager.default.fileExists(atPath:url.path,isDirectory:&isDirectory) else { throw CommanderError.message("Ordner nicht gefunden oder nicht erreichbar. Adresse prüfen und erneut öffnen.") }
                 guard isDirectory.boolValue else { throw CommanderError.message("Diese Adresse bezeichnet eine Datei. Bitte einen Ordner wählen.") }

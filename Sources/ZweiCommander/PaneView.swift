@@ -12,6 +12,8 @@ final class FolderTab {
     var archiveRoot: URL?
     var archiveOrigin: URL?
     var view: FolderViewSettings?
+    var remote: RemoteFolderSession?
+    var remoteEntries: [RemoteEntry] = []
     init(_ url: URL) { self.url = url; history = [url] }
 }
 final class FileTable: CommanderTableView {
@@ -27,6 +29,7 @@ final class FileTable: CommanderTableView {
         super.rightMouseDown(with: event)
     }
     override func keyDown(with event: NSEvent) {
+        if pane?.remote != nil,event.keyCode == 117,event.modifierFlags.intersection([.command,.control,.option,.shift]).isEmpty { pane?.onCommand?("trash");return }
         if event.modifierFlags.intersection([.command,.control,.option]).isEmpty {
             switch event.keyCode {
             case 48: pane?.onSwitch?(); return
@@ -47,7 +50,7 @@ final class FileTable: CommanderTableView {
     override func draggingEnded(_ sender:NSDraggingInfo) { pane?.endFileDrop();super.draggingEnded(sender) }
 }
 
-final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate {
+final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, NSMenuItemValidation {
     let table = FileTable()
     let grid = FileGrid()
     let inlineRename = InlineRenameEditor(frame:.zero)
@@ -82,9 +85,10 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     var treeVisible = false { didSet { tree.isHidden = !treeVisible; needsLayout = true } }
     var tabs: [FolderTab] = []
     var tabIndex = 0
+    var lastLocalTabID: UUID?
     var tab: FolderTab { tabs[tabIndex] }
     var currentURL: URL { tab.url }
-    var readOnly: Bool { tab.archiveRoot != nil }
+    var readOnly: Bool { tab.archiveRoot != nil || remote != nil }
     var entries: [FileEntry] = []
     var visibleEntries: [FileEntry] = []
     var showHidden = false
@@ -128,6 +132,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     var onCollectionDrop: (([URL]) -> Void)?
     var onSelection: (([URL]) -> Void)?
     var onCommand: ((String) -> Void)?
+    var onValidateCommand: ((String)->Bool)?
     var onRename: ((RenameItem,UUID)->Void)?
     var onState: (() -> Void)?
     var selectionIndexes: IndexSet {
@@ -156,6 +161,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         }
         if tabs.isEmpty { tabs = [FolderTab(url)] }
         if let restoredActive,let index = tabs.firstIndex(where: { $0.id == restoredActive }) { tabIndex = index }
+        lastLocalTabID = tab.id
         marker.wantsLayer = true
         table.pane = self; table.delegate = self; table.dataSource = self
         table.allowsMultipleSelection = true; table.allowsEmptySelection = true
@@ -346,7 +352,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         let existing = Dictionary(uniqueKeysWithValues:tabsStack.arrangedSubviews.compactMap { ($0 as? FolderTabButton).map { ($0.tabID,$0) } })
         var views: [NSView] = []
         for (index,tab) in tabs.enumerated() {
-            let title = (tab.locked ? "🔒 " : "")+(tab.title ?? (tab.url.lastPathComponent.isEmpty ? "/" : tab.url.lastPathComponent))
+            let title = (tab.locked ? "🔒 " : "")+(tab.remote == nil ? "" : "☁ ")+(tab.title ?? (tab.url.lastPathComponent.isEmpty ? tab.remote?.connection.host ?? "/" : tab.url.lastPathComponent))
             let button = existing[tab.id] ?? FolderTabButton(title:title,tab:tab,pane:self)
             button.configure(title:title,tab:tab,active:index == tabIndex);views.append(button)
         }
@@ -361,6 +367,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         onState?()
     }
     func newTab(url: URL? = nil) {
+        if let remote,url == nil || url?.isFileURL == false { _ = openRemote(remote.connection,path:url?.path ?? currentURL.path);return }
         let t = FolderTab(url ?? currentURL);t.view = tab.view
         if let root = tab.archiveRoot, FileSystem.isInside(t.url,root) { t.archiveRoot = root; t.archiveOrigin = tab.archiveOrigin }
         tabs.append(t); tabIndex = tabs.count-1;restoreTabView(); rebuildTabs(); refresh(); focus()
@@ -373,6 +380,11 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         restoreTabView();rebuildTabs();refresh();focus()
     }
     func navigate(_ url: URL, linked: Bool = false) {
+        if remote != nil {
+            if !url.isFileURL { navigateRemote(url);return }
+            newTab(url:url);return
+        }
+        guard url.isFileURL else { return }
         let u = url.standardizedFileURL
         guard FileSystem.isDirectory(u) else { showFailure(CommanderError.message("Ordner nicht gefunden: \(u.path)")); return }
         let old = currentURL
@@ -385,6 +397,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     }
     func history(_ offset: Int) {
         let i = tab.position+offset; guard i >= 0 && i < tab.history.count else { return }
+        if remote != nil { let value = tab.history[i];tab.position = i;navigateRemote(value,history:false);return }
         if tab.locked && tab.history[i] != currentURL { newTab(url:tab.history[i]);return }
         tab.position = i; tab.url = tab.history[i]; tab.collection = nil
         if let root = tab.archiveRoot, !FileSystem.isInside(tab.url, root) { tab.archiveRoot = nil; tab.archiveOrigin = nil }
@@ -417,7 +430,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     func requestSelection(_ urls:Set<URL>) { selectionRequest = (FileSystem.canonical(currentURL),urls) }
     func refresh() {
         loadToken.cancel();sortToken.cancel();listingQueue.cancelAllOperations();sortingQueue.cancelAllOperations();sortVersion += 1;isSorting = false
-        generation += 1;let g = generation,url = currentURL,hidden = showHidden,collection = tab.collection,tabID = tab.id
+        generation += 1;let g = generation,url = currentURL,hidden = showHidden,collection = tab.collection,tabID = tab.id,remote = self.remote
         let directory = FileSystem.canonical(url)
         if let request = selectionRequest,request.directory != directory { selectionRequest = nil }
         replacesContents = displayedDirectory != directory || displayedTabID != tabID || displayedCollection != collection || loadError != nil
@@ -427,12 +440,18 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
             inlineRename.cancel();hoverOpen.cancel();fileImages.cancelPending();focusedEntryURL = nil
             entries = [];visibleEntries = [];entryIndexes = [:];visibleByteTotal = 0;freeSpace = nil;table.reloadData();grid.reloadData()
         }
+        configureRemoteAddress()
         if !pathField.sessionActive { pathField.stringValue = url.path };breadcrumb.showHiddenFolders = hidden;breadcrumb.url = url;locations.select(url);updateNavigationHelp()
         updateStatus()
         let token = CancellationToken();loadToken = token
         listingQueue.addOperation { [weak self] in
             var received: [FileEntry] = []
+            var remoteEntries: [RemoteEntry] = []
             let result = Result { () -> [FileEntry] in
+                if let remote {
+                    remoteEntries = try RemoteService.list(remote.connection,path:url.path,token:token)
+                    return remoteEntries.filter { hidden || !$0.name.hasPrefix(".") }.map { FileEntry(remote:$0,address:remote.connection.address(RemoteService.child(url.path,$0.name))) }
+                }
                 if let collection { return try collection.compactMap { try token.check();return try? FileEntry(url:$0) } }
                 return try FileSystem.list(url,showHidden:hidden,token:token) { batch in
                     // A background refresh keeps the complete displayed snapshot until it is ready.
@@ -451,6 +470,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
                 guard let self,self.generation == g,!token.isCancelled else { return }
                 switch result {
                 case .success(let entries):
+                    self.tab.remoteEntries = remoteEntries
                     self.isLoading = false;self.displayedDirectory = directory;self.displayedTabID = tabID;self.displayedCollection = collection;self.entries = entries
                     self.applyFilter(preserving:self.selectionRequest?.urls);self.watch(url)
                 case .failure(let error):
@@ -459,13 +479,13 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
                 }
             }
             guard !token.isCancelled else { return }
-            let available = try? url.resourceValues(forKeys:[.volumeAvailableCapacityKey]).volumeAvailableCapacity
+            let available = url.isFileURL ? try? url.resourceValues(forKeys:[.volumeAvailableCapacityKey]).volumeAvailableCapacity : nil
             DispatchQueue.main.async { [weak self] in guard let self,self.generation == g,!token.isCancelled else { return };self.freeSpace = available.map(Int64.init);self.updateStatus() }
         }
     }
     func watch(_ url: URL) {
         watcher?.cancel(); watcher = nil
-        guard tab.collection == nil else { return }
+        guard tab.collection == nil,url.isFileURL else { return }
         let fd = open(url.path, O_EVTONLY)
         guard fd >= 0 else { return }
         let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write,.delete,.rename,.attrib], queue: .main)
@@ -477,6 +497,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         source.setCancelHandler { close(fd) }; source.resume(); watcher = source
     }
     private func selectionPath(_ url: URL,parents: inout [String:URL]) -> String {
+        if !url.isFileURL { return url.absoluteString }
         // Resolve parent aliases such as /var, but keep a selected link itself.
         let parent = url.deletingLastPathComponent(),key = parent.path
         let canonical: URL
@@ -541,7 +562,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     func updateStatus() {
         let chosen = selectionIndexes.compactMap { visibleEntries.indices.contains($0) ? visibleEntries[$0] : nil }
         let total = chosen.filter { !$0.isDirectory }.reduce(Int64(0)) { $0+$1.size }
-        let prefix = readOnly ? "Archiv · " : ""
+        let prefix = remote != nil ? "Server · " : readOnly ? "Archiv · " : ""
         let count = chosen.isEmpty ? "\(visibleEntries.count) Objekte" : "\(chosen.count)/\(visibleEntries.count) Objekte"
         let size = chosen.isEmpty ? visibleByteTotal : total
         status.stringValue = prefix+count+" · "+bytes(size)+(freeSpace.map { " · Frei "+bytes($0) } ?? "")
@@ -573,12 +594,23 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     }
     @objc func doubleClick() { guard table.clickedRow >= 0 else { return }; openSelection() }
     func openSelection() {
+        if remote != nil {
+            guard let entry = selectedRemoteEntries.first else { return }
+            if entry.isDirectory && !entry.isLink { navigate(currentURL.appendingPathComponent(entry.name)) }
+            else { status.stringValue = entry.isLink ? "Serververknüpfungen werden nicht geöffnet." : "Zum Öffnen zuerst mit F5 in einen lokalen Ordner herunterladen." }
+            return
+        }
         guard let url = selectedURLs.first, let entry = try? FileEntry(url: url) else { return }
         if entry.isDirectory && !entry.isPackage { navigate(url) }
         else if ArchiveService.isArchive(url) { onOpenArchive?(url,self) }
         else { NSWorkspace.shared.open(url) }
     }
     @objc func contextCommand(_ sender: NSMenuItem) { if let command = sender.representedObject as? String { onCommand?(command) } }
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        guard let id = item.representedObject as? String else { return true }
+        if id == "trash" { item.title = remote == nil ? "In den Papierkorb …" : "Endgültig auf Server löschen …" }
+        return onValidateCommand?(id) ?? true
+    }
     @objc func toggleColumn(_ sender: NSMenuItem) { if let c = sender.representedObject as? NSTableColumn, c.identifier.rawValue != "name" { c.isHidden.toggle(); sender.state = c.isHidden ? .off : .on;rememberTabView() } }
     func numberOfRows(in tableView: NSTableView) -> Int { visibleEntries.count }
     func tableViewSelectionDidChange(_ notification: Notification) { if !syncingSelection { redrawFileFocus();updateStatus() } }
@@ -610,9 +642,9 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
             switch id {
             case "ext": text.stringValue = entry.fileExtension
             case "size": text.stringValue = entry.isDirectory ? "—" : bytes(entry.size)
-            case "modified": text.stringValue = displayDate.string(from:entry.modified)
+            case "modified": text.stringValue = !entry.url.isFileURL && entry.modified == .distantPast ? "—" : displayDate.string(from:entry.modified)
             case "kind": text.stringValue = entry.kind
-            case "permissions": text.stringValue = String(format:"%03o",entry.permissions)
+            case "permissions": text.stringValue = !entry.url.isFileURL && entry.permissions == 0 ? "—" : String(format:"%03o",entry.permissions)
             case "attributes": text.stringValue = entry.attributeText;text.toolTip = "macOS: D Ordner, L Verknüpfung, H versteckter Name, R ohne Besitzer-Schreibbit"
             case "path": text.stringValue = entry.url.deletingLastPathComponent().path
             default: text.stringValue = ""
@@ -622,7 +654,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         cell.updateColors();return cell
     }
     func tableView(_ tableView:NSTableView,rowViewForRow row:Int) -> NSTableRowView? { let view = FileRowView();view.pane = self;view.entryURL = visibleEntries.indices.contains(row) ? visibleEntries[row].url : nil;return view }
-    func tableView(_ tableView:NSTableView,pasteboardWriterForRow row:Int) -> NSPasteboardWriting? { guard canUseDisplayedEntries,visibleEntries.indices.contains(row) else { return nil };return visibleEntries[row].url as NSURL }
+    func tableView(_ tableView:NSTableView,pasteboardWriterForRow row:Int) -> NSPasteboardWriting? { guard remote == nil,canUseDisplayedEntries,visibleEntries.indices.contains(row) else { return nil };return visibleEntries[row].url as NSURL }
     func tableView(_ tableView:NSTableView,validateDrop info:NSDraggingInfo,proposedRow row:Int,proposedDropOperation operation:NSTableView.DropOperation) -> NSDragOperation {
         let hit = tableView.row(at:tableView.convert(info.draggingLocation,from:nil)),index = hit >= 0 ? hit : operation == .on ? row : -1
         let folder = dropFolder(at:index),result = updateFileDrop(info.draggingPasteboard,folder:folder)
@@ -631,7 +663,11 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     func tableView(_ tableView:NSTableView,acceptDrop info:NSDraggingInfo,row:Int,dropOperation operation:NSTableView.DropOperation) -> Bool {
         acceptFiles(info.draggingPasteboard,into:operation == .on ? dropFolder(at:row) : nil)
     }
-    var savedTabs: [SavedTab] { tabs.filter { $0.archiveRoot == nil && $0.collection == nil }.map { SavedTab(path:$0.url.path,title:$0.title,locked:$0.locked,view:$0.view,selected:tabIndex > 0 && $0 === tab ? true : nil) } }
+    var savedTabs: [SavedTab] {
+        let local = tabs.filter { $0.remote == nil && $0.archiveRoot == nil && $0.collection == nil }
+        let selected = remote == nil ? tab.id : local.first(where:{ $0.id == lastLocalTabID })?.id ?? local.first?.id
+        return local.map { SavedTab(path:$0.url.path,title:$0.title,locked:$0.locked,view:$0.view,selected:$0.id == selected && $0.id != local.first?.id ? true : nil) }
+    }
 }
 
 final class TreeNode {

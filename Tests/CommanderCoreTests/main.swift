@@ -21,6 +21,7 @@ if CommandLine.arguments.contains("--keychain-probe") {
 }
 runRecoveryChildIfRequested()
 runFilteredMoveChildIfRequested()
+runSSHProbeIfRequested()
 
 final class CoreTests {
     var root:URL!
@@ -613,6 +614,22 @@ let tests: [(String, (CoreTests) throws -> Void)] = [
     ("testOfficeXmlRejectsEntitiesCorruptionAndZipExpansion", { try $0.testOfficeXmlRejectsEntitiesCorruptionAndZipExpansion() }),
     ("testWindowsVersionResourceAndPEHeader", { try $0.testWindowsVersionResourceAndPEHeader() }),
     ("testBinaryInspectorHandlesMalformedAndUniversalHeaders", { try $0.testBinaryInspectorHandlesMalformedAndUniversalHeaders() }),
+    ("testServerMutationsRejectLinkedDirectoryAncestors", { try $0.testServerMutationsRejectLinkedDirectoryAncestors() }),
+    ("testServerMutationsRejectReplacedParentAfterPreview", { try $0.testServerMutationsRejectReplacedParentAfterPreview() }),
+    ("testServerSFTPMkdirRenameAndDelete", { try $0.testServerSFTPMkdirRenameAndDelete() }),
+    ("testServerFTPMkdirRenameAndDelete", { try $0.testServerFTPMkdirRenameAndDelete() }),
+    ("testServerFTPSMkdirRenameAndDelete", { try $0.testServerFTPSMkdirRenameAndDelete() }),
+    ("testServerDeleteReviewsCompleteTreeBeforeChangingIt", { try $0.testServerDeleteReviewsCompleteTreeBeforeChangingIt() }),
+    ("testServerDeleteRejectsNewEntriesBeforeFirstChange", { try $0.testServerDeleteRejectsNewEntriesBeforeFirstChange() }),
+    ("testServerRenameRejectsChangedSourceAndOccupiedTarget", { try $0.testServerRenameRejectsChangedSourceAndOccupiedTarget() }),
+    ("testServerCreateRefusesNamesAddedAfterPreview", { try $0.testServerCreateRefusesNamesAddedAfterPreview() }),
+    ("testServerMutationRejectsInvalidNamesAndCaseOnlyRename", { try $0.testServerMutationRejectsInvalidNamesAndCaseOnlyRename() }),
+    ("testServerDeleteRefusesLinksAtAnyDepth", { try $0.testServerDeleteRefusesLinksAtAnyDepth() }),
+    ("testServerMutationRejectsDifferentEndpointAndCancellation", { try $0.testServerMutationRejectsDifferentEndpointAndCancellation() }),
+    ("testServerDeletePreservesNewFilesAppearingDuringExecution", { try $0.testServerDeletePreservesNewFilesAppearingDuringExecution() }),
+    ("testServerDeleteCanCancelBetweenReviewedObjects", { try $0.testServerDeleteCanCancelBetweenReviewedObjects() }),
+    ("testServerDeleteDepthLimitChangesNoFiles", { try $0.testServerDeleteDepthLimitChangesNoFiles() }),
+    ("testServerEntriesNeverAliasLocalFileMetadata", { try $0.testServerEntriesNeverAliasLocalFileMetadata() }),
     ("testRemoteLoginFailureDoesNotRetryPasswordAsListingFallback", { try $0.testRemoteLoginFailureDoesNotRetryPasswordAsListingFallback() }),
     ("testRemoteTLSRejectsTrustedCertificateForWrongHost", { try $0.testRemoteTLSRejectsTrustedCertificateForWrongHost() }),
     ("testRemoteRejectsUnknownAndOverflowingListingSizes", { try $0.testRemoteRejectsUnknownAndOverflowingListingSizes() }),

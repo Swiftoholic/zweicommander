@@ -29,7 +29,7 @@ private struct SFTPReader {
         guard size <= Int64.max,flags & 4 != 0 else { throw CommanderError.message("SFTP-Dateityp oder Größe nicht unterstützt.") }
         let type = mode & 0o170000
         guard type != 0o100000 || flags & 1 != 0 else { throw CommanderError.message("SFTP-Dateigröße fehlt.") }
-        return RemoteEntry(name:name,isDirectory:type == 0o040000,isLink:type != 0o040000 && type != 0o100000,size:type == 0o040000 ? 0 : Int64(size),version:"\(mode):\(time):"+owner)
+        return RemoteEntry(name:name,isDirectory:type == 0o040000,isLink:type != 0o040000 && type != 0o100000,size:type == 0o040000 ? 0 : Int64(size),version:"\(mode):\(time):"+owner,modified:flags & 8 != 0 ? Date(timeIntervalSince1970:TimeInterval(time)) : nil,permissions:Int(mode & 0o7777))
     }
 }
 private extension Data {
@@ -152,6 +152,13 @@ final class SFTPTransport: RemoteTransport {
     func mkdir(_ path: String) throws {
         var payload = Data();payload.sftpText(try RemoteService.normalized(path));payload.sftpUInt(4);payload.sftpUInt(0o700)
         _ = try status(request(14,payload))
+    }
+    func rename(_ source: String,to destination: String) throws {
+        var payload = Data();payload.sftpText(try RemoteService.normalized(source));payload.sftpText(try RemoteService.normalized(destination))
+        _ = try status(request(18,payload))
+    }
+    func remove(_ path: String,directory: Bool) throws {
+        var payload = Data();payload.sftpText(try RemoteService.normalized(path));_ = try status(request(directory ? 15 : 13,payload))
     }
     func download(_ path: String,to descriptor: Int32,size: Int64,progress: @escaping (Int64)->Void) throws {
         var payload = Data();payload.sftpText(try RemoteService.normalized(path));payload.sftpUInt(1);payload.sftpUInt(0)

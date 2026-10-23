@@ -26,7 +26,7 @@ extension PaneView {
         guard (try? value.validate()) != nil else { return }
         let selection = Set(selectedURLs)
         changingView = true;defer { changingView = false }
-        sortKey = value.sortKey;ascending = value.ascending;foldersFirst = value.foldersFirst;treeVisible = value.treeVisible
+        sortKey = value.sortKey;ascending = value.ascending;foldersFirst = value.foldersFirst;treeVisible = remote == nil && value.treeVisible
         if let columns = value.columns {
             // A folder rule must not change the global AppKit column autosave.
             table.autosaveTableColumns = false
@@ -46,7 +46,7 @@ extension PaneView {
     func initializeView() { defaultView = viewSettings;restoreTabView() }
     func restoreTabView() {
         var settings = tab.view ?? defaultView ?? FolderViewSettings()
-        if tab.collection == nil && tab.archiveRoot == nil,
+        if remote == nil && tab.collection == nil && tab.archiveRoot == nil,
            let rule = (try? Preferences.workspaceLibrary())?.view(for:currentURL) { settings = rule.settings }
         applyView(settings)
     }

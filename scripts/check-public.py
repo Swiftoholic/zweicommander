@@ -6,8 +6,8 @@ import subprocess
 
 
 ROOT_FILES = {".gitignore", "README.md", "FUNKTIONEN.md", "IMPORT.md", "PRUEFBERICHT.txt", "Package.swift", "build.sh"}
-SCRIPT_FILES = {"scripts/test.sh", "scripts/icon.swift", "scripts/ui-smoke.py", "scripts/check-public.py"}
-FIXTURE_FILES = {"Tests/fixtures/ftp_server.py", "Tests/fixtures/INISettings.sample.ini", "Tests/fixtures/INISettings.sample.shc"}
+SCRIPT_FILES = {"scripts/test.sh", "scripts/icon.swift", "scripts/ui-smoke.py", "scripts/check-public.py", "scripts/ssh-smoke.py"}
+FIXTURE_FILES = {"Tests/fixtures/ftp_server.py", "Tests/fixtures/ssh_server.py", "Tests/fixtures/INISettings.sample.ini", "Tests/fixtures/INISettings.sample.shc"}
 
 
 def allowed(path):

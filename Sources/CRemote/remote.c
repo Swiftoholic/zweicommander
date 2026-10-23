@@ -44,7 +44,7 @@ static int progress(void *raw, curl_off_t total_down, curl_off_t down, curl_off_
     return t->progress ? t->progress(t->context, t->upload ? up : down) : 0;
 }
 int zr_request(const char *url, const char *user, const char *password, int tls,
-               const char *ca, int operation, const char *command, int fd, int64_t size,
+               const char *ca, int operation, const char *command, const char *second_command, int fd, int64_t size,
                char **text, size_t *length, char *error, size_t error_size,
                zr_progress callback, void *context) {
     pthread_once(&once, initialize);
@@ -77,6 +77,11 @@ int zr_request(const char *url, const char *user, const char *password, int tls,
     if (operation == 3) {
         quote = curl_slist_append(NULL, command);
         if (!quote) { result = CURLE_OUT_OF_MEMORY; goto finish; }
+        if (second_command && *second_command) {
+            struct curl_slist *next = curl_slist_append(quote, second_command);
+            if (!next) { result = CURLE_OUT_OF_MEMORY; goto finish; }
+            quote = next;
+        }
         SET(CURLOPT_QUOTE, quote); SET(CURLOPT_NOBODY, 1L);
     }
     result = curl_easy_perform(curl);

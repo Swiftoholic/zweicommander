@@ -126,7 +126,16 @@ extension MainWindow {
     func remoteConnect() {
         if let existing = secondaryWindows.compactMap({ $0 as? RemoteConnectionController }).first(where: { $0.window?.isVisible == true }) { existing.showWindow(nil);return }
         let controller = RemoteConnectionController()
-        controller.onConnect = { [weak self] connection,path in self?.showRemote(connection,path:path) }
+        let origin = active
+        controller.onConnect = { [weak self,weak controller,weak origin] connection,path in
+            guard let self else { return }
+            switch controller?.destination.indexOfSelectedItem ?? 0 {
+            case 1:_ = self.left.openRemote(connection,path:path)
+            case 2:_ = self.right.openRemote(connection,path:path)
+            case 3:self.showRemote(connection,path:path)
+            default:_ = (origin ?? self.active).openRemote(connection,path:path)
+            }
+        }
         secondaryWindows.append(controller);controller.showWindow(nil)
     }
     @discardableResult func showRemote(_ connection: RemoteConnection,path: String) -> RemoteWindow {

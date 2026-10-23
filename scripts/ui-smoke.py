@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Native UI checks using isolated fixtures; never saves the user's app settings."""
 import argparse
+import shutil
 import os
 from pathlib import Path
 import subprocess
@@ -181,7 +182,12 @@ def fixtures(base):
     (remote / "Links/Projekt/Null.bin").write_bytes(b"")
     (remote / "Server/Eingang/Infos/Grüße.txt").write_text("Remote content ✔\n", encoding="utf-8")
     (remote / "Server/Eingang/Null.bin").write_bytes(b"")
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote
+    server_pane = base / "server-pane"
+    shutil.copytree(remote, server_pane)
+    shutil.copytree(remote / "Links/Projekt", server_pane / "Rechts/Projekt")
+    write(server_pane, "Server/Alpha.txt", "Alpha content\n")
+    write(server_pane, "Server/Zulu.bin", "Z" * 128)
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane
 
 
 def main():
@@ -243,9 +249,10 @@ def main():
             ("recovery-reload", "--recovery-smoke", roots[15], str(prefix), "RECOVERY UI PASS ", "RECOVERY SMOKE PASS 15 checks", 15),
             ("remote-save", "--remote-smoke", roots[16], str(prefix), "REMOTE UI PASS ", "REMOTE SMOKE PASS 31 checks", 31),
             ("remote-reload", "--remote-smoke", roots[16], str(prefix), "REMOTE UI PASS ", "REMOTE SMOKE PASS 14 checks", 14),
+            ("server-pane", "--server-pane-smoke", roots[17], str(prefix), "SERVER PANE PASS ", "SERVER PANE SMOKE PASS 47 checks", 47),
         ]
         if args.skip_foreground:
-            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload"}
+            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane"}
             skipped = [case for case in cases if case[0] in foreground]
             cases = [case for case in cases if case[0] not in foreground]
             print("Ausgelassen: " + ", ".join(case[0] for case in skipped) + " · " + str(sum(case[-1] for case in skipped)) + " Vordergrundprüfungen offen", flush=True)
@@ -259,9 +266,18 @@ def main():
         ux_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         remote_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         remote_server = None
+        pane_server = None
         try:
             for name, flag, root, image, pass_prefix, marker, expected in cases:
                 command = [str(binary), flag, str(root), image]
+                if name == "server-pane":
+                    fixture = Path(__file__).resolve().parents[1] / "Tests/fixtures/ftp_server.py"
+                    pane_server = subprocess.Popen(["/usr/bin/python3", str(fixture), str(root / "Server"), "--delay", "0.001"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    deadline = time.monotonic() + 5
+                    while not (root / "Server/port.txt").is_file() and time.monotonic() < deadline and pane_server.poll() is None:
+                        time.sleep(0.02)
+                    if not (root / "Server/port.txt").is_file():
+                        raise SystemExit("Server-Tab-Testserver konnte nicht gestartet werden")
                 if name.startswith("remote-"):
                     if remote_server is None:
                         fixture = Path(__file__).resolve().parents[1] / "Tests/fixtures/ftp_server.py"
@@ -314,7 +330,7 @@ def main():
                     command += ["--wait-for-foreground"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
-                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180 if name == "navigation" and args.interactive else 45)
+                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180 if name == "navigation" and args.interactive else 90 if name == "server-pane" else 45)
                     except subprocess.TimeoutExpired:
                         raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
                 output = (args.results / (name + ".log")).read_text(encoding="utf-8")
@@ -323,6 +339,13 @@ def main():
                     raise SystemExit(name + ": fehlgeschlagen; Protokoll in " + str(args.results / (name + ".log")))
                 print(name + ": " + str(count) + " native UI-Prüfungen bestanden", flush=True)
         finally:
+            if pane_server is not None:
+                pane_server.terminate()
+                try:
+                    pane_server.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pane_server.kill()
+                    pane_server.wait()
             if remote_server is not None:
                 remote_server.terminate()
                 try:

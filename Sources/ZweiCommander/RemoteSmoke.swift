@@ -61,6 +61,7 @@ extension AppDelegate {
                 check(!form.save.isEnabled && defaults.data(forKey:Preferences.remoteProfilesKey) == damaged,"corrupt connection metadata disables saving and remains byte-for-byte intact")
                 defaults.set(before,forKey:Preferences.remoteProfilesKey)
             } else {
+                form.destination.selectItem(at:3)
                 check(form.kind.indexOfSelectedItem == 1 && form.profiles.numberOfItems == 1,"new connection form defaults to verified FTPS with an empty local library")
                 form.name.stringValue = "Lokales Testprofil";form.kind.selectItem(at:2);form.protocolChanged();form.host.stringValue = "127.0.0.1";form.user.stringValue = "tester"
                 form.port.stringValue = require(try? String(contentsOf:root.appendingPathComponent("Server/port.txt"),encoding:.utf8),"fixture port")

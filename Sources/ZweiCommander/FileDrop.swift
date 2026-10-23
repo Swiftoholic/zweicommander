@@ -47,7 +47,7 @@ extension PaneView {
     @discardableResult func acceptFiles(_ pasteboard:NSPasteboard,into folder:URL? = nil,tabID:UUID? = nil) -> Bool {
         defer { endFileDrop() }
         let urls = fileURLs(pasteboard)
-        guard !urls.isEmpty,let targetTab = tabs.first(where:{ $0.id == (tabID ?? tab.id) }),targetTab.archiveRoot == nil else { return false }
+        guard !urls.isEmpty,let targetTab = tabs.first(where:{ $0.id == (tabID ?? tab.id) }),targetTab.archiveRoot == nil,targetTab.remote == nil else { return false }
         if var collection = targetTab.collection {
             for url in urls where !collection.contains(url) { collection.append(url) }
             if targetTab === tab,let onCollectionDrop { onCollectionDrop(urls) } else { targetTab.collection = collection;if targetTab === tab { refresh() } }

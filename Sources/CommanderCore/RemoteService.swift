@@ -34,8 +34,10 @@ public struct RemoteEntry: Equatable {
     public let isDirectory: Bool,isLink: Bool
     public let size: Int64
     public let version: String
-    public init(name: String,isDirectory: Bool,isLink: Bool = false,size: Int64 = 0,version: String = "") {
+    public let modified: Date?,permissions: Int?
+    public init(name: String,isDirectory: Bool,isLink: Bool = false,size: Int64 = 0,version: String = "",modified: Date? = nil,permissions: Int? = nil) {
         self.name = name;self.isDirectory = isDirectory;self.isLink = isLink;self.size = size;self.version = version
+        self.modified = modified;self.permissions = permissions
     }
 }
 public protocol RemoteTransport: AnyObject {
@@ -44,6 +46,12 @@ public protocol RemoteTransport: AnyObject {
     func download(_ path: String,to descriptor: Int32,size: Int64,progress: @escaping (Int64)->Void) throws
     func upload(_ descriptor: Int32,size: Int64,to path: String,progress: @escaping (Int64)->Void) throws
     func mkdir(_ path: String) throws
+    func rename(_ source: String,to destination: String) throws
+    func remove(_ path: String,directory: Bool) throws
+}
+public extension RemoteTransport {
+    func rename(_ source: String,to destination: String) throws { throw CommanderError.message("Dieser Servertransport unterstützt kein Umbenennen.") }
+    func remove(_ path: String,directory: Bool) throws { throw CommanderError.message("Dieser Servertransport unterstützt kein Löschen.") }
 }
 public enum RemoteService {
     public static func validatePath(_ path: String) throws {
@@ -73,6 +81,7 @@ public enum RemoteService {
         return "\""+escaped+"\""
     }
     public static func parseListing(_ text:String,mlsd:Bool) throws -> [RemoteEntry] {
+        let date = DateFormatter();date.locale = Locale(identifier:"en_US_POSIX");date.timeZone = TimeZone(secondsFromGMT:0);date.dateFormat = "yyyyMMddHHmmss"
         let unix = try NSRegularExpression(pattern:"^([dl-])[rwxstST-]{9}[+@.]?\\s+\\d+\\s+\\S+\\s+\\S+\\s+(\\d+)\\s+\\S+\\s+\\d+\\s+\\S+\\s+(.+)$")
         var entries:[RemoteEntry] = [],unparsed = 0
         for raw in text.components(separatedBy:.newlines) {
@@ -84,7 +93,8 @@ public enum RemoteService {
                 if type == "cdir" || type == "pdir" { continue }
                 guard !name.isEmpty,!name.contains("/"),type == "dir" || type == "file" || type.contains("slink") else { unparsed += 1; continue }
                 guard let size = Int64(facts["size"] ?? "0"),size >= 0,type != "file" || facts["size"] != nil else { unparsed += 1;continue }
-                entries.append(RemoteEntry(name:name,isDirectory:type == "dir",isLink:type.contains("slink"),size:size,version:facts["modify"] ?? "")); continue
+                let modified = facts["modify"].flatMap { date.date(from:String($0.prefix(14))) }
+                entries.append(RemoteEntry(name:name,isDirectory:type == "dir",isLink:type.contains("slink"),size:size,version:facts["modify"] ?? "",modified:modified,permissions:facts["unix.mode"].flatMap { Int($0,radix:8) })); continue
             }
             guard let match = unix.firstMatch(in:line,range:NSRange(line.startIndex...,in:line)),let t = Range(match.range(at:1),in:line),let s = Range(match.range(at:2),in:line),let n = Range(match.range(at:3),in:line) else { unparsed += 1; continue }
             let type = String(line[t]); var name = String(line[n])

@@ -13,6 +13,11 @@ struct FileListSnapshot {
         for (index,entry) in sorted.enumerated() {
             if index % 128 == 0 { try token.check() }
             let parent = entry.url.deletingLastPathComponent(),path:String
+            if !entry.url.isFileURL {
+                indexes[entry.url.absoluteString] = index
+                if !entry.isDirectory { let sum = total.addingReportingOverflow(entry.size);total = sum.overflow ? Int64.max : sum.partialValue }
+                continue
+            }
             if let saved = parents[parent.path] { path = saved }
             else { path = FileSystem.canonical(parent).path;parents[parent.path] = path }
             indexes[(path == "/" ? "/" : path+"/")+entry.name] = index

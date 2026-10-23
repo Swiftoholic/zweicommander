@@ -11,7 +11,7 @@ extension MainWindow {
         } catch { showFailure(error) }
     }
     func shellQuote(_ text:String) -> String { "'"+text.replacingOccurrences(of:"'",with:"'\\''")+"'" }
-    func openTerminal() { terminalScript("cd -- "+shellQuote(active.currentURL.path)+"\nexec /bin/zsh -l",title:"Terminal") }
+    func openTerminal() { guard active.currentURL.isFileURL else { content.status.stringValue = "Für ein lokales Terminal einen lokalen Tab aktivieren.";return };terminalScript("cd -- "+shellQuote(active.currentURL.path)+"\nexec /bin/zsh -l",title:"Terminal") }
     func shell() {
         guard ensureWritable(active),let command = prompt("Shell-Befehl ausführen",message:"Arbeitsordner: \(active.currentURL.path)\nDer eingegebene Befehl wird mit deinen Benutzerrechten in zsh ausgeführt. Befehle können Dateien verändern. Für interaktive Programme „Terminal öffnen“ verwenden."),!command.isEmpty else { return }
         executeShellCommand(command,in:active.currentURL)

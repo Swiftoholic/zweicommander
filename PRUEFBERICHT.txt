@@ -1,8 +1,8 @@
-ZweiCommander 0.18.0 (Build 19) — Prüfung abgeschlossen am 23. Oktober 2026
+ZweiCommander 0.19.0 (Build 20) — Prüfung abgeschlossen am 23. Oktober 2026
 
 Ergebnis
-- 244/244 Dateikern- und Integrationstests bestanden.
-- 776/776 native UI-Prüfungen in 33 Durchläufen am finalen
+- 260/260 Dateikern- und Integrationstests bestanden.
+- 823/823 native UI-Prüfungen in 34 Durchläufen am finalen
   universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
   Darstellung nach erneutem App-Start 9, Mittelstreifen und Mausbedienung 26,
@@ -21,11 +21,12 @@ Ergebnis
   Sucharbeitsbereich und Profile speichern 22, nach Neustart verwenden 25,
   Ordnervergleich und Profile speichern 24, nach Neustart verwenden 30,
   Wiederherstellung/Tastaturabläufe speichern 40, nach Neustart verwenden 15,
-  Serverprofile und rekursive Übertragungen 31, Profile nach Neustart 14.
+  Serverprofile und rekursive Übertragungen 31, Profile nach Neustart 14,
+  Server-Tabs und Mutationen im Hauptfenster 47.
 - Die Serie wurde in zwei Gruppen am identischen Release-Build ausgeführt:
-  24 Durchläufe mit 529 Prüfungen sowie neun Durchläufe mit
-  247 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
-  und Serverfenster in einer entsperrten GUI-Sitzung.
+  24 Durchläufe mit 529 Prüfungen sowie zehn Durchläufe mit
+  294 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
+  und Serverfenster sowie Server-Tabs in einer entsperrten GUI-Sitzung.
   Alle Durchläufe sind vollständig bestanden;
   es stehen keine ausgelassenen Vordergrundprüfungen mehr aus.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
@@ -572,12 +573,20 @@ Eine zunächst zu spät gemeldete Byteänderung bei sehr schnellen Übertragunge
 wurde korrigiert und mit dem tatsächlichen Stillstand der Zieldatei während
 der bestätigten Pause geprüft.
 
-Ein vollständiger SSH-Anmelde-/Verschlüsselungslauf gegen einen Server ist
-weiterhin offen. Ein privater Loopback-Versuch scheiterte an der macOS-
-Audit-/Root-Anforderung des System-SSH-Daemons. Es wurden keine Systemdienste,
-Benutzerschlüssel, bekannten Hosts oder SSH-Einstellungen geändert und keine
-Administratorrechte angefordert. Die erfolgreiche SFTP-Protokollprüfung über
-Pipes ist kein Nachweis vollständiger SSH-Serverkompatibilität.
+Ein zusätzlicher vollständiger SSH-Lauf mit neun Prüfungen ist bestanden.
+Der native macOS-SSH-Client verwendet erzeugte Ed25519-Testschlüssel und
+strikt geprüfte erzeugte Hostschlüssel. Paramiko 5.1.0 stellt ausschließlich
+auf 127.0.0.1 den verschlüsselten SSH-Transport bereit; darin läuft der echte
+System-SFTP-Server. Unbekannte und geänderte Hostschlüssel werden vor der
+Anmeldung abgewiesen; ein falscher Anmeldeschlüssel wird abgewiesen.
+Rekursive Übertragungen vergleichen die tatsächlichen Inhalte und erhalten
+leere Ordner. Anlegen, Umbenennen, geprüfte rekursive Löschung und ein
+Abbruch innerhalb einer verschlüsselten Dateiübertragung sind geprüft.
+Der öffentliche Prüflauf entfernt erzeugte Schlüssel und seinen Testserver.
+Systemdienste und persönliche SSH-Konfiguration werden nicht geändert.
+Die neun Zusatzprüfungen werden getrennt von den 260 Kerntests gezählt.
+Externe SSH-Server, andere Algorithmen und weitere Anmeldevarianten brauchen
+zusätzliche Praxisprüfungen.
 
 Zwei zusätzliche native App-Prozesse prüfen 45 Bedienungsschritte mit echten
 Feldern, Fenstern und Menü-/Tastenaktionen, einer eigenen Präferenzdomäne,
@@ -603,13 +612,47 @@ vollständigem Entfernen, SFTP-Schlüsselfelder, ungültige Ports sowie den Erha
 beschädigter Profildaten. Helle und dunkle Profil-, Server- und Vorschauflächen
 werden zusätzlich als lokale künstliche Fensteraufnahmen geprüft.
 
+Server-Tabs und Mutationen
+16 zusätzliche Kerntests prüfen FTP-/FTPS-/SFTP-Ordneranlage, Umbenennen,
+vollständige Löschvorschau und Ausführung, neue oder veränderte Objekte seit
+der Vorschau, belegte Namen, ungültige Namen und reine Schreibweisenänderung,
+Verknüpfungen im Baum und im Elternpfad, ausgetauschte Elternordner,
+Endpoint-Zuordnung, Abbruch, Tiefenlimit und während des Löschens neu
+erscheinende Dateien. Neue Dateien bleiben bei erkannter Änderung erhalten;
+bereits gelöschte Objekte werden nicht als rückgängig dargestellt.
+Virtuelle Servereinträge dürfen keine zufällig gleich benannten lokalen
+Dateien für Metadaten oder Dateiaktionen verwenden.
+
+47 native Bedienungsprüfungen verwenden einen getrennten FTP-Testserver,
+künstliche lokale Bäume und echte AppKit-Fenster. Sie bedienen den normalen
+Verbindungsdialog und prüfen das Standardziel als Tab, erhaltene lokale Tabs
+samt Auswahl für Neustart, getrennte Sitzungsdaten, Filter/RegEx/Sortierung,
+Symbolauswahl, gesperrte lokale Befehle und aussagekräftige Kontextmenüs.
+F2, F5, F6, F7 und F8 werden über das native Menü ausgelöst; Umbenennen und
+Ordneranlage, abgebrochene und bestätigte Löschvorschau sowie tatsächlich
+übertragene Dateien werden anhand von Namen und Inhalten geprüft.
+Die gemeinsame Warteschlange und Start über Enter, Quellerhalt bei Upload,
+wechselnde Richtungsbeschriftung, Server-Adressvorschläge und Eingabefehler,
+Unterordnerwahl, duplizierte Tabs, gleicher Server auf beiden Seiten,
+Sperren von Server-zu-Server-Kopie und Rückkehr zum lokalen Tab sind geprüft.
+Helle und dunkle Server-Tab-Flächen werden lokal als künstliche Aufnahmen
+geprüft, einschließlich Textkontrast und tatsächlich gerenderter Spaltentitel.
+Der Test wartet auf den Farbwechsel und neben dem Auftragsende auch auf die
+veröffentlichten Abschlussmeldungen und aktualisierten Listen.
+
 Remote-Grenzen
 SFTP nutzt SSH-Schlüssel/Agent und strikt geprüfte bekannte Hostschlüssel;
 Passwortanmeldung im Fenster ist nicht enthalten. FTPS unterstützt explizites
 AUTH TLS; implizites FTPS auf Port 990 ist nicht enthalten. FTP ist unverschlüsselt.
 Bis zu 10.000 Dateien/Ordner und 100 Ebenen je Auftrag; Links und Spezialdateien
 werden abgewiesen. Vorhandene Zielnamen sperren den Plan, kein Zusammenführen
-oder Ersetzen bestehender Remote-Bäume. SFTP nutzt exklusive Dateianlage;
+oder Ersetzen bestehender Remote-Bäume. Server-Tabs und Aufträge gelten nur
+für die Sitzung; kein Server-zu-Server-Kopieren oder Remote-Drag-and-drop.
+Serverlöschungen sind endgültig und haben keinen Papierkorb. Mutationen
+benötigen lesbare direkte Elternpfade; gleichzeitige Serveränderungen lassen
+sich über Metadaten nicht transaktional sperren. FTP-/FTPS-Umbenennen hat bei
+gleichzeitiger Anlage des Zielnamens keine atomische Exklusivgarantie.
+SFTP nutzt exklusive Dateianlage;
 FTP/FTPS prüft freie Namen, besitzt für STOR aber keine atomische Exklusivgarantie
 gegen gleichzeitige Änderungen auf dem Server. Änderungen mit gleichen,
 vom Server gemeldeten Metadaten sind nicht zuverlässig erkennbar; keine

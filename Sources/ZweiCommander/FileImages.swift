@@ -12,11 +12,12 @@ final class FileImages {
     deinit { queue.cancelAllOperations() }
     func cancelPending() { epoch += 1;queue.cancelAllOperations() }
     @discardableResult func load(_ entry:FileEntry,preview:Bool,completion:@escaping(NSImage)->Void) -> (NSImage,Operation?) {
-        let key = entry.url.path+"|\(entry.modified.timeIntervalSince1970)|\(entry.size)|\(preview)" as NSString
+        let key = entry.id+"|\(entry.modified.timeIntervalSince1970)|\(entry.size)|\(preview)" as NSString
         if let cached = cache.object(forKey:key) { return (cached,nil) }
         let type = entry.isDirectory ? "folder.fill" : "doc"
         let placeholder = placeholders[type] ?? NSImage(systemSymbolName:type,accessibilityDescription:nil)!
         placeholders[type] = placeholder
+        guard entry.url.isFileURL else { return (placeholder,nil) }
         let requestEpoch = epoch,operation = BlockOperation()
         operation.addExecutionBlock { [weak self,weak operation] in
             guard let operation,!operation.isCancelled else { return }

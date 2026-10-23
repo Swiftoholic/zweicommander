@@ -116,10 +116,12 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         let searches = secondaryWindows.compactMap { $0 as? SearchController }.filter(\.isSearching).count
         let lists = secondaryWindows.compactMap { $0 as? RemoteWindow }.reduce(0) { $0+$1.browse.pending }
         let profiles = secondaryWindows.compactMap { $0 as? RemoteConnectionController }.filter(\.isWorking).count
-        return comparisons+searches+lists+profiles+jobs.pending
+        let panes = [left,right].filter { $0.remote != nil && $0.isLoading }.count
+        return comparisons+searches+lists+profiles+panes+jobs.pending
     }
     var canTerminate: Bool {
-        guard !left.inlineRename.hasPendingCommit,!right.inlineRename.hasPendingCommit,jobs.canClose else { return false }
+        guard !left.inlineRename.hasPendingCommit,!right.inlineRename.hasPendingCommit,jobs.canClose,
+              ![left,right].contains(where:{ $0.remote != nil && $0.isLoading }) else { return false }
         guard secondaryWindows.compactMap({ $0 as? CompareController }).allSatisfy({ !$0.isComparing && !$0.isPreparingPlan }),
               secondaryWindows.compactMap({ $0 as? SearchController }).allSatisfy({ !$0.isSearching }),
               secondaryWindows.compactMap({ $0 as? RemoteWindow }).allSatisfy({ $0.browse.pending == 0 }),
@@ -154,11 +156,12 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             pane.onDrop = { [weak self] urls,dest in self?.transfer(urls,to:dest,kind:.copy) }
             pane.onCollectionDrop = { [weak pane] urls in pane?.addToCollection(urls) }
             pane.onCommand = { [weak self] cmd in self?.command(cmd) }
+            pane.onValidateCommand = { [weak self] cmd in self?.serverCommandEnabled(cmd) ?? true }
             pane.onRename = { [weak self,weak pane] item,request in self?.renameInline(item,in:pane,request:request) }
             pane.onState = { [weak self] in self?.saveState();self?.updateChromeState() }
             pane.onSelection = { [weak self, weak pane] urls in
                 guard let self else { return };self.updateChromeState()
-                if pane === self.active,self.content.quickVisible { self.content.quick.previewItem = urls.first.map { $0 as NSURL } }
+                if pane === self.active,self.content.quickVisible { self.content.quick.previewItem = urls.first.flatMap { $0.isFileURL ? $0 as NSURL : nil } }
             }
             pane.onNavigate = { [weak self] p,old,new in self?.followNavigation(p,from:old,to:new) }
             pane.refresh()
@@ -234,6 +237,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         let text = content.commandField.stringValue
         guard !text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else { return }
         if content.commandMode.indexOfSelectedItem == 0 {
+            if let remote = active.remote { do { active.navigate(try remote.resolve(text,relativeTo:active.currentURL)) } catch { content.status.stringValue = error.localizedDescription };return }
             let path = (text as NSString).expandingTildeInPath
             active.navigate(path.hasPrefix("/") ? URL(fileURLWithPath:path) : active.currentURL.appendingPathComponent(path))
         } else if ensureWritable(active) { executeShellCommand(text,in:active.currentURL) }
@@ -244,11 +248,13 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         if content.commandMode.indexOfSelectedItem == 0,!(content.commandField.currentEditor() is NSTextView) { content.commandField.stringValue = active.currentURL.path }
         for case let button as NSButton in content.toolbar.arrangedSubviews {
             let id = button.identifier?.rawValue
+            if let id { button.isEnabled = serverCommandEnabled(id) ?? true }
             if let button = button as? ActionButton,let id { CommandHelp.apply(button,id:id,title:ToolbarCommand.all.first { $0.id == id }?.title) }
             if let id,["back","forward"].contains(id),let navigation = active.navigationButtons[id] { button.isEnabled = navigation.isEnabled;button.toolTip = navigation.toolTip }
             button.state = (id == "details" && active.displayMode == .details) || (id == "thumbnails" && active.displayMode == .thumbnails) || (id == "icons" && active.displayMode == .icons) || (id == "tree" && active.treeVisible) || (id == "quickView" && content.quickVisible) ? .on : .off
         }
         for button in content.rail.buttons { let id = button.identifier?.rawValue ?? "";button.state = id == "linked" && linked ? .on : .off;CommandHelp.apply(button,id:id) }
+        content.terminal.isEnabled = active.remote == nil
         updateFunctionLabels()
     }
     func updateFunctionLabels() {
@@ -260,6 +266,13 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             if key == "space" { key = "Leertaste" }
             for (word,symbol) in [("cmd+","⌘"),("shift+","⇧"),("option+","⌥"),("alt+","⌥"),("control+","⌃"),("ctrl+","⌃")] { key = key.replacingOccurrences(of:word,with:symbol) }
             if id == "copy" || id == "move" {
+                if let title = serverTransferTitle(id) {
+                    let source = id == "copy" ? active : other,target = id == "copy" ? other : active
+                    let arrow = content.split.isVertical ? (source === left ? "→ Rechts" : "← Links") : (source === left ? "↓ Unten" : "↑ Oben")
+                    button.title = key.uppercased()+" "+arrow+" "+title.lowercased();button.isEnabled = serverCommandEnabled(id) == true
+                    button.toolTip = "Quelle: "+source.locationText+"\nZiel: "+target.locationText+"\nUploads erhalten die lokalen Quellen. Vor der Ausführung erscheint eine Vorschau."
+                    button.setAccessibilityLabel(button.title+" · "+(button.toolTip ?? ""));continue
+                }
                 let target = content.split.isVertical ? (active === left ? "→ Rechts" : "← Links") : (active === left ? "↓ Unten" : "↑ Oben")
                 button.title = key.uppercased()+" "+target+" "+value.1.lowercased()
                 if id == "copy",other.tab.collection != nil { button.title = key.uppercased()+" "+(target.components(separatedBy:" ").first ?? "→")+" Zur Sammlung" }
@@ -268,7 +281,10 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
                 button.setAccessibilityLabel(button.title+" · "+(button.toolTip ?? other.currentURL.path))
                 button.isEnabled = !active.selectedURLs.isEmpty && (id == "copy" ? !other.readOnly : !active.readOnly && !other.readOnly && other.tab.collection == nil)
                 if !button.isEnabled { button.toolTip = (button.toolTip ?? "")+"\n"+(active.selectedURLs.isEmpty ? "Zuerst Dateien oder Ordner auswählen." : "Für diesen Vorgang werden beschreibbare Ordner benötigt.") }
-            } else { button.title = key.uppercased()+" "+value.1 }
+            } else {
+                button.title = key.uppercased()+" "+(id == "trash" && active.remote != nil ? "Server löschen" : value.1);button.isEnabled = serverCommandEnabled(id) ?? true
+                if id == "trash",active.remote != nil { button.toolTip = "Vorschau zum endgültigen Löschen der Serverauswahl öffnen. Kein Papierkorb und kein Rückgängig.";button.setAccessibilityLabel(button.title+" · "+(button.toolTip ?? "")) }
+            }
         }
     }
     @objc func volumesChanged() { refreshLocations() }
@@ -300,7 +316,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         if value == "editFavorites" { showFavorites() }
         else if let id = UUID(uuidString:value) { do { try openFavorite(id) } catch { showFailure(error) } }
     }
-    func setActive(_ pane:PaneView) { active = pane; left.isActive = pane === left; right.isActive = pane === right; window?.subtitle = (pane === left ? "Links" : "Rechts")+" · "+pane.currentURL.path;updateChromeState() }
+    func setActive(_ pane:PaneView) { active = pane; left.isActive = pane === left; right.isActive = pane === right; window?.subtitle = (pane === left ? "Links" : "Rechts")+" · "+pane.locationText;updateChromeState() }
     func saveState() { Preferences.state.left = left.savedTabs; Preferences.state.right = right.savedTabs; Preferences.state.vertical = content.split.isVertical; Preferences.save() }
     func applyTheme() {
         NSApp.appearance = Preferences.state.theme == 1 ? NSAppearance(named:.aqua) : Preferences.state.theme == 2 ? NSAppearance(named:.darkAqua) : nil
@@ -313,7 +329,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         buildToolbar();refreshLocations();content.needsLayout = true
     }
     func followNavigation(_ pane:PaneView,from old:URL,to new:URL) {
-        saveState(); guard linked else { return }
+        saveState(); guard linked,!usesServerPanes else { return }
         let target = pane === left ? right : left
         let candidate:URL
         if new.deletingLastPathComponent() == old { candidate = target.currentURL.appendingPathComponent(new.lastPathComponent) }
@@ -356,9 +372,10 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     }
     func refresh() { left.refresh(); right.refresh(); refreshLocations() }
     func showText(_ title:String,_ text:String) { let w = TextWindow(title:title,text:text); secondaryWindows.append(w); w.showWindow(nil) }
-    func preview(_ urls:[URL]) { guard let url = urls.first else { NSSound.beep(); return }; let w = PreviewController(url); secondaryWindows.append(w); w.showWindow(nil) }
+    func preview(_ urls:[URL]) { guard let url = urls.first else { NSSound.beep(); return };guard url.isFileURL else { content.status.stringValue = "Serverdatei zuerst in einen lokalen Ordner herunterladen.";return };let w = PreviewController(url); secondaryWindows.append(w); w.showWindow(nil) }
     func requireSelection() -> [URL]? { let urls = active.selectedURLs; if urls.isEmpty { NSSound.beep(); return nil }; return urls }
     func ensureWritable(_ pane:PaneView) -> Bool {
+        guard pane.remote == nil else { content.status.stringValue = "Diese Funktion benötigt einen lokalen Ordner.";return false }
         if pane.readOnly || FileSystem.isInside(pane.currentURL,cache) || pane.selectedURLs.contains(where:{FileSystem.isInside($0,cache)}) {
             showFailure(CommanderError.message("Die Archivansicht ist schreibgeschützt. Dateien zuerst in einen normalen Ordner kopieren.")); return false
         }
@@ -377,6 +394,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         refresh()
     }
     func transfer(_ urls:[URL],to destination:URL,kind:TransferKind) {
+        guard destination.isFileURL,urls.allSatisfy(\.isFileURL) else { content.status.stringValue = "Serverdateien mit F5/F6 zwischen den beiden Seiten übertragen.";return }
         let cache = self.cache
         let controller = TransferSetupController(sources:urls,destination:destination,kind:kind,validateDestination:{ url in
             guard !FileSystem.isInside(url,cache) else { throw CommanderError.message("Temporäre Archivordner sind schreibgeschützt.") }

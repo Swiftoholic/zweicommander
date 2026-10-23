@@ -28,7 +28,7 @@ extension Preferences {
 }
 
 final class RemoteConnectionController: NSWindowController,NSWindowDelegate {
-    let profiles = NSPopUpButton(),kind = NSPopUpButton()
+    let profiles = NSPopUpButton(),kind = NSPopUpButton(),destination = NSPopUpButton()
     let name = input(placeholder:"Name für diese Verbindung"),host = input(placeholder:"Servername"),user = input(),port = input("21")
     let password = NSSecureTextField(string:""),remember = checkbox("Passwort beim Speichern im Schlüsselbund sichern")
     let identity = input(placeholder:"Leer: SSH-Agent / Standardschlüssel"),ca = input(placeholder:"Leer: System-Zertifikatsprüfung"),remotePath = input("/")
@@ -43,14 +43,16 @@ final class RemoteConnectionController: NSWindowController,NSWindowDelegate {
     var isWorking: Bool { isBusy }
     var onConnect: ((RemoteConnection,String)->Void)?
     init() {
-        let window = WorkflowWindow(contentRect:NSRect(x:0,y:0,width:680,height:615),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
-        window.title = "Serververbindungen";window.minSize = NSSize(width:680,height:615);window.isReleasedWhenClosed = false
+        let window = WorkflowWindow(contentRect:NSRect(x:0,y:0,width:680,height:650),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
+        window.title = "Serververbindungen";window.minSize = NSSize(width:680,height:650);window.isReleasedWhenClosed = false
         super.init(window:window);window.delegate = self
         let root = OperationContent(frame:window.contentView!.bounds);root.autoresizingMask = [.width,.height];window.contentView = root
-        let heading = label("Serververbindungen",size:22,weight:.semibold);heading.frame = NSRect(x:22,y:565,width:620,height:32);heading.autoresizingMask = [.width,.minYMargin];root.addSubview(heading)
+        let heading = label("Serververbindungen",size:22,weight:.semibold);heading.frame = NSRect(x:22,y:600,width:620,height:32);heading.autoresizingMask = [.width,.minYMargin];root.addSubview(heading)
         kind.addItems(withTitles:RemoteProtocol.allCases.map(\.rawValue));kind.selectItem(at:1);kind.target = self;kind.action = #selector(protocolChanged)
         profiles.target = self;profiles.action = #selector(selectProfile)
-        let fields = form([("Profil",profiles),("Name",name),("Protokoll",kind),("Server",host),("Port",port),("Benutzer",user),("Passwort",password),("",remember),("SSH-Schlüssel",identity),("CA-Datei",ca),("Serverordner",remotePath)],width:636)
+        destination.addItems(withTitles:["Aktive Seite · neuer Tab","Linke Seite · neuer Tab","Rechte Seite · neuer Tab","Eigenes Serverfenster"])
+        destination.toolTip = "Serverordner als Tab neben lokalen Ordnern öffnen. Server-Tabs gelten für diese Sitzung."
+        let fields = form([("Profil",profiles),("Name",name),("Protokoll",kind),("Server",host),("Port",port),("Benutzer",user),("Passwort",password),("",remember),("SSH-Schlüssel",identity),("CA-Datei",ca),("Serverordner",remotePath),("Öffnen in",destination)],width:636)
         fields.frame.origin = NSPoint(x:22,y:126);fields.autoresizingMask = [.width,.minYMargin];root.addSubview(fields)
         for (field,help) in [(identity,"Optionaler lokaler SSH-Schlüssel. Leer verwendet den SSH-Agenten und die Standardschlüssel. Hostschlüssel müssen bereits geprüft sein."),(ca,"Optionales lokales CA-Zertifikat für FTPS. Die Zertifikatsprüfung bleibt immer aktiv."),(remotePath,"Serverordner als absoluter Pfad, zum Beispiel / oder /Projekte."),(host,"Servername ohne Protokoll, Benutzer oder Pfad. ⌘L fokussiert dieses Feld.")] { field.toolTip = help }
         let note = label("Speichern legt ein lokales Profil an. Verbinden ohne Speichern gilt für diese Sitzung.\nSFTP: SSH-Schlüssel/Agent und bekannte Hostschlüssel. FTPS: explizites, geprüftes TLS.",size:11,color:.secondaryLabelColor)
@@ -101,7 +103,7 @@ final class RemoteConnectionController: NSWindowController,NSWindowDelegate {
     }
     private func busy(_ value: Bool) {
         isBusy = value
-        for control: NSControl in [profiles,kind,name,host,user,port,password,identity,ca,remotePath,remember,fresh,save,remove,connect] { control.isEnabled = !value }
+        for control: NSControl in [profiles,kind,destination,name,host,user,port,password,identity,ca,remotePath,remember,fresh,save,remove,connect] { control.isEnabled = !value }
         if !value { protocolChanged();remove.isEnabled = selected != nil }
     }
     private func show(_ error: Error) { status.stringValue = error.localizedDescription;status.toolTip = error.localizedDescription;status.textColor = .systemOrange }

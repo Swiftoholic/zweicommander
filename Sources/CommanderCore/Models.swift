@@ -47,12 +47,19 @@ public struct FileEntry: Identifiable, Hashable {
     public let modified: Date
     public let kind: String
     public let permissions: Int
-    public var id: String { url.path }
+    public var id: String { url.isFileURL ? url.path : url.absoluteString }
     public var fileExtension: String { isDirectory ? "" : url.pathExtension }
     public var attributeText: String {
-        [(isDirectory ? "D" : ""),(isSymbolicLink ? "L" : ""),(name.hasPrefix(".") ? "H" : ""),(permissions & 0o200 == 0 ? "R" : "")].filter { !$0.isEmpty }.joined(separator:" ")
+        [(isDirectory ? "D" : ""),(isSymbolicLink ? "L" : ""),(name.hasPrefix(".") ? "H" : ""),(url.isFileURL && permissions & 0o200 == 0 ? "R" : "")].filter { !$0.isEmpty }.joined(separator:" ")
+    }
+    public init(remote entry: RemoteEntry,address: URL) {
+        url = address;name = entry.name;isDirectory = entry.isDirectory;isSymbolicLink = entry.isLink
+        isRegularFile = !entry.isDirectory && !entry.isLink;isPackage = false;size = entry.size
+        modified = entry.modified ?? .distantPast;permissions = entry.permissions ?? 0
+        kind = entry.isLink ? "Serververknüpfung" : entry.isDirectory ? "Serverordner" : "Serverdatei"
     }
     public init(url: URL) throws {
+        guard url.isFileURL else { throw CommanderError.message("Serverdateien benötigen den Server-Arbeitsablauf.") }
         let values = try url.resourceValues(forKeys:Self.metadataKeys)
         let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
         self.url = url
@@ -71,16 +78,16 @@ public struct FileEntry: Identifiable, Hashable {
 public enum FileSystem {
     public static let fm = FileManager.default
     public static func exists(_ url: URL) -> Bool {
-        (try? fm.attributesOfItem(atPath: url.path)) != nil
+        guard url.isFileURL else { return false };return (try? fm.attributesOfItem(atPath: url.path)) != nil
     }
     public static func isDirectory(_ url: URL) -> Bool {
-        var value: ObjCBool = false
+        guard url.isFileURL else { return false };var value: ObjCBool = false
         return fm.fileExists(atPath: url.path, isDirectory: &value) && value.boolValue
     }
     public static func isSymlink(_ url: URL) -> Bool {
-        (try? fm.attributesOfItem(atPath: url.path)[.type] as? FileAttributeType) == .typeSymbolicLink
+        guard url.isFileURL else { return false };return (try? fm.attributesOfItem(atPath: url.path)[.type] as? FileAttributeType) == .typeSymbolicLink
     }
-    public static func canonical(_ url: URL) -> URL { url.standardizedFileURL.resolvingSymlinksInPath() }
+    public static func canonical(_ url: URL) -> URL { url.isFileURL ? url.standardizedFileURL.resolvingSymlinksInPath() : url }
     public static func relativePath(of url: URL, inside root: URL) throws -> String {
         // macOS enumerators resolve /var to /private/var. Preserve the final link itself.
         let base = canonical(root).pathComponents
@@ -89,6 +96,7 @@ public enum FileSystem {
         return path.dropFirst(base.count).joined(separator: "/")
     }
     public static func isInside(_ child: URL, _ parent: URL) -> Bool {
+        guard child.isFileURL,parent.isFileURL else { return false }
         let c = canonical(child).path, p = canonical(parent).path
         return c == p || c.hasPrefix(p == "/" ? "/" : p + "/")
     }
@@ -98,6 +106,7 @@ public enum FileSystem {
         }
     }
     public static func list(_ directory: URL, showHidden: Bool,token: CancellationToken = .init(),onBatch: (([FileEntry])->Void)? = nil) throws -> [FileEntry] {
+        guard directory.isFileURL else { throw CommanderError.message("Serverordner benötigen den Server-Arbeitsablauf.") }
         try token.check()
         let urls = try fm.contentsOfDirectory(at:directory,includingPropertiesForKeys:Array(FileEntry.metadataKeys),options:showHidden ? [] : [.skipsHiddenFiles])
         var result: [FileEntry] = [],batch: [FileEntry] = [],last = ProcessInfo.processInfo.systemUptime
