@@ -113,7 +113,7 @@ public struct MergePlan {
         }
         return MergePlan(actions:actions,base:base,baseVersion:version)
     }
-    func execute(entries: [PlannedTransfer],token: CancellationToken,validateExecution: (() throws -> Void)? = nil,progress: @escaping (TransferProgress) -> Void) -> OperationReport {
+    func execute(entries: [PlannedTransfer],token: CancellationToken,validateExecution: (() throws -> Void)? = nil,history: TransferHistory? = nil,progress: @escaping (TransferProgress) -> Void) -> OperationReport {
         var report = OperationReport(),items = initialItems
         var bindings: [String:FileStamp] = [base.path:baseVersion],created: [Int] = []
         var last = Date.distantPast,delivered = false,detail = "Prüfe Zusammenführungsplan …",current: Int?
@@ -167,11 +167,11 @@ public struct MergePlan {
                         items[index].message = "Ordner angelegt · Metadaten folgen"
                     }
                 } else {
-                    let node = CopyNode(relative:"",stamp:action.node.stamp,directory:false,link:action.node.link,bytes:action.node.bytes)
+                    let node = CopyNode(relative:"",stamp:action.node.stamp,directory:false,link:action.node.link,bytes:action.node.bytes,version:action.node.version)
                     let tree = CopyTree(nodes:[node],filter:.init())
                     let policy: ConflictPolicy = action.conflict && action.decision == .replace ? .replace : .stop
                     let expectation = action.decision == .keepBoth ? TargetVersion(stamp:nil) : action.targetVersion
-                    let step = try FileOperations.transferPrepared(action.source,to:action.target,kind:.copy,policy:policy,token:token,tree:tree,expectedTarget:expectation,validateTarget:{ try parents(action.target);try validateExecution?() }) { _,copied,_ in
+                    let step = try FileOperations.transferPrepared(action.source,to:action.target,kind:.copy,policy:policy,token:token,tree:tree,expectedTarget:expectation,validateTarget:{ try parents(action.target);try validateExecution?() },history:history,reused:{ report.reusedBytes += $0 }) { _,copied,_ in
                         items[index].bytes = max(items[index].bytes,copied);emit(false)
                     }
                     if let step { report.completed.append(step.current);report.undo.append(step) }

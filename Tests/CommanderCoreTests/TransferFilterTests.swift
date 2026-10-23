@@ -120,9 +120,9 @@ extension CoreTests {
         XCTAssertThrowsError(try TransferPlanner.prepare([],to:dest,kind:.copy,policy:.stop,filter:filter))
         XCTAssertTrue(try relativeObjects(dest).isEmpty)
     }
-    func testFilteredMovesAreRejectedWithoutChangingSourceOrTarget() throws {
+    func testFilteredMoveStructureOnlyIsRejectedWithoutChangingSourceOrTarget() throws {
         let source = try folder("tree"),dest = try folder("dest");let file = try self.file("tree/keep.txt","original")
-        var filter = TransferFilter();filter.include = "*.txt"
+        var filter = TransferFilter();filter.include = "*.txt";filter.structureOnly = true
         XCTAssertThrowsError(try TransferPlanner.prepare([source],to:dest,kind:.move,policy:.stop,filter:filter))
         XCTAssertEqual(try read(file),"original");XCTAssertTrue(try relativeObjects(dest).isEmpty)
     }

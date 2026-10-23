@@ -14,13 +14,13 @@ final class OperationContent: NSView {
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance();updateBackground() }
 }
 
-private func operationTable(_ columns: [(String,String,CGFloat)]) -> NSTableView {
+func operationTable(_ columns: [(String,String,CGFloat)]) -> NSTableView {
     let table = CommanderTableView(); table.rowHeight = 29; table.usesAlternatingRowBackgroundColors = true
     table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle; table.allowsMultipleSelection = false
     for (id,title,width) in columns { let c = NSTableColumn(identifier:.init(id));c.title = title;c.width = width;c.minWidth = 45;table.addTableColumn(c) }
     return table
 }
-private func operationScroll(_ table: NSTableView) -> NSScrollView {
+func operationScroll(_ table: NSTableView) -> NSScrollView {
     let scroll = NSScrollView();scroll.documentView = table;scroll.hasVerticalScroller = true;scroll.hasHorizontalScroller = true;scroll.autohidesScrollers = true;scroll.borderType = .bezelBorder;return scroll
 }
 
@@ -80,6 +80,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
     var excluded: Set<URL> = []
     private var preparation = CancellationToken()
     private var generation = 0
+    private var pendingSubmission: (start: Bool,generation: Int)?
     private var previewEntries: [PlannedTransfer] = []
     private var previewMerge: MergePlan?
     private var previewOffsets: [Int] = []
@@ -89,10 +90,12 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
     let validateDestination: (URL) throws -> Void
     init(sources: [URL],destination: URL,kind: TransferKind,validateDestination: @escaping (URL) throws -> Void) {
         self.sources = sources;self.kind = kind;self.destination = input(destination.path);self.validateDestination = validateDestination
-        let w = NSWindow(contentRect:NSRect(x:0,y:0,width:840,height:590),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
+        let w = WorkflowWindow(contentRect:NSRect(x:0,y:0,width:840,height:590),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
         w.title = kind == .copy ? "Dateien kopieren" : "Dateien verschieben";w.minSize = NSSize(width:760,height:560);w.isReleasedWhenClosed = false
         super.init(window:w);w.delegate = self
         buildTransferInterface(w)
+        configureTransferKeys()
+        w.initialFirstResponder = self.destination
         profileObserver = NotificationCenter.default.addObserver(forName:Preferences.copyProfilesChanged,object:nil,queue:.main) { [weak self] _ in self?.refreshProfiles() }
         refreshProfiles();updateFilterControls();w.center();prepare()
     }
@@ -114,6 +117,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
     }
     private func invalidatePlan() {
         preparation.cancel();generation += 1;plan = nil;startButton.isEnabled = false;queueButton.isEnabled = false
+        pendingSubmission = nil
         previewEntries = [];previewMerge = nil;previewOffsets = [];previewCount = 0;table.reloadData();filesTable.reloadData()
         conflictInfo.stringValue = "Ziele werden geprüft …";conflictInfo.textColor = .secondaryLabelColor;conflictButton.isHidden = true
     }
@@ -123,14 +127,14 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         let copy = kind == .copy,structure = structureOnly.state == .on
         if structure { if keepEmptyBeforeStructure == nil { keepEmptyBeforeStructure = keepEmpty.state };keepEmpty.state = .on }
         else if let previous = keepEmptyBeforeStructure { keepEmpty.state = previous;keepEmptyBeforeStructure = nil }
-        include.isEnabled = copy && !structure;exclude.isEnabled = include.isEnabled;regex.isEnabled = include.isEnabled
-        excludedFolders.isEnabled = copy && recursive.state == .on
-        recursive.isEnabled = copy;keepEmpty.isEnabled = copy && !structure;structureOnly.isEnabled = copy;resetButton.isEnabled = copy
+        include.isEnabled = !structure;exclude.isEnabled = include.isEnabled;regex.isEnabled = include.isEnabled
+        excludedFolders.isEnabled = recursive.state == .on
+        recursive.isEnabled = true;keepEmpty.isEnabled = !structure;structureOnly.isEnabled = copy;resetButton.isEnabled = true
         mergeFolders.isEnabled = copy
-        criteriaButton.isEnabled = copy && !structure
+        criteriaButton.isEnabled = !structure
         updateCriteriaInfo();updateProfileState();updateOptionsSummary()
         policy.item(at:0)?.title = mergeFolders.state == .on ? "Einzeln entscheiden" : "Abbrechen bei Konflikt"
-        safety.stringValue = !copy ? "Erfolgreich verschobene Objekte werden aus dem Quellordner entfernt." : mergeFolders.state == .on ? "Vorhandene Ordner werden zusammengeführt. Ersetzen sichert die bisherige Zieldatei." : "Ordner werden als Ganzes kopiert. Ersetzen sichert das bisherige Ziel."
+        safety.stringValue = !copy ? (filter.isActive ? "Nur passende Dateien werden verschoben. Ausgelassene Dateien und Quellordner bleiben erhalten." : "Erfolgreich verschobene Objekte werden aus dem Quellordner entfernt.") : mergeFolders.state == .on ? "Vorhandene Ordner werden zusammengeführt. Ersetzen sichert die bisherige Zieldatei." : "Ordner werden als Ganzes kopiert. Ersetzen sichert das bisherige Ziel."
         if let recoveryNotice { safety.stringValue = recoveryNotice;safety.textColor = .systemOrange;safety.toolTip = recoveryNotice }
     }
     func resetFilters() {
@@ -138,7 +142,6 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         recursive.state = .on;keepEmptyBeforeStructure = nil;keepEmpty.state = .on;structureOnly.state = .off;criteria = .init();updateFilterControls();prepare()
     }
     var filter: TransferFilter {
-        guard kind == .copy else { return .init() }
         var value = TransferFilter();value.include = include.stringValue;value.exclude = exclude.stringValue;value.excludedFolders = excludedFolders.stringValue
         value.regularExpressions = regex.state == .on;value.recursive = recursive.state == .on;value.keepEmptyFolders = keepEmpty.state == .on;value.structureOnly = structureOnly.state == .on
         value.minimumSize = criteria.minimumSize;value.maximumSize = criteria.maximumSize;value.modifiedFrom = criteria.modifiedFrom;value.modifiedBefore = criteria.modifiedBefore;value.modifiedAge = criteria.modifiedAge;return value
@@ -154,12 +157,12 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         let text = parts.joined(separator:" · ")
         let hasDates = criteria.modifiedFrom != nil || criteria.modifiedBefore != nil,hasSizes = criteria.minimumSize != nil || criteria.maximumSize != nil
         let caption = criteria.modifiedAge != nil ? "Relatives Alter aktiv" : hasDates ? (hasSizes ? "Größe und Datum aktiv" : "Datumsbereich aktiv") : text
-        criteriaInfo.stringValue = kind != .copy ? "Nur für Kopien" : structureOnly.state == .on && !parts.isEmpty ? "Grenzen bei Strukturkopie ausgesetzt" : parts.isEmpty ? "Keine zusätzlichen Grenzen" : caption
+        criteriaInfo.stringValue = structureOnly.state == .on && !parts.isEmpty ? "Grenzen bei Strukturkopie ausgesetzt" : parts.isEmpty ? "Keine zusätzlichen Grenzen" : caption
         criteriaInfo.toolTip = text.isEmpty ? "Dateigröße und Änderungsdatum sind nicht eingeschränkt." : text+"\nGilt für Dateien; symbolische Links werden bei aktiven Grenzen ausgelassen."
         if let reference = plan?.ageReference { criteriaInfo.toolTip = (criteriaInfo.toolTip ?? "")+"\nBezugszeit dieses Plans: "+displayDate.string(from:reference) }
     }
     func showCriteria() {
-        guard kind == .copy,structureOnly.state == .off,let window,window.attachedSheet == nil else { return }
+        guard structureOnly.state == .off,let window,window.attachedSheet == nil else { return }
         let controller = TransferCriteriaController(filter);criteriaWindow = controller
         controller.onApply = { [weak self] value in self?.criteria = value;self?.updateFilterControls();self?.prepare() }
         window.beginSheet(controller.window!)
@@ -176,21 +179,23 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
     }
     func updateProfileState() {
         defer { updateOptionsSummary() }
-        let available = kind == .copy && profileReadError == nil
+        let available = profileReadError == nil
         profilePopup.isEnabled = available;profileSaveAs.isEnabled = available
         let saved = selectedProfileID.flatMap { loadedProfiles.profile($0) }
         profileSave.isEnabled = available && saved != nil;profileRemove.isEnabled = profileSave.isEnabled
         if let profileReadError { profileStatus.stringValue = "Profile nicht lesbar";profileStatus.toolTip = profileReadError;profileStatus.textColor = .systemOrange;return }
         profileStatus.textColor = .secondaryLabelColor
         let matches = saved.map { $0.filter == filter && $0.policy == ConflictPolicy.allCases[policy.indexOfSelectedItem] && $0.mergeFolders == (mergeFolders.state == .on) } ?? false
-        profileStatus.stringValue = kind != .copy ? "Nur für Kopien" : saved == nil ? "Eigene Einstellungen" : matches ? "Gespeichert" : "Ungespeicherte Änderungen"
+        profileStatus.stringValue = saved == nil ? "Eigene Einstellungen" : matches ? "Gespeichert" : "Ungespeicherte Änderungen"
         profileStatus.toolTip = "Profile speichern Regeln und die globale Konfliktvorgabe, keine Pfade, Auswahl oder Einzelentscheidungen."
     }
     @objc func chooseProfile() {
-        guard kind == .copy else { return }
         guard let raw = profilePopup.selectedItem?.representedObject as? String,let id = UUID(uuidString:raw) else { selectedProfileID = nil;updateProfileState();return }
         do {
             guard let value = try Preferences.copyProfiles().profile(id) else { refreshProfiles();return }
+            if kind == .move && (value.mergeFolders || value.filter.structureOnly) {
+                profilePopup.selectItem(at:0);selectedProfileID = nil;profileStatus.stringValue = "Dieses Profil enthält Kopieroptionen: Zusammenführen oder reine Ordnerstruktur.";profileStatus.textColor = .systemOrange;profileStatus.toolTip = profileStatus.stringValue;return
+            }
             selectedProfileID = id
             keepEmptyBeforeStructure = nil
             include.stringValue = value.filter.include;exclude.stringValue = value.filter.exclude;excludedFolders.stringValue = value.filter.excludedFolders
@@ -210,7 +215,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         criteria = value;updateFilterControls();prepare()
     }
     func saveProfile() {
-        guard kind == .copy,let id = selectedProfileID else { return }
+        guard let id = selectedProfileID else { return }
         do {
             let value = filter,choice = ConflictPolicy.allCases[policy.indexOfSelectedItem],merge = mergeFolders.state == .on
             try Preferences.editCopyProfiles { library in
@@ -221,7 +226,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         } catch { profileStatus.stringValue = error.localizedDescription;profileStatus.toolTip = error.localizedDescription }
     }
     func saveProfileAs() {
-        guard kind == .copy,profileReadError == nil,let window,window.attachedSheet == nil else { return }
+        guard profileReadError == nil,let window,window.attachedSheet == nil else { return }
         let controller = CopyProfileNameController();profileNameWindow = controller
         controller.onSave = { [weak self] name in
             guard let self else { return }
@@ -232,7 +237,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         window.beginSheet(controller.window!)
     }
     func removeProfile() {
-        guard kind == .copy,let id = selectedProfileID,let profile = loadedProfiles.profile(id),dialog("Kopierprofil löschen",message:"„\(profile.name)“ aus den gespeicherten Kopierregeln entfernen?",buttons:["Entfernen","Abbrechen"]) == 0 else { return }
+        guard let id = selectedProfileID,let profile = loadedProfiles.profile(id),dialog("Übertragungsprofil löschen",message:"„\(profile.name)“ aus den gespeicherten Übertragungsregeln entfernen?",buttons:["Entfernen","Abbrechen"]) == 0 else { return }
         do { try Preferences.editCopyProfiles { try $0.remove(id) };refreshProfiles() }
         catch { profileStatus.stringValue = error.localizedDescription;profileStatus.toolTip = error.localizedDescription }
     }
@@ -241,10 +246,11 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         panel.directoryURL = URL(fileURLWithPath:destination.stringValue)
         if panel.runModal() == .OK,let url = panel.url { destination.stringValue = url.path;prepare() }
     }
-    func prepare() {
+    func prepare(requestedSubmission: Bool? = nil) {
         editingDelay?.cancel();editingDelay = nil
         invalidatePlan();preparation = CancellationToken();let token = preparation,current = generation
-        updateProfileState()
+        if let requestedSubmission { pendingSubmission = (requestedSubmission,current) }
+        updateFilterControls()
         info.stringValue = "Erfasse Dateien und prüfe Ziele …"
         let path = (destination.stringValue as NSString).expandingTildeInPath
         guard path.hasPrefix("/") else { preparationFailed("Bitte einen absoluten Zielpfad eingeben oder einen Ordner wählen.");return }
@@ -255,7 +261,12 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
             DispatchQueue.main.async {
                 guard let self,self.generation == current,!token.isCancelled else { return }
                 switch result {
-                case .success(let plan):self.plan = plan;self.table.reloadData();self.updateSummary()
+                case .success(let plan):
+                    self.plan = plan;self.table.reloadData();self.updateSummary()
+                    if let pending = self.pendingSubmission,pending.generation == current {
+                        self.pendingSubmission = nil
+                        if self.startButton.isEnabled { self.submit(pending.start) }
+                    }
                 case .failure(let error):self.preparationFailed(error.localizedDescription)
                 }
             }
@@ -287,6 +298,7 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         startButton.isEnabled = !selected.isEmpty && !blocked;queueButton.isEnabled = startButton.isEnabled
     }
     private func preparationFailed(_ message:String) {
+        pendingSubmission = nil
         info.stringValue = message;info.toolTip = message;conflictInfo.stringValue = "Plan konnte nicht erstellt werden";conflictInfo.textColor = .systemOrange
     }
 
@@ -302,6 +314,11 @@ final class TransferSetupController: NSWindowController,NSTableViewDataSource,NS
         let selected = plan.selecting(Set(plan.entries.filter { !excluded.contains($0.source) }.map(\.id)))
         guard !selected.entries.isEmpty,(selected.merge?.unresolvedCount ?? 0) == 0,!(selected.merge == nil && selected.policy == .stop && selected.entries.contains(where: \.conflict)) else { return }
         if onSubmit?(selected,start) == true { close() }
+    }
+    func requestKeyboardSubmit(_ start: Bool) {
+        window?.endEditing(for:nil)
+        if plan != nil { if startButton.isEnabled { submit(start) };return }
+        prepare(requestedSubmission:start)
     }
     @objc func toggle(_ sender: NSButton) {
         guard let row = plan?.entries.indices.contains(sender.tag) == true ? plan?.entries[sender.tag] : nil else { return }
@@ -362,20 +379,25 @@ final class OperationQueueController: NSWindowController,NSTableViewDataSource,N
     let down = ActionButton("Nach unten",symbol:"arrow.down",action:{})
     let start = ActionButton("Starten / als Nächstes",symbol:"play.fill",action:{})
     let review = ActionButton("Erneut prüfen …",symbol:"arrow.clockwise",action:{})
+    let recoveryButton = ActionButton("Sicherungen / Teilkopien",symbol:"clock.arrow.circlepath",action:{})
     let subtitle = label("",size:12,weight:.medium)
     var onReview: ((UUID) -> Void)?
+    var onRecovery: (() -> Void)?
     var snapshots: [WorkSnapshot] = []
     private var selectedID: UUID?
     private var timer: Timer?
     private var updating = false
+    var shortcutHelpSignature = ""
     var selected: WorkSnapshot? { snapshots.first { $0.id == selectedID } }
     init(_ jobs: JobQueue) {
         self.jobs = jobs
-        let w = NSWindow(contentRect:NSRect(x:0,y:0,width:1020,height:640),styleMask:[.titled,.closable,.resizable,.miniaturizable],backing:.buffered,defer:false)
+        let w = WorkflowWindow(contentRect:NSRect(x:0,y:0,width:1020,height:640),styleMask:[.titled,.closable,.resizable,.miniaturizable],backing:.buffered,defer:false)
         w.title = "Aufträge · Warteschlange";w.minSize = NSSize(width:1000,height:520);w.isReleasedWhenClosed = false
         super.init(window:w)
         let root = OperationContent(frame:w.contentView!.bounds);root.autoresizingMask = [.width,.height];w.contentView = root
         let title = label("Aufträge",size:22,weight:.semibold);title.frame = NSRect(x:22,y:590,width:980,height:32);title.autoresizingMask = [.minYMargin,.width];root.addSubview(title)
+        recoveryButton.frame = NSRect(x:765,y:590,width:233,height:30);recoveryButton.autoresizingMask = [.minYMargin,.minXMargin];root.addSubview(recoveryButton)
+        recoveryButton.perform = { [weak self] in self?.onRecovery?() };recoveryButton.setHelp("Sicherungen / Teilkopien","Wiederherstellbare Sicherungen und Teilkopien verwalten.",shortcut:CommandHelp.shortcut("recovery"))
         summary.frame = NSRect(x:22,y:560,width:976,height:24);summary.autoresizingMask = [.minYMargin,.width];root.addSubview(summary)
         table.delegate = self;table.dataSource = self;itemsTable.delegate = self;itemsTable.dataSource = self
         let scroll = operationScroll(table);scroll.frame = NSRect(x:22,y:302,width:976,height:248);scroll.autoresizingMask = [.minYMargin,.width];root.addSubview(scroll)
@@ -391,12 +413,13 @@ final class OperationQueueController: NSWindowController,NSTableViewDataSource,N
         remove.perform = { [weak self] in if let self,let id = self.selectedID { self.jobs.remove(id);self.refresh() } }
         review.perform = { [weak self] in if let self,let id = self.selectedID { self.onReview?(id) } }
         timer = Timer.scheduledTimer(withTimeInterval:0.25,repeats:true) { [weak self] _ in if self?.window?.isVisible == true { self?.refresh() } }
-        refresh();w.center()
+        configureQueueKeys();w.initialFirstResponder = table;refresh();w.center()
     }
     required init?(coder:NSCoder) { fatalError() }
     deinit { timer?.invalidate() }
     func select(_ id: UUID) { selectedID = id;refresh() }
     func refresh() {
+        refreshQueueShortcutHelp()
         updating = true;snapshots = jobs.scheduler.snapshots
         if selectedID == nil || !snapshots.contains(where:{$0.id == selectedID}) { selectedID = jobs.active?.id ?? snapshots.last?.id }
         table.reloadData()
@@ -404,8 +427,8 @@ final class OperationQueueController: NSWindowController,NSTableViewDataSource,N
         itemsTable.reloadData();updating = false
         summary.stringValue = jobs.journalError.map { "Auftragsablage nicht verfügbar · "+$0 } ?? "\(snapshots.filter(\.isPending).count) offen · \(snapshots.filter { $0.state == .review }.count) erneut prüfen · \(snapshots.filter { $0.state == .completed }.count) abgeschlossen · \(snapshots.filter { $0.state == .failed }.count) mit Fehlern"
         summary.toolTip = summary.stringValue;summary.textColor = jobs.journalError == nil ? .secondaryLabelColor : .systemOrange
-        let active = jobs.active;pause.isEnabled = active != nil && active?.id == selectedID;cancel.isEnabled = pause.isEnabled
-        pause.title = active.map { [.paused,.pausing].contains($0.state) ? "Fortsetzen" : "Pause" } ?? "Pause"
+        let active = jobs.active;pause.isEnabled = active != nil || jobs.pending > 0;cancel.isEnabled = active != nil
+        pause.title = active.map { [.paused,.pausing].contains($0.state) ? "Fortsetzen" : "Pause" } ?? (jobs.scheduler.isHeld && jobs.pending > 0 ? "Fortsetzen" : "Pause")
         pause.image = NSImage(systemSymbolName:pause.title == "Fortsetzen" ? "play.fill" : "pause.fill",accessibilityDescription:pause.title)
         let waiting = selected?.state == .waiting;up.isEnabled = waiting;down.isEnabled = waiting;remove.isEnabled = waiting || selected?.state == .review;start.isEnabled = waiting && jobs.journalError == nil
         review.isEnabled = selected.map { !$0.isPending && jobs.journal?.entry($0.id) != nil } == true && jobs.journalError == nil

@@ -15,8 +15,8 @@ extension TransferSetupController {
         destinationChoose.perform = { [weak self] in self?.chooseDestination() }
         policy.addItems(withTitles:["Abbrechen bei Konflikt","Überspringen","Beide behalten","Ersetzen mit Sicherung"]);policy.target = self;policy.action = #selector(rebuild);policy.setAccessibilityLabel("Regel bei Namenskonflikten")
         conflictButton.perform = { [weak self] in self?.showConflicts() };conflictButton.isHidden = true
-        optionsButton.flat = true;optionsButton.perform = { [weak self] in self?.toggleOptions() };optionsButton.setAccessibilityLabel("Weitere Kopieroptionen einblenden")
-        optionsButton.isHidden = kind != .copy;optionsSummary.isHidden = kind != .copy
+        optionsButton.flat = true;optionsButton.perform = { [weak self] in self?.toggleOptions() };optionsButton.setAccessibilityLabel("Weitere Übertragungsoptionen einblenden")
+        optionsButton.isHidden = false;optionsSummary.isHidden = false
         advancedScroll.documentView = advancedDocument;advancedScroll.hasVerticalScroller = true;advancedScroll.autohidesScrollers = false;advancedScroll.scrollerStyle = .legacy;advancedScroll.drawsBackground = false;advancedScroll.borderType = .lineBorder;advancedScroll.isHidden = true
         buildAdvancedOptions()
         table.delegate = self;table.dataSource = self;filesTable.delegate = self;filesTable.dataSource = self
@@ -43,7 +43,7 @@ extension TransferSetupController {
         profilePopup.target = self;profilePopup.action = #selector(chooseProfile)
         profileSave.perform = { [weak self] in self?.saveProfile() };profileSaveAs.perform = { [weak self] in self?.saveProfileAs() };profileRemove.perform = { [weak self] in self?.removeProfile() }
         resetButton.perform = { [weak self] in self?.resetFilters() };criteriaButton.perform = { [weak self] in self?.showCriteria() }
-        let profileCaption = label("Kopierprofil",weight:.medium);profileCaption.identifier = .init("profileCaption")
+        let profileCaption = label("Profil",weight:.medium);profileCaption.identifier = .init("profileCaption")
         [profileCaption,profilePopup,profileSave,profileSaveAs,profileRemove,profileStatus,include,exclude,excludedFolders,recursive,keepEmpty,structureOnly,regex,mergeFolders,criteriaButton,criteriaInfo,resetButton].forEach { advancedDocument.addSubview($0) }
         for (id,title) in [("includeCaption","Einschließen"),("excludeCaption","Ausschließen"),("foldersCaption","Ordner auslassen")] {
             let caption = label(title,weight:.medium);caption.identifier = .init(id);advancedDocument.addSubview(caption)
@@ -70,7 +70,7 @@ extension TransferSetupController {
         let advancedHeight: CGFloat = expanded ? min(270,max(110,(h-342)*0.58)) : 0
         advancedScroll.frame = NSRect(x:pad,y:h-201-advancedHeight,width:width,height:advancedHeight)
         layoutAdvanced(width:width-18)
-        let header = h-(kind == .copy ? (expanded ? 233 : 252) : 216)-advancedHeight
+        let header = h-(expanded ? 233 : 252)-advancedHeight
         let previewBottom: CGFloat = expanded ? 104 : 137
         selectionButton.frame = NSRect(x:pad,y:header,width:115,height:28)
         objectsButton.frame = NSRect(x:pad+123,y:header,width:180,height:28)
@@ -97,7 +97,7 @@ extension TransferSetupController {
         window?.endEditing(for:nil)
         optionsExpanded.toggle();advancedScroll.isHidden = !optionsExpanded
         optionsButton.image = NSImage(systemSymbolName:optionsExpanded ? "chevron.down" : "chevron.right",accessibilityDescription:nil)
-        optionsButton.setAccessibilityLabel(optionsExpanded ? "Weitere Kopieroptionen ausblenden" : "Weitere Kopieroptionen einblenden")
+        optionsButton.setAccessibilityLabel(optionsExpanded ? "Weitere Übertragungsoptionen ausblenden" : "Weitere Übertragungsoptionen einblenden")
         if let window {
             let old = window.frame,desired = old.height+(optionsExpanded ? 250 : -250),limit = window.screen?.visibleFrame ?? old
             let height = min(limit.height,max(window.minSize.height,desired))

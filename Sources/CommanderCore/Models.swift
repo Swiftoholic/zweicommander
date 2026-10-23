@@ -198,7 +198,7 @@ public struct NameFilter {
     }
 }
 
-public struct FileStamp: Equatable {
+public struct FileStamp: Equatable, Codable {
     let size: UInt64
     let date: Date
     let inode: UInt64

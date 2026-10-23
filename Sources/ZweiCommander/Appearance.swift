@@ -108,6 +108,8 @@ class CommanderTextView: NSTextView {
 }
 
 class CommanderTableView: NSTableView {
+    var workflowKeys: ((NSEvent)->Bool)?
+    override func keyDown(with event: NSEvent) { if workflowKeys?(event) == true { return };super.keyDown(with:event) }
     override init(frame: NSRect) { super.init(frame:frame);headerView?.frame.size.height = 23;updateSurface() }
     required init?(coder:NSCoder) { fatalError() }
     override func viewDidMoveToWindow() { super.viewDidMoveToWindow();updateSurface() }

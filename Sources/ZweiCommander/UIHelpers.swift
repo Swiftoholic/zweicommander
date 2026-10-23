@@ -210,6 +210,7 @@ private final class JobResult<Value> { var value: Result<Value,Error>? }
 final class JobQueue {
     let scheduler = WorkScheduler()
     let journal: TransferJournal?
+    let history: TransferHistory?
     private let persistenceLock = NSLock()
     private var persistenceFailure: String?
     var journalError: String? { persistenceLock.lock();defer { persistenceLock.unlock() };return persistenceFailure }
@@ -219,7 +220,10 @@ final class JobQueue {
     var transferProgressObserver: ((TransferProgress) -> Void)?
     private var timer: Timer?
     init(journal: TransferJournal? = nil,journalError: String? = nil) {
-        self.journal = journal;persistenceFailure = journalError
+        self.journal = journal
+        var history: TransferHistory?,failure = journalError
+        if let journal { do { history = try TransferHistory(journal:journal) } catch { failure = error.localizedDescription } }
+        self.history = history;persistenceFailure = failure
         if let journal { scheduler.restore(journal.entries.map(\.restoredSnapshot)) }
         scheduler.onChange = { [weak self] in
             self?.synchronizeJournal()
@@ -239,7 +243,10 @@ final class JobQueue {
         persistenceLock.lock()
         guard persistenceFailure == nil else { persistenceLock.unlock();return }
         var failed = false
-        do { try journal.synchronize(scheduler.snapshots) }
+        do {
+            if let error = history?.persistenceError { throw CommanderError.message(error) }
+            try journal.synchronize(scheduler.snapshots)
+        }
         catch { persistenceFailure = error.localizedDescription;failed = true }
         persistenceLock.unlock()
         if failed { scheduler.pause();scheduler.cancel() }
@@ -271,8 +278,20 @@ final class JobQueue {
     }
     @discardableResult func submitReported<T>(_ title: String,id: UUID = UUID(),start: Bool = true,items: [TransferItemProgress] = [],notifyQueuedCancellation: Bool = false,body: @escaping (CancellationToken,WorkReporter) throws -> T,completion: @escaping (Result<T,Error>) -> Void) -> UUID {
         let box = JobResult<T>()
-        return scheduler.enqueue(title,id:id,start:start,items:items,body:{ token,reporter in
-            let result = Result { try body(token,reporter) }; box.value = result
+        return scheduler.enqueue(title,id:id,start:start,items:items,body:{ [weak self] token,reporter in
+            let result = Result {
+                var value = try body(token,reporter)
+                if var report = value as? OperationReport {
+                    do { try self?.history?.captureBackups(report.undo) }
+                    catch {
+                        report.errors.append("Sicherungsablage: "+error.localizedDescription)
+                        value = (report as? T) ?? value
+                        self?.persistenceLock.lock();self?.persistenceFailure = error.localizedDescription;self?.persistenceLock.unlock()
+                        self?.scheduler.pause()
+                    }
+                }
+                return value
+            }; box.value = result
             switch result {
             case .failure(let error): throw error
             case .success(let value):
@@ -300,7 +319,7 @@ final class JobQueue {
         if let oldID { scheduler.discardRestored(oldID) }
         return submitReported(title,id:id,start:start,items:plan.initialItems,body:{ [weak self] token,reporter in
             if let error = self?.journalError { throw CommanderError.message(error) }
-            var report = TransferPlanner.execute(plan,token:token,validateExecution:{ [weak self] in
+            var report = TransferPlanner.execute(plan,token:token,history:self?.history,validateExecution:{ [weak self] in
                 self?.synchronizeJournal()
                 if let error = self?.journalError { throw CommanderError.message(error) }
             },progress:{ progress in reporter.transfer(progress);self?.transferProgressObserver?(progress) })
@@ -326,7 +345,7 @@ final class JobQueue {
     }
     func cancel() { scheduler.cancel(); publish() }
     func togglePause() {
-        if let state = active?.state,[.paused,.pausing].contains(state) { scheduler.resume() }
+        if (active.map { [.paused,.pausing].contains($0.state) } ?? scheduler.isHeld) { scheduler.resume() }
         else { scheduler.pause() }
         publish()
     }

@@ -32,6 +32,10 @@ enum CommandHelp {
         "newTab":"Einen weiteren Tab mit dem aktuellen Ordner öffnen.",
         "closeTab":"Diesen Tab schließen. Gesperrte Tabs bleiben geöffnet.",
         "terminal":"Ein Terminal im Ordner der aktiven Seite öffnen.",
+        "operations":"Wartende, laufende und frühere Dateiübertragungen ansehen und mit der Tastatur verwalten.",
+        "recovery":"Sicherungen wiederherstellen und vorhandene Teilkopien vor dem Fortsetzen prüfen.",
+        "pauseTransfers":"Laufende Dateiübertragung und nachfolgende Aufträge pausieren oder fortsetzen.",
+        "stopTransfers":"Laufenden Auftrag abbrechen. Fertige Schritte bleiben erhalten.",
         "customizeToolbar":"Sichtbare Befehle und ihre Reihenfolge in der Werkzeugleiste ändern."
     ]
     static func shortcut(_ id:String) -> String {

@@ -163,7 +163,7 @@ extension AppDelegate {
             main.transfer([budget],to:right,kind:.move)
             let move = require(main.secondaryWindows.last as? TransferSetupController,"move setup")
             await waitFor({ move.plan != nil },"move plan")
-            check(move.optionsButton.isHidden && move.advancedScroll.isHidden && move.startButton.title == "Verschieben","move dialog shows its supported basic controls")
+            check(!move.optionsButton.isHidden && move.advancedScroll.isHidden && move.startButton.title == "Verschieben","move dialog keeps filters collapsed and available")
             move.tabs.selectTabViewItem(at:1)
             let actionColumn = require(move.filesTable.tableColumns.firstIndex { $0.identifier.rawValue == "action" },"move action column")
             let actionCell = move.filesTable.view(atColumn:actionColumn,row:0,makeIfNecessary:true) as? NSTextField

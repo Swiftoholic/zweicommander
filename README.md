@@ -2,7 +2,7 @@
 
 ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Tabs und Tastaturbedienung. Er wird in Swift und AppKit entwickelt und verwendet Systembibliotheken für Dateivorgänge, Vorschau und Archive.
 
-**Version 0.16.0 ist eine frühe, ausführbare Version.** F2 bearbeitet den Namen direkt in der Dateiliste. Dateien lassen sich auf Ordner und Tabs ziehen; kurzes Verweilen öffnet das Ziel. Große Ordner werden im Hintergrund eingelesen und sortiert, Symbole und Bildvorschauen nachgeladen. Die Adressleiste bietet Ordnervorschläge, Tastaturvervollständigung und direkte Unterordnerwahl an den Pfadsegmenten. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+**Version 0.17.0 ist eine frühe, ausführbare Version.** Größere Kopien lassen sich nach Abbruch oder Neustart an geprüften Bytepositionen fortsetzen. Ein eigener Arbeitsbereich verwaltet neue Ersetzungssicherungen und Teilkopien. Gefiltertes Verschieben erhält ausgelassene Dateien und Quellordner. Übertragungsdialog und Auftragsverwaltung sind direkt per Tastatur bedienbar. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 ## Funktionen
 
@@ -17,7 +17,7 @@ ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Ta
 - Sichtbare Filter mit Trefferzahl, Aufheben-Aktion und Hinweisen zu leeren oder nicht lesbaren Ordnern.
 - Werkzeugleistenbefehle ein-/ausblenden und ordnen; übrige Befehle bei schmalen Fenstern über ein Menü aufrufen.
 - Lokal gespeicherte Dateiübertragungen und letzter gemeldeter Fortschritt; neue Dateiprüfung nach Neustart.
-- Gespeicherte Kopierprofile, Namens-/Größen-/Datumsfilter, reine Ordnerstruktur und Zusammenführen mit Einzelentscheidungen.
+- Gespeicherte Übertragungsprofile, Namens-/Größen-/Datumsfilter, reine Ordnerstruktur und Zusammenführen mit Einzelentscheidungen.
 - Mehrfachumbenennen mit Livevorschau, Reihenfolge, Profilen, Namensausschnitten, Bilddaten und Versionsprüfung.
 - Dateisuche mit laufenden Ergebnissen, Office-XML-Text, Archivnamen, lokalen Profilen und Dateiaktionen.
 - Duplikate und Prüfsummen.
@@ -90,7 +90,7 @@ Die untere Eingabezeile startet mit **Pfad**. Enter öffnet einen absoluten oder
 
 F5 und F6 zeigen die Zielrichtung abhängig von der aktiven Seite und der Fensteranordnung. Ohne Dateiauswahl sind die Knöpfe deaktiviert. Bei einer Dateisammlung als Ziel heißt die Kopieraktion **Zur Sammlung**: Sie fügt Verweise hinzu und erhält die Originaldateien.
 
-Der Übertragungsdialog zeigt zuerst Quelle, Ziel, Konfliktregel und Vorschau. **Weitere Optionen** blendet Kopierprofile, Dateifilter und Ordnerregeln ein. Aktive Regeln bleiben auch bei geschlossenen Optionen sichtbar. Änderungen an Ziel oder Regeln werden nach kurzer Tippause neu geprüft; währenddessen kann der alte Plan nicht gestartet werden. Offene Einzelentscheidungen sowie **Abbrechen bei Konflikt** mit belegten Zielen sperren Kopieren und Vormerken. **Konflikte zeigen** führt zu den betroffenen Objekten. Erweiterte Optionen bleiben in kleinen Fenstern scrollbar.
+Der Übertragungsdialog zeigt zuerst Quelle, Ziel, Konfliktregel und Vorschau. **Weitere Optionen** blendet Übertragungsprofile, Dateifilter und Ordnerregeln ein. Aktive Regeln bleiben auch bei geschlossenen Optionen sichtbar. Änderungen an Ziel oder Regeln werden nach kurzer Tippause neu geprüft; währenddessen kann der alte Plan nicht gestartet werden. Offene Einzelentscheidungen sowie **Abbrechen bei Konflikt** mit belegten Zielen sperren Kopieren und Vormerken. **Konflikte zeigen** führt zu den betroffenen Objekten. Erweiterte Optionen bleiben in kleinen Fenstern scrollbar.
 
 Ein aktiver Schnellfilter zeigt Trefferzahl und Gesamtzahl der eingelesenen Objekte. **Filter aufheben** entfernt Muster und RegEx-Modus. Leere Ordner, fehlende Treffer, ungültige Ausdrücke und Ladefehler erhalten eigene Hinweise in der Dateifläche. Bei Ladefehlern steht **Erneut versuchen** bereit. Eine Aktualisierung des gleichen Ordners erhält Auswahl und Dateiaktionen.
 
@@ -165,7 +165,7 @@ Bei kontrolliertem Abbruch oder Fehler werden bereits vorbereitete Namen möglic
 
 F5 öffnet den Auftragsplan. Ziel, Konfliktregel und Auswahl prüfen; unter **Geplante Objekte** erscheinen die enthaltenen Dateien, Ordner und Links. Änderungen an Ziel oder Filtern erfordern einen aktualisierten Plan.
 
-Kopien unterstützen Einschluss- und Ausschlussmuster (`*`, `?`, mehrere Muster mit `;`), reguläre Ausdrücke, ausgeschlossene Unterordner, Rekursion, leere Ordner und reine Ordnerstruktur. Diese Filter gelten pro Auftrag; benannte Kopierprofile können die Regeln wiederverwenden. Verschieben übernimmt die vollständige Auswahl.
+Kopien unterstützen Einschluss- und Ausschlussmuster (`*`, `?`, mehrere Muster mit `;`), reguläre Ausdrücke, ausgeschlossene Unterordner, Rekursion, leere Ordner und reine Ordnerstruktur. Diese Filter gelten pro Auftrag; benannte Übertragungsprofile können die Regeln wiederverwenden. Gefiltertes Verschieben veröffentlicht zuerst die geprüften Kopien und entfernt anschließend nur die gewählten Quelldateien. Ausgelassene Dateien und Quellordner bleiben erhalten. Ohne aktive Filter wird die vollständige Auswahl mit der Systemoperation verschoben. Zusammenführen und reine Ordnerstruktur sind Kopieroptionen.
 
 **Ordner zusammenführen** erhält vorhandene echte Zielordner und ergänzt ihren Inhalt. Dateikonflikte werden in der Objektliste einzeln entschieden: überspringen, beide behalten oder mit Sicherung ersetzen. Quell- und Zielgröße sowie Änderungsdatum stehen nebeneinander. Der Alternativname wird vorab angezeigt und reserviert. Starten und Vormerken sind gesperrt, solange Entscheidungen fehlen. Typkonflikte zwischen Ordnern und Dateien, Links oder Spezialdateien können nur übersprungen werden.
 
@@ -179,13 +179,41 @@ Kopier- und Verschiebeaufträge speichern ihre ausgewählten Quellen, Zielordner
 
 Nach einem Neustart öffnet sich das Auftragsfenster mit **Erneut prüfen**. Offene Aufträge werden nicht automatisch ausgeführt. Die Angaben zeigen den letzten gemeldeten Stand, keine nachträgliche Prüfung des Dateisystems. **Erneut prüfen …** erstellt einen neuen Plan aus den aktuell vorhandenen Quellen und Zielen. Fehlende Quellen werden ausdrücklich genannt und ausgelassen; sie gelten nicht automatisch als erfolgreich verschoben. Fehlen alle Quellen, bleibt der Auftrag zur späteren Prüfung erhalten. Einzelne Konfliktentscheidungen müssen erneut getroffen werden. Erst Starten oder Vormerken ersetzt den alten Auftrag durch den neu geprüften Plan.
 
-Bereits vorhandene Ziele sind wieder Teil der Konfliktprüfung. Für eine schon fertige Datei kann beispielsweise **Überspringen** gewählt werden. Unvollständige Dateien werden neu kopiert; die App setzt nicht an einer gespeicherten Byteposition fort. Nach einem abrupten Prozessende können versteckte unveröffentlichte Kopien zurückbleiben. Sie werden beim Wiederanlauf nicht automatisch entfernt. Rückgängig und Sicherungsverwaltung werden nicht aus dem Journal rekonstruiert.
+Bereits vorhandene Ziele sind wieder Teil der Konfliktprüfung. Für eine schon fertige Datei kann beispielsweise **Überspringen** gewählt werden. Passende unveröffentlichte Teilkopien werden vor der Weiterverwendung geprüft und an ihrer vorhandenen Byteposition fortgesetzt. Es wird nichts automatisch gestartet oder verworfen. Cmd+Z bleibt auf die Sitzung beschränkt; neue Ersetzungssicherungen lassen sich unabhängig davon nach einem Neustart ausdrücklich wiederherstellen.
 
 Mit ausschließlich gespeicherten wartenden Dateiübertragungen kann die App regulär beendet werden. Laufende Vorgänge und Aufträge aus temporären Archivansichten müssen zuvor abgeschlossen, abgebrochen oder entfernt werden. Andere Hintergrundvorgänge, etwa Archive und Remote-Transfers, bleiben auf die Sitzung beschränkt. Eine beschädigte oder extern geänderte Auftragsdatei wird nicht automatisch überschrieben. Ein Speicherfehler während einer Dateiübertragung fordert deren Abbruch an und hält nachfolgende Aufträge an; fertige Schritte bleiben erhalten. Eine zweite App-Instanz kann dieselbe Ablage nicht gleichzeitig beschreiben.
 
-## Kopierprofile und Größe / Datum
+## Fortsetzen und Sicherungsverwaltung
 
-Mit **Speichern als …** werden die aktuellen Kopierregeln unter einem Namen gespeichert. Das Profil umfasst Namens-/Unterordnerfilter, Rekursion, leere Ordner, Strukturkopie, Größen-/Datumsgrenzen, die globale Konfliktvorgabe und Zusammenführen. **Speichern** aktualisiert das ausgewählte Profil. Geänderte Felder werden als ungespeichert markiert. Profile lassen sich nach Bestätigung löschen; andere offene Kopierdialoge aktualisieren ihre Auswahl.
+**Aufträge → Sicherungen und Teilkopien** (**⌘⌥J**) öffnet die Wiederherstellung. Name oder Pfad lassen sich mit **⌘F** filtern; **⌘1/2/3** zeigen alle Einträge, Sicherungen oder Teilkopien. **Enter** prüft den ausgewählten Eintrag, **Leertaste** öffnet seine Vorschau, **⌘R** aktualisiert die Verfügbarkeit.
+
+Fortsetzbar sind reguläre Kopien ab **4 MiB je Auswahlobjekt** mit höchstens **2.000 Dateien und Ordnern**, ohne symbolische Links. Das gilt auch für die Kopierphase gefilterter Verschiebeaufträge. Die Teilkopie liegt unveröffentlicht auf dem Zielvolume. Vor der Weiterverwendung werden Quelle, Elternordner und gespeicherte Dateiobjekte geprüft und alle vorhandenen Bytes mit der Quelle verglichen. Nach dem Fortsetzen wird der vollständige Dateiinhalt nochmals verglichen. Diese Prüfung kann bei großen Dateien dauern. Veränderte Quellen, beschädigte Teilkopien und ersetzte Ordner werden abgewiesen; sie werden nicht unbemerkt überschrieben. Andere Kopierfälle beginnen neu. Ein blockierter Betriebssystemzugriff auf ein nicht antwortendes Volume lässt sich nicht unmittelbar abbrechen.
+
+**Fortsetzen prüfen …** öffnet einen neuen Übertragungsplan. Ziel und Konfliktregel bestätigen; es startet nichts automatisch. Bei Einzelentscheidungen im Zusammenführen-Modus muss wieder dieselbe Zielwahl getroffen werden, damit eine passende Teilkopie verwendet werden kann.
+
+**Wiederherstellen …** zeigt den ursprünglichen Ort. Ist dort aktueller Inhalt vorhanden, wird dieser zuerst als neue Sicherung aufbewahrt. Ganze Ordnersicherungen werden als Ordner ausgetauscht, nicht zusammengeführt. **⌘⌫** verwirft ausgewählte Sicherungsdaten nach Rückfrage in den Papierkorb. **⌘⇧⌫** entfernt nur eine nicht verfügbare Beschreibung; Dateien auf fehlenden Datenträgern bleiben erhalten. Dateiändernde Verwaltungsaktionen warten auf den Abschluss oder das Entfernen offener Dateiaufträge.
+
+Die neue Ablage erfasst ab Version 0.17 angelegte Ersetzungssicherungen; ältere Sicherungen ohne gespeicherte Zuordnung werden nicht automatisch importiert. Bis zu 200 Teilkopien und 2.000 Sicherungen mit zusammen höchstens 16 MiB Beschreibungsdaten werden lokal verwaltet. Die gesicherten Dateiinhalte zählen nicht zu dieser Metadatengrenze und bleiben auf ihrem Datenträger. Andere nicht zugeordnete Zwischenkopien können nach einem abrupten Prozessende zurückbleiben.
+
+## Tastatur für Übertragungen
+
+| Bereich | Kürzel | Aktion |
+|---|---|---|
+| Dateifenster | F5 / F6 | Kopieren / Verschieben mit Vorschau |
+| Überall | ⌘⇧J / ⌘⌥J | Aufträge / Wiederherstellung |
+| Überall | ⌘⌥P / ⌘⌥. | Pause/Fortsetzen / laufenden Auftrag abbrechen |
+| Übertragungsdialog | ⌘↩ / ⌘⇧↩ | Starten / vormerken |
+| Übertragungsdialog | ⌘L / ⌘⇧L | Ziel eingeben / Zielordner wählen |
+| Übertragungsdialog | ⌘⌥F / ⌘⌥O | Filter fokussieren / Optionen umschalten |
+| Übertragungsdialog | ⌘1 / ⌘2 / ⌘R | Auswahl / geplante Objekte / neu prüfen |
+| Auftragsliste | ↩ / ⌘R | Wartenden Auftrag starten / gespeicherten neu prüfen |
+| Auftragsliste | Leertaste / ⌥↑↓ / ⌫ | Pause/Fortsetzen / Reihenfolge / wartenden Auftrag entfernen |
+
+Ein Startkürzel während einer laufenden Neuprüfung wird einmal vorgemerkt und nur bei einem gültigen Plan ohne offene Konflikte ausgeführt. Neue Eingaben, Abbrechen oder Schließen verwerfen diesen Wunsch. Dateiaktionen des verdeckten Hauptfensters sind in den Arbeitsfenstern gesperrt; Texteingaben behalten ihre normalen Bearbeitungskürzel. Globale Menübefehle lassen sich in den Einstellungen umbelegen; die Kürzel innerhalb der Arbeitsfenster bleiben fest.
+
+## Übertragungsprofile und Größe / Datum
+
+Mit **Speichern als …** werden die aktuellen Übertragungsregeln unter einem Namen gespeichert. Das Profil umfasst Namens-/Unterordnerfilter, Rekursion, leere Ordner, Strukturkopie, Größen-/Datumsgrenzen, die globale Konfliktvorgabe und Zusammenführen. **Speichern** aktualisiert das ausgewählte Profil. Geänderte Felder werden als ungespeichert markiert. Profile lassen sich nach Bestätigung löschen; andere offene Kopierdialoge aktualisieren ihre Auswahl.
 
 Es werden höchstens 50 Profile lokal in den macOS-Benutzereinstellungen gespeichert. Quelle, Ziel, Auswahl und einzelne Konfliktentscheidungen gehören nicht zum Profil. Neue Aufträge beginnen mit eigenen Einstellungen; ein gespeichertes Profil muss ausdrücklich gewählt werden. Nicht lesbare Profildaten sperren das Speichern, damit vorhandene Daten erhalten bleiben.
 
@@ -198,17 +226,17 @@ Es werden höchstens 50 Profile lokal in den macOS-Benutzereinstellungen gespeic
 - Altersangaben sind ganze Zahlen in Minuten, Stunden, Tagen oder Wochen. Ein Tag entspricht genau 24 Stunden, eine Woche 7 Tagen; Sommerzeit und Kalendermonate ändern die Dauer nicht. Eine Grenze kann bis zu 36.500 Tage betragen.
 - Für einen Dateiplan wird eine gemeinsame Bezugszeit festgehalten. Sie steht im Hinweistext der Filterzusammenfassung. Die Auswahl bleibt auch in der Warteschlange auf diesen Zeitpunkt bezogen. **Plan aktualisieren**, das Laden eines Profils und **Erneut prüfen …** nach einem Neustart berechnen sie neu. Profile und Aufträge speichern die Altersregel, keinen festgeschriebenen Zeitpunkt. Feste Zeitpunkte und relatives Alter werden getrennt verwendet.
 - Namen, Größe und Datum müssen gemeinsam passen. Aktive Größen- oder Datumsgrenzen lassen symbolische Links aus; deren Ziele werden nicht verfolgt. Ordner folgen weiterhin den Regeln für Rekursion und leere Ordner.
-- **Nur Ordnerstruktur** setzt Dateigrößen und Datumsgrenzen aus. Beim Ausschalten kehrt die vorherige Auswahl für leere Ordner zurück. Verschieben unterstützt diese Filter und Profile noch nicht.
+- **Nur Ordnerstruktur** setzt Dateigrößen und Datumsgrenzen aus. Beim Ausschalten kehrt die vorherige Auswahl für leere Ordner zurück. Verschieben unterstützt Namens-, Unterordner-, Größen-, Datums- und Altersfilter sowie passende Profile. Profile mit Zusammenführen oder reiner Ordnerstruktur werden dabei ohne Übernahme der Felder abgelehnt.
 
 Profile und Aufträge mit Altersregeln verwenden die neue Formatversion 2 und benötigen ZweiCommander 0.8 oder neuer. Ältere App-Versionen lehnen diese Daten ab, damit sie Altersregeln nicht unbemerkt weglassen. Bestehende Daten ohne Altersregeln bleiben lesbar.
 
 ## Grenzen von Dateivorgängen
 
-- Ersetzen legt das vorherige Ziel unter `.zweicommander-backup-…` im selben Ordner ab. Diese Sicherungen werden nicht automatisch gelöscht.
+- Ersetzen legt das vorherige Ziel unter `.zweicommander-backup-…` im selben Ordner ab. Neue Zuordnungen werden lokal gespeichert; Sicherungen werden nicht automatisch gelöscht.
 - Zusammenführen veröffentlicht Dateien einzeln. Bei Abbruch bleiben abgeschlossene Schritte und neu angelegte Ordner erhalten. Noch nicht fertiggestellte neue Ordner können vorläufig private Zugriffsrechte behalten. Der gesamte Auftrag wird nicht zurückgerollt.
 - Ein seit der Vorschau geänderter Quellbestand, eine geänderte Zieldatei oder ein ersetzter Zielordner kann den Auftrag abbrechen. Wird ein Zielordner während der Arbeit umbenannt oder ersetzt, kann in seinem bisherigen Objekt eine versteckte Staging-Datei zurückbleiben. Die App entfernt sie nicht über den veränderten Pfad.
 - Rückgängig unterstützt unveränderte Einzeldateien und die letzte Mehrfachumbenennung. Angelegte Verzeichnisse werden nicht automatisch entfernt.
-- Kopieren misst Dateidaten in Bytes und unterstützt Pause innerhalb einer Datei. Verschieben nutzt die Systemoperation und pausiert an Prüfpunkten.
+- Kopieren und die Kopierphase gefilterter Verschiebeaufträge messen Dateidaten in Bytes und unterstützen Pause innerhalb einer Datei. Ungefiltertes Verschieben nutzt die Systemoperation und pausiert an Prüfpunkten.
 - Zusammenführen prüft eingehende Zielnamen vorsorglich ohne Groß-/Kleinschreibung. Dadurch werden auch auf einem Dateisystem mit beachteter Schreibweise manche Namenskombinationen abgewiesen.
 - Archive erhalten in dieser Version keine Finder-Tags, Resource Forks oder erweiterten Attribute. Entpacken erfolgt in neue Ordner mit Pfad- und Größenprüfung.
 - Der Remote-Dialog unterstützt Einzeldateien. Rekursive Übertragung, Keychain-Profile und dauerhaftes Fortsetzen sind noch offen. Ein abgebrochener Upload kann eine unvollständige Remote-Datei hinterlassen.
@@ -221,11 +249,15 @@ python3 scripts/ui-smoke.py --app ../ZweiCommander.app --results /tmp/ZweiComman
 python3 scripts/check-public.py
 ```
 
-Die 203 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die 29 nativen Oberflächendurchläufe verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil; sie verändern keine persönlichen Benutzereinstellungen. Vergleichs-, Such-, Profil-, Umbenennungs-, Alters- und Arbeitsbereichsprüfungen verwenden eigene, anschließend entfernte Einstellungsbereiche. Weitere Prozesse prüfen Aufträge nach regulärem Beenden, ein abruptes Prozessende während einer Kopie, den erneuten Start mit neuem Plan und beschädigte oder während der Arbeit geänderte Auftragsdaten. Die Journaltests verwenden ausschließlich eine eigene temporäre Ablage. Zwei Prozesse prüfen relative Altersregeln, Profil-/Auftragsspeicherung, erneute Vorschau und Ausführung nach einem Neustart. Zwei weitere prüfen Symbolauswahl und Dateikopie, Tab-Verwaltung, Favoriten, Ordnerregeln und das Laden nach Neustart. Zwei weitere Prozesse prüfen Livevorschau und Profilspeicherung beim Mehrfachumbenennen, tatsächliche Umbenennung und Rückgängig, veränderte Quellen sowie den Abbruch eines wartenden Auftrags. Zwei Suchprozesse prüfen Profile nach Neustart, laufende Treffer und Teilabbruch, echte Dateikopie aus Suchauswahl, Markierung im Dateifenster, Sammlungen, Office-Text, Archivnamen und beschädigte Profildaten. Zwei Vergleichsprozesse prüfen Gegenüberstellung und Profile nach Neustart, Einzelentscheidungen, echte Ausführung in beide Richtungen, Warteschlange und eigenen Abbruch, Sitzungsrücknahme, veraltete Pläne und beschädigte Profile. Ein weiterer Durchlauf prüft direktes Umbenennen, Versionskonflikte und Rückgängig, Ordner- und Tab-Ablageziele, verzögertes Öffnen und echte Kopien nach Vorschau, Fokus und Mehrfachauswahl sowie das Laden, Filtern und Aktualisieren von 3.000 Dateien. Er prüft die nativen Drag-and-drop-Schnittstellen; physisches Ziehen aus anderen Apps und nicht antwortende Netzwerkfreigaben sind nicht Ende zu Ende automatisiert. Programmaufrufe werden an der macOS-Aufrufschnittstelle abgefangen und lösen keinen externen Programmstart aus. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
+Die 227 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die 31 nativen Oberflächendurchläufe mit 731 Prüfungen verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil. Sie verändern keine persönlichen Benutzereinstellungen; eigene Einstellungsbereiche werden anschließend entfernt.
+
+Die Serie prüft Dateiaktionen und Vorschau, Ordner- und Tab-Ablageziele, Ordneradressen mit Maus/Tastatur, 3.000 Dateien, Hell-/Dunkelflächen und Darstellung nach Neustart, Suche, Vergleich, Umbenennen und deren Profile. Getrennte App-Prozesse prüfen gespeicherte Aufträge, relative Altersfilter, abruptes Prozessende, beschädigte oder extern geänderte Ablagen, Byte-Fortsetzung, Sicherungswiederherstellung und die neuen Tastaturabläufe. Ausgeführte Dateiaktionen werden anhand ihrer tatsächlichen Inhalte geprüft. Die Dateikerntests beenden außerdem echte Kindprozesse während einer Kopie und vor dem Entfernen einer gefiltert verschobenen Quelle.
+
+Drag-and-drop wird an den nativen Schnittstellen geprüft; physisches Ziehen aus anderen Apps und nicht antwortende Netzwerkfreigaben sind nicht Ende zu Ende automatisiert. Programmaufrufe werden an der macOS-Aufrufschnittstelle abgefangen und lösen keinen externen Programmstart aus. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
 
 `check-public.py` prüft die im Git-Index enthaltenen Dateien vor einer Veröffentlichung. Erlaubt sind die Projektdateien, Quellcode, Werkzeuge und künstlichen Testdaten. Lokale Protokolle, Buildprodukte und Arbeitsunterlagen gehören nicht ins Repository.
 
-Die vollständige Serie mit 29 Durchläufen und 676 Prüfungen benötigt eine entsperrte GUI-Sitzung. `--skip-foreground` lässt fünf Durchläufe mit 147 Prüfungen für aktive Adress-, Such- und Vergleichsfenster ausdrücklich aus; die übrigen 24 Durchläufe umfassen 529 Prüfungen. Ausgelassene Fälle werden nicht als bestanden gezählt. Die Adressleistenprüfung benötigt ein aktives Prüffenster. Falls macOS die Aktivierung aus dem Hintergrund ablehnt, wartet `ui-smoke.py --interactive` bei Bedarf auf einen Klick in „ZweiCommander · Bedienungsprüfung“. Dieses Fenster für den kurzen Bedienungslauf vorne lassen; für diesen Prozess gilt ein Zeitlimit von 180 Sekunden. Vorschläge werden im normalen Betrieb weiterhin nur im aktiven Fenster eingeblendet.
+Die vollständige Serie mit 31 Durchläufen und 731 Prüfungen benötigt eine entsperrte GUI-Sitzung. `--skip-foreground` lässt sieben Durchläufe mit 202 Prüfungen für aktive Adress-, Such-, Vergleichs- und Wiederherstellungsfenster ausdrücklich aus; die übrigen 24 Durchläufe umfassen 529 Prüfungen. Ausgelassene Fälle werden nicht als bestanden gezählt. Die Adressleistenprüfung benötigt ein aktives Prüffenster. Falls macOS die Aktivierung aus dem Hintergrund ablehnt, wartet `ui-smoke.py --interactive` bei Bedarf auf einen Klick in „ZweiCommander · Bedienungsprüfung“. Dieses Fenster für den kurzen Bedienungslauf vorne lassen; für diesen Prozess gilt ein Zeitlimit von 180 Sekunden. Vorschläge werden im normalen Betrieb weiterhin nur im aktiven Fenster eingeblendet.
 
 ## Projektstruktur
 

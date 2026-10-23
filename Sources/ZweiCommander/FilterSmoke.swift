@@ -35,7 +35,7 @@ extension AppDelegate {
             self.main.transfer([source],to:root.appendingPathComponent("Sicherung"),kind:.move)
             guard let move = self.main.secondaryWindows.last as? TransferSetupController else { check(false,"move setup missing");exit(1) }
             waitFor({ move.plan != nil },then:{
-                check(!move.include.isEnabled && !move.excludedFolders.isEnabled && !move.structureOnly.isEnabled && move.plan?.filter == TransferFilter(),"move filters disabled")
+                check(move.include.isEnabled && move.excludedFolders.isEnabled && !move.structureOnly.isEnabled && move.plan?.filter == TransferFilter(),"move filters available while structure-only stays disabled")
                 check((move.plan?.entries.first?.objectCount ?? 0) > 7,"move still plans full selection")
                 move.close();check(FileSystem.exists(source) && !FileSystem.exists(root.appendingPathComponent("Sicherung/Projekt")),"move preview leaves source intact")
                 print("FILTER SMOKE \(failures.isEmpty ? "PASS" : "FAIL") \(checks) checks")

@@ -10,7 +10,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         ("Gehe zu",[("Pfad eingeben","path","cmd+l"),("Übergeordneter Ordner","parent","cmd+up"),("Zurück","back","cmd+["),("Vorwärts","forward","cmd+]"),("Benutzerordner","home","cmd+shift+h"),("Im Finder zeigen","reveal","cmd+shift+r"),("Favorit hinzufügen/entfernen","favorite","cmd+d"),("Favoriten bearbeiten …","editFavorites",""),("Terminal öffnen","terminal","cmd+shift+p"),("Mit Netzwerkvolume verbinden …","connect","cmd+k"),("FTP / SFTP verbinden …","remote","cmd+shift+k"),("SFTP im Terminal …","sftp","")]),
         ("Tabs",[("Neuer Tab","newTab","cmd+t"),("Tab duplizieren","duplicateTab",""),("Tab schließen","closeTab","cmd+w"),("Andere Tabs schließen","closeOtherTabs",""),("Nächster Tab","nextTab","cmd+option+right"),("Vorheriger Tab","previousTab","cmd+option+left"),("Nach links verschieben","moveTabLeft",""),("Nach rechts verschieben","moveTabRight",""),("Tab sperren/entsperren","lockTab",""),("Tab benennen …","nameTab",""),("Leere Dateisammlung","newCollection",""),("Aus Sammlung entfernen","removeCollectionItem",""),("Auswahl als Dateisammlung","collection",""),("Dateisammlung speichern …","saveCollection",""),("Dateisammlung öffnen …","loadCollection","")]),
         ("Werkzeuge",[("Dateien suchen …","search","cmd+f"),("Duplikate suchen …","duplicates",""),("Ordner vergleichen / synchronisieren …","compare","cmd+shift+d"),("Ordnergröße berechnen","folderSize",""),("Prüfsummen berechnen …","hash",""),("Prüfsummenliste prüfen …","verifyHash",""),("Datei teilen …","split",""),("Teileliste zusammenfügen …","join",""),("Dateiliste exportieren …","export",""),("Shell-Befehl …","shell",""),("Vorgangsprotokoll","log","")]),
-        ("Aufträge",[("Warteschlange anzeigen","operations","cmd+shift+j")]),
+        ("Aufträge",[("Warteschlange anzeigen","operations","cmd+shift+j"),("Sicherungen und Teilkopien …","recovery","cmd+option+j"),("—","",""),("Pause / Fortsetzen","pauseTransfers","cmd+option+p"),("Laufenden Auftrag abbrechen","stopTransfers","cmd+option+.")]),
         ("Hilfe",[("Bedienung und Funktionsstand","help","F1"),("INI-Einstellungen importieren …","importSettings",""),("Importierte Einstellungen anzeigen","importReport",""),("Einstellungen vor dem Import wiederherstellen","restoreImport","")])
     ]
     func applicationDidFinishLaunching(_ notification:Notification) {
@@ -30,12 +30,13 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let railSmoke = args.firstIndex(of:"--rail-smoke")
         let navigationSmoke = args.firstIndex(of:"--navigation-smoke")
         let fileUXSmoke = args.firstIndex(of:"--file-ux-smoke")
+        let recoverySmoke = args.firstIndex(of:"--recovery-smoke")
         let compareSmoke = args.firstIndex(of:"--compare-smoke")
-        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke].compactMap { $0 }.first
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke].compactMap { $0 }.first
         Preferences.testMode = testIndex != nil
         if Preferences.testMode { setvbuf(stdout,nil,_IOLBF,0) }
         if Preferences.testMode { Preferences.state = SavedState() }
-        if let index = journalSmoke ?? ageSmoke,args.indices.contains(index+1) {
+        if let index = journalSmoke ?? ageSmoke ?? recoverySmoke,args.indices.contains(index+1) {
             Preferences.transferJournalTestDirectory = URL(fileURLWithPath:args[index+1]).appendingPathComponent("Auftragsablage")
         }
         if profilesSmoke != nil || ageSmoke != nil,let index = args.firstIndex(of:"--profile-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
@@ -73,6 +74,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         main.onRebuildMenus = { [weak self] in self?.buildMenus(); self?.main.updateFunctionLabels() }
         buildMenus(); main.showWindow(nil); main.left.focus()
         NSApp.activate(ignoringOtherApps:true)
+        if let recoverySmoke,args.indices.contains(recoverySmoke+3),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runRecoverySmoke(root:root,prefix:args[recoverySmoke+2],reload:args[recoverySmoke+3] == "reload") }
+        }
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.main.content.layoutSubtreeIfNeeded()
@@ -181,6 +185,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
     @objc func dispatch(_ sender:NSMenuItem) { if let id = sender.representedObject as? String { main.command(id) } }
     func validateMenuItem(_ item:NSMenuItem)->Bool {
         guard let id = item.representedObject as? String else { return true }
+        if let workflow = main?.keyWorkflowWindow { return workflow.canPerformCommand(id) }
+        if id == "pauseTransfers" || id == "stopTransfers" { return main?.jobs.active != nil || (id == "pauseTransfers" && (main?.jobs.pending ?? 0) > 0) }
+        if ["operations","recovery"].contains(id) { return true }
         if let compare = main?.keyCompareController { return compare.canPerformCommand(id) }
         if let search = main?.keySearchController { return search.canPerformCommand(id) }
         if let mode = ["details":PaneDisplayMode.details,"thumbnails":.thumbnails,"icons":.icons][id] { item.state = main?.active.displayMode == mode ? .on : .off }

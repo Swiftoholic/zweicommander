@@ -163,7 +163,17 @@ def fixtures(base):
     (files / "Abbruch.png").write_bytes(preview_png((180, 100, 80)))
     for index in range(3000):
         write(files, "Groß/Datei " + str(index) + ".txt", "Eintrag\n")
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files
+    recovery = base / "recovery"
+    write(recovery, "Links/Projekt/a.txt", "Alpha\n")
+    write(recovery, "Links/Projekt/Unterordner/b.txt", "Beta\n")
+    write(recovery, "Links/Projekt/unberührt.tmp", "TMP\n")
+    write(recovery, "Links/Projekt/Cache/c.txt", "Cache\n")
+    write(recovery, "Links/Kopie.txt", "Neu\n")
+    write(recovery, "Rechts/Kopie.txt", "Alt\n")
+    write(recovery, "Links/Warten.txt", "Warten\n")
+    (recovery / "Rechts/PauseZiel").mkdir(parents=True)
+    (recovery / "Links/Groß.bin").write_bytes(bytes(range(256)) * (128 * 1024))
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery
 
 
 def main():
@@ -173,7 +183,7 @@ def main():
     parser.add_argument("--screenshots", required=True, type=Path, help="Ordner für native Fensteransichten")
     parser.add_argument("--settings", type=Path, default=Path(__file__).resolve().parents[1] / "Tests/fixtures/INISettings.sample.ini", help="Nur gelesene INI-Datei oder Settings-Ordner; Standard: künstliches Testprofil")
     parser.add_argument("--interactive", action="store_true", help="Bei verweigerter Hintergrundaktivierung auf einen Klick in das Adressleisten-Prüffenster warten")
-    parser.add_argument("--skip-foreground", action="store_true", help="Fünf Vordergrundprüfungen ausdrücklich auslassen, etwa bei gesperrtem Bildschirm")
+    parser.add_argument("--skip-foreground", action="store_true", help="Vordergrundprüfungen ausdrücklich auslassen, etwa bei gesperrtem Bildschirm")
     args = parser.parse_args()
     binary = args.app.resolve()
     if binary.suffix == ".app":
@@ -221,9 +231,11 @@ def main():
             ("search-reload", "--search-smoke", roots[10], str(prefix), "SEARCH UI PASS ", "SEARCH SMOKE PASS 25 checks", 25),
             ("compare-save", "--compare-smoke", roots[11], str(prefix), "COMPARE UI PASS ", "COMPARE SMOKE PASS 24 checks", 24),
             ("compare-reload", "--compare-smoke", roots[11], str(prefix), "COMPARE UI PASS ", "COMPARE SMOKE PASS 30 checks", 30),
+            ("recovery-save", "--recovery-smoke", roots[15], str(prefix), "RECOVERY UI PASS ", "RECOVERY SMOKE PASS 40 checks", 40),
+            ("recovery-reload", "--recovery-smoke", roots[15], str(prefix), "RECOVERY UI PASS ", "RECOVERY SMOKE PASS 15 checks", 15),
         ]
         if args.skip_foreground:
-            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload"}
+            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload"}
             skipped = [case for case in cases if case[0] in foreground]
             cases = [case for case in cases if case[0] not in foreground]
             print("Ausgelassen: " + ", ".join(case[0] for case in skipped) + " · " + str(sum(case[-1] for case in skipped)) + " Vordergrundprüfungen offen", flush=True)
@@ -240,6 +252,8 @@ def main():
                 command = [str(binary), flag, str(root), image]
                 if name.startswith("journal-"):
                     command += [name.removeprefix("journal-")]
+                if name.startswith("recovery-"):
+                    command += [name.removeprefix("recovery-")]
                 if args.settings:
                     command += ["--import-settings", str(args.settings.resolve())]
                 if name.startswith("appearance-"):

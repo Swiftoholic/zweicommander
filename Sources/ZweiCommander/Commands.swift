@@ -3,8 +3,13 @@ import CommanderCore
 
 extension MainWindow {
     func command(_ id:String) {
-        if let compare = keyCompareController,!["help","settings","operations"].contains(id) { compare.command(id);return }
-        if let search = keySearchController,!["help","settings","operations"].contains(id) { search.command(id);return }
+        if let workflow = keyWorkflowWindow {
+            guard workflow.canPerformCommand(id) else { return }
+            if workflow.performEditingCommand(id) { return }
+        }
+        let global = ["help","settings","operations","recovery","pauseTransfers","stopTransfers"]
+        if let compare = keyCompareController,!global.contains(id) { compare.command(id);return }
+        if let search = keySearchController,!global.contains(id) { search.command(id);return }
         if id == "closeTab",let key = NSApp.keyWindow,key !== window { key.performClose(nil); return }
         defer { updateChromeState();content.needsLayout = true }
         do {
@@ -155,6 +160,9 @@ extension MainWindow {
             case "restoreImport": restoreBeforeSettingsImport()
             case "log": showText("Vorgangsprotokoll",jobs.log.isEmpty ? "Noch keine Vorgänge in dieser Sitzung." : jobs.log.joined(separator:"\n\n"))
             case "operations": showOperations()
+            case "recovery": showRecovery()
+            case "pauseTransfers": jobs.togglePause()
+            case "stopTransfers": jobs.cancel()
             case "help": showText("ZweiCommander · Bedienung",helpText)
             default: break
             }

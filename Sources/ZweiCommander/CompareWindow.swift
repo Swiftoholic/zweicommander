@@ -241,7 +241,7 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
     func canPerformCommand(_ id: String) -> Bool {
         let editing = NSApp.keyWindow?.firstResponder is NSTextView
         if window?.attachedSheet != nil { return id == "closeTab" || (editing && ["clipboardCopy","clipboardCut","clipboardPaste","undo","selectAll"].contains(id)) }
-        switch id { case "closeTab":return !isWorking;case "refresh","compare":return !isWorking && !isComparing;case "selectAll","help","settings","operations":return true;case "clipboardCopy","clipboardCut","clipboardPaste","undo":return editing;case "preview":return selectedRows.count == 1 && (selectedRows[0].left?.isRegularFile == true || selectedRows[0].right?.isRegularFile == true);default:return false }
+        switch id { case "closeTab":return !isWorking;case "refresh","compare":return !isWorking && !isComparing;case "selectAll","help","settings","operations","recovery","pauseTransfers","stopTransfers":return true;case "clipboardCopy","clipboardCut","clipboardPaste","undo":return editing;case "preview":return selectedRows.count == 1 && (selectedRows[0].left?.isRegularFile == true || selectedRows[0].right?.isRegularFile == true);default:return false }
     }
     func command(_ id: String) {
         guard canPerformCommand(id) else { return };let editor = NSApp.keyWindow?.firstResponder as? NSTextView

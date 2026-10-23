@@ -42,7 +42,7 @@ extension AppDelegate {
             self.main.transfer([source],to:root.appendingPathComponent("Sicherung"),kind:.move)
             guard let move = self.main.secondaryWindows.last as? TransferSetupController else { exit(1) }
             waitFor({ move.plan != nil },then:{
-                check(!move.profilePopup.isEnabled && !move.profileSaveAs.isEnabled && !move.profileSave.isEnabled && !move.criteriaButton.isEnabled && move.filter == TransferFilter(),"profiles and metadata filters disabled for moves")
+                check(move.profilePopup.isEnabled && move.profileSaveAs.isEnabled && !move.profileSave.isEnabled && move.criteriaButton.isEnabled && move.filter == TransferFilter(),"profiles and metadata filters available for moves")
                 move.close();finish()
             })
         }

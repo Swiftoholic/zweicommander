@@ -91,7 +91,7 @@ extension CoreTests {
         try FileManager.default.setAttributes([.modificationDate:Date(timeIntervalSince1970:300)],ofItemAtPath:excluded.path)
         XCTAssertFalse(TransferPlanner.execute(plan).errors.isEmpty);XCTAssertTrue(try relativeObjects(target).isEmpty)
         var move = TransferFilter();move.maximumSize = 100
-        XCTAssertThrowsError(try TransferPlanner.prepare([first],to:target,kind:.move,policy:.stop,filter:move))
+        XCTAssertEqual(try TransferPlanner.prepare([first],to:target,kind:.move,policy:.stop,filter:move).filter.maximumSize,100)
         XCTAssertEqual(try read(first),"first")
     }
     func testCopyProfilesRoundTripDropsUnknownPathFields() throws {

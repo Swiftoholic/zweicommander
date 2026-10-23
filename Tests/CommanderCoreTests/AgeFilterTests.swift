@@ -99,14 +99,15 @@ extension CoreTests {
         XCTAssertEqual(try read(target.appendingPathComponent("tree/same.txt")),"old");XCTAssertEqual(try read(target.appendingPathComponent("tree/same (2).txt")),"new")
         XCTAssertEqual(try read(target.appendingPathComponent("tree/extra.txt")),"extra")
     }
-    func testAgeStructureSuspendsRulesAndFilteredMovesRemainRejected() throws {
+    func testAgeStructureSuspendsRulesAndFilteredMovePlansKeepAge() throws {
         let source = try folder("tree"),target = try folder("target");try folder("tree/empty");try agedFile("tree/a.txt",seconds:3600)
         var filter = ageFilter(maximum:.init(0,unit:.minutes));filter.structureOnly = true
         let plan = try TransferPlanner.prepare([source],to:target,kind:.copy,policy:.stop,filter:filter,referenceDate:ageReference)
         XCTAssertTrue(plan.ageReference == nil);XCTAssertEqual(plan.bytes,0);XCTAssertEqual(plannedObjects(plan).count,2)
         XCTAssertTrue(TransferPlanner.execute(plan).errors.isEmpty)
         filter.structureOnly = false
-        XCTAssertThrowsError(try TransferPlanner.prepare([source],to:target,kind:.move,policy:.stop,filter:filter,referenceDate:ageReference))
+        let move = try TransferPlanner.prepare([source],to:target,kind:.move,policy:.stop,filter:filter,referenceDate:ageReference)
+        XCTAssertEqual(move.filter.modifiedAge,filter.modifiedAge);XCTAssertEqual(move.ageReference,ageReference)
         XCTAssertTrue(FileSystem.exists(source.appendingPathComponent("a.txt")))
     }
     func testAgeProfilesUseVersionTwoAndPreserveLegacyRecords() throws {

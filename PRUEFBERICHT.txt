@@ -1,8 +1,8 @@
-ZweiCommander 0.16.0 — Prüfung vom 21. Oktober 2026
+ZweiCommander 0.17.0 (Build 18) — Prüfung abgeschlossen am 23. Oktober 2026
 
 Ergebnis
-- 203/203 Dateikern- und Integrationstests bestanden.
-- 676/676 native UI-Prüfungen in 29 Durchläufen am finalen
+- 227/227 Dateikern- und Integrationstests bestanden.
+- 731/731 native UI-Prüfungen in 31 Durchläufen am finalen
   universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
   Darstellung nach erneutem App-Start 9, Mittelstreifen und Mausbedienung 26,
@@ -19,11 +19,13 @@ Ergebnis
   Ansichten/Tabs/Favoriten und Speichern 44, Arbeitsbereich nach Neustart 16,
   Mehrfachumbenennen und Profile speichern 20, nach Neustart verwenden 27,
   Sucharbeitsbereich und Profile speichern 22, nach Neustart verwenden 25,
-  Ordnervergleich und Profile speichern 24, nach Neustart verwenden 30.
+  Ordnervergleich und Profile speichern 24, nach Neustart verwenden 30,
+  Wiederherstellung/Tastaturabläufe speichern 40, nach Neustart verwenden 15.
 - Die Serie wurde in zwei Gruppen am identischen Release-Build ausgeführt:
-  24 Durchläufe mit 529 Prüfungen sowie fünf nachgeholte Durchläufe mit
-  147 Prüfungen für aktive Adress-, Such- und Vergleichsfenster in einer
-  entsperrten GUI-Sitzung. Alle Durchläufe sind vollständig bestanden;
+  24 Durchläufe mit 529 Prüfungen sowie sieben Durchläufe mit
+  202 Prüfungen für aktive Adress-, Such-, Vergleichs- und Wiederherstellungs-
+  fenster in einer entsperrten GUI-Sitzung.
+  Alle Durchläufe sind vollständig bestanden;
   es stehen keine ausgelassenen Vordergrundprüfungen mehr aus.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
 - App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
@@ -44,6 +46,55 @@ Bei einer früheren Entwicklungsprüfung blieb ein Start aus dem Entwicklungsord
 Anwendungsinitialisierung hängen. Derselbe unveränderte Build startete aus
 dem Benutzer-Programmeordner regulär. Die genaue Ursache des ersten Hängers
 ist nicht abschließend bestimmt; die Verwendung aus Programme wird empfohlen.
+
+Byte-Fortsetzung, Sicherungen und gefiltertes Verschieben
+24 zusätzliche Dateikerntests prüfen fortgesetzte Einzeldateien und Ordner,
+auch mit schreibgeschütztem Stammordner, vollständig fertigen und teilweise
+kopierten Dateien. Ein echter Kindprozess endet während der Kopie abrupt;
+ein neuer Prozess öffnet die Ablage und verwendet die gespeicherten Bytes.
+Geprüft werden geänderte Quellen trotz zurückgesetzter Änderungszeit,
+beschädigte Präfixe vor und während des Fortsetzens, harte Links auf
+Teilkopien, ersetzte Elternordner und symbolische Staging-Pfade sowie der
+Abbruch während des vollständigen Präfixvergleichs. Vorhandene Ziele bleiben
+bis zur geprüften Veröffentlichung erhalten. Überspringen verwirft keine
+Teilkopie. Die Ausgabe wird mit dem vollständigen Original verglichen.
+
+Sicherungstests prüfen Wiederherstellung nach erneutem Öffnen der Ablage,
+Erhalt des aktuellen Inhalts als neue Sicherung, ganze Ordnerbäume und
+veränderte Ziel-/Sicherungsstände. Verwerfen verwendet den Papierkorb und
+belässt Quelle und aktuellen Zielinhalt. Ein nicht verfügbarer Eintrag lässt
+sich ausschließlich als Beschreibung entfernen. Beschädigte oder extern
+geänderte Beschreibungsdaten werden nicht ersetzt; externe Änderungen
+sperren vor dem Kopieren oder Wiederherstellen weitere Schreibvorgänge.
+
+Gefilterte Verschiebeaufträge prüfen die tatsächlichen Inhalte, Regeln,
+Sitzungsrücknahme und Erhaltung ausgeschlossener Dateien und Quellordner.
+Veränderte Quellen, ein nach Veröffentlichung geändertes Ziel, Konflikte und
+Abbruch verhindern das Entfernen betroffener Quellen. Ein weiterer echter
+Kindprozess endet zwischen der Umbenennung einer Quelle in die private
+Zwischenablage und dem Entfernen. Der Quellinhalt bleibt anhand der vorab
+gespeicherten Zuordnung wiederherstellbar. Gefilterte Verschiebeabsichten
+verwenden Journalversion 3; Versionen 1 und 2 bleiben lesbar.
+
+Zwei zusätzliche native App-Prozesse prüfen 55 Bedienungsschritte. Sie
+bedienen die tatsächlichen Fenster, Feldeditoren und Menübefehle:
+⌘L/⌘⌥F, ⌘1/2, ⌘↩/⌘⇧↩, ⌘R und die verwandten Auftrags-/Wiederherstellungs-
+kürzel. Ein Startwunsch während der Neuprüfung wartet auf einen gültigen
+Plan; weitere Eingaben verwerfen ihn. Kopierspezifische Profile werden beim
+Verschieben abgewiesen, ohne Eingaben zu verändern. Verdeckte Hauptfenster-
+Dateiaktionen bleiben gesperrt; Textfelder behalten ihre Bearbeitungskürzel.
+
+Die Auftragsprüfung ordnet wartende Aufträge mit ⌥↑ um, entfernt nur den
+Auftrag mit ⌫, startet per Enter, pausiert und setzt eine echte 32-MiB-Kopie
+mit Leertaste fort. Auch eine angehaltene Gesamtwarteschlange lässt sich
+über das Menü fortsetzen. Ein umbelegter globaler Befehl aktualisiert die
+Hover-Hilfe. Der native Abbruchbefehl hinterlässt eine Teilkopie; ein eigener
+Prozess setzt sie erst nach erneuter Vorschau und ⌘↩ fort. Wiederverwendete
+Bytes und vollständige Dateihashes stimmen mit den gespeicherten Daten
+überein. Die Wiederherstellung eines ersetzten Ziels wird über das echte
+Bestätigungsblatt ausgeführt und erhält den aktuellen Inhalt als neue
+Sicherung. Das Abbrechen des Verwerfens erhält Daten und Beschreibung.
+Helle und dunkle Fensteransichten werden zusätzlich als lokale Bilder geprüft.
 
 Direktes Umbenennen, Ablageziele und große Dateilisten
 62 neue native Prüfungen bedienen F2, den echten Texteditor sowie Enter und
@@ -446,13 +497,13 @@ Die Journalprüfung nutzt ausschließlich eine temporäre eigene Ablage.
 Die erste Teilfortschrittsmeldung wird auch für spätere Auswahlobjekte sofort
 weitergereicht, selbst wenn die vorherige Datei bereits Bytes gemeldet hat.
 
-Kopierprofile und Metadatenfilter
+Übertragungsprofile und Metadatenfilter
 Neue Tests prüfen Größenangaben mit 1000er-/1024er-Einheiten, Dezimalpunkt und
 -komma, Byte-Grenzwerte, ungültige und überlaufende Eingaben, einschließlich
 Größen-Unter-/Obergrenze und Datum ab/vor mit ausschließlichem Endzeitpunkt.
 Hinzu kommen Kombinationen mit Namen, Ordnerfiltern und Zusammenführen,
 Links ohne Ziel-Traversierung, geänderte Dateizeiten seit der Vorschau,
-Strukturkopie und die Ablehnung gefilterter Verschiebeaufträge.
+Strukturkopie und die Ablehnung kopierspezifischer Optionen beim Verschieben.
 Profiltests prüfen JSON-Speicherung, alte Filterfelder, unbekannte Pfadfelder,
 Unicode-Namensgleichheit, doppelte Namen/Kennungen, unveränderte Daten bei
 Fehlern, Aktualisieren/Löschen und die Grenze von 50 Profilen.
@@ -499,10 +550,24 @@ Neue Ordner können bis zum Abschluss vorläufig private Zugriffsrechte behalten
 Wird der Zielordner während der Arbeit ersetzt oder umbenannt, kann eine
 versteckte Staging-Datei im vorherigen Ordnerobjekt zurückbleiben.
 Typkonflikte mit Ordnern können nur übersprungen werden. Zusammenführen und
-Filter und Profile sind beim Verschieben gesperrt. Das Journal betrifft lokale
+reine Ordnerstruktur bleiben auf Kopien beschränkt. Geeignete Filter und Profile
+gelten auch für Verschiebeaufträge; ausgeschlossene Dateien und Quellordner
+bleiben dabei erhalten. Das Journal betrifft lokale
 Kopier-/Verschiebeabsichten und letzten gemeldeten Fortschritt, keine bestätigte
 Bestandsaufnahme nach dem Neustart. Bis zu 200 Aufträge/16 MiB und 200
-Objektzeilen pro Auftrag; keine automatische Ausführung oder Byte-Fortsetzung.
+Objektzeilen pro Auftrag; keine automatische Ausführung. Eine getrennte lokale
+Wiederherstellungsablage verwaltet bis zu 200 Teilkopien und 2.000 Sicherungen
+mit insgesamt höchstens 16 MiB Beschreibungsdaten. Byte-Fortsetzung gilt ab
+4 MiB je Auswahlobjekt und bis zu 2.000 Objekten ohne symbolische Links,
+einschließlich der Kopierphase gefilterter Verschiebeaufträge. Andere Kopien
+beginnen neu; ungefilterte Verschiebeaufträge nutzen die Systemoperation.
+Vorhandene Bytes werden vollständig mit der Quelle verglichen und der
+vollständige Dateiinhalt vor Veröffentlichung nochmals geprüft. Nicht
+antwortende Betriebssystemzugriffe können einen Abbruch verzögern. Die neue
+Verwaltung erfasst ab 0.17 zugeordnete Sicherungen; ältere Sicherungen werden
+nicht automatisch importiert. Ganze Ordnersicherungen werden ausgetauscht,
+nicht zusammengeführt. Dateiändernde Verwaltungsaktionen warten auf den
+Abschluss oder das Entfernen offener Dateiaufträge.
 Fehlende Quellen gelten nicht als erfolgreich verschoben. Andere Hintergrund-
 vorgänge und Rückgängig bleiben sitzungsbezogen. Nach abruptem Prozessende
 können versteckte unveröffentlichte Kopien zurückbleiben; keine automatische

@@ -219,7 +219,7 @@ final class SearchController: NSWindowController,NSWindowDelegate,NSTableViewDat
         case "clipboardCut","clipboardPaste": return editing
         case "copyPath": return !hits.isEmpty
         case "refresh": return !isSearching
-        case "selectAll","closeTab","search","help","settings","operations": return true
+        case "selectAll","closeTab","search","help","settings","operations","recovery","pauseTransfers","stopTransfers": return true
         default: return false
         }
     }

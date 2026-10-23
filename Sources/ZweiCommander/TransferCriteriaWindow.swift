@@ -98,7 +98,7 @@ final class CopyProfileNameController: NSWindowController {
     let save = ActionButton("Speichern",action:{})
     let cancel = ActionButton("Abbrechen",action:{})
     var onSave: ((String) throws -> Void)?
-    init(title: String = "Kopierprofil speichern",message: String = "Aktuelle Kopierregeln speichern") {
+    init(title: String = "Übertragungsprofil speichern",message: String = "Aktuelle Übertragungsregeln speichern") {
         let w = NSWindow(contentRect:NSRect(x:0,y:0,width:520,height:195),styleMask:[.titled,.closable],backing:.buffered,defer:false)
         w.title = title;w.isReleasedWhenClosed = false
         super.init(window:w)

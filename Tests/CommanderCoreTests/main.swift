@@ -2,6 +2,11 @@ import Foundation
 import CommanderCore
 import CArchive
 
+let coreTestExecutable = URL(fileURLWithPath:CommandLine.arguments[0]).standardizedFileURL
+setvbuf(stdout,nil,_IOLBF,0)
+runRecoveryChildIfRequested()
+runFilteredMoveChildIfRequested()
+
 final class CoreTests {
     var root:URL!
     func setUpWithError() throws {
@@ -505,7 +510,7 @@ let tests: [(String, (CoreTests) throws -> Void)] = [
     ("testAgeCombinesWithNamesSizeSubtreesAndLinkExclusion", { try $0.testAgeCombinesWithNamesSizeSubtreesAndLinkExclusion() }),
     ("testAgeSourceEnteringRangeInvalidatesBeforeAnyPublication", { try $0.testAgeSourceEnteringRangeInvalidatesBeforeAnyPublication() }),
     ("testAgeMergeKeepsReferenceAndRequiresRealConflictDecision", { try $0.testAgeMergeKeepsReferenceAndRequiresRealConflictDecision() }),
-    ("testAgeStructureSuspendsRulesAndFilteredMovesRemainRejected", { try $0.testAgeStructureSuspendsRulesAndFilteredMovesRemainRejected() }),
+    ("testAgeStructureSuspendsRulesAndFilteredMovePlansKeepAge", { try $0.testAgeStructureSuspendsRulesAndFilteredMovePlansKeepAge() }),
     ("testAgeProfilesUseVersionTwoAndPreserveLegacyRecords", { try $0.testAgeProfilesUseVersionTwoAndPreserveLegacyRecords() }),
     ("testAgeJournalRestoresRelativeRuleAndNewPlansUseNewTime", { try $0.testAgeJournalRestoresRelativeRuleAndNewPlansUseNewTime() }),
     ("testLaterSelectionObjectReportsItsFirstPartialBytes", { try $0.testLaterSelectionObjectReportsItsFirstPartialBytes() }),
@@ -567,7 +572,7 @@ let tests: [(String, (CoreTests) throws -> Void)] = [
     ("testCopyFilterTreatsSymbolicLinksAsLinksWithoutTraversal", { try $0.testCopyFilterTreatsSymbolicLinksAsLinksWithoutTraversal() }),
     ("testFilteredPlanRejectsChangedOrNewMatchingFilesBeforeAnyCopy", { try $0.testFilteredPlanRejectsChangedOrNewMatchingFilesBeforeAnyCopy() }),
     ("testCopyFilterNoMatchesAndEmptySelectionHaveDistinctResults", { try $0.testCopyFilterNoMatchesAndEmptySelectionHaveDistinctResults() }),
-    ("testFilteredMovesAreRejectedWithoutChangingSourceOrTarget", { try $0.testFilteredMovesAreRejectedWithoutChangingSourceOrTarget() }),
+    ("testFilteredMoveStructureOnlyIsRejectedWithoutChangingSourceOrTarget", { try $0.testFilteredMoveStructureOnlyIsRejectedWithoutChangingSourceOrTarget() }),
     ("testFilteredCopyCancellationRetainsExistingTargetAndExcludedFiles", { try $0.testFilteredCopyCancellationRetainsExistingTargetAndExcludedFiles() }),
     ("testNativeCopyProgressAndMetadata", { try $0.testNativeCopyProgressAndMetadata() }),
     ("testPauseResumeInsideCopy", { try $0.testPauseResumeInsideCopy() }),
@@ -626,16 +631,43 @@ let tests: [(String, (CoreTests) throws -> Void)] = [
     ("testSplitJoinAndTamperDetection", { try $0.testSplitJoinAndTamperDetection() }),
     ("testSplitJoinEmptyFile", { try $0.testSplitJoinEmptyFile() }),
     ("testTopLevelSelectionDoesNotDoubleProcessDescendants", { try $0.testTopLevelSelectionDoesNotDoubleProcessDescendants() }),
+    ("testResumeRejectsPrefixModifiedDuringTheResumedWrite", { try $0.testResumeRejectsPrefixModifiedDuringTheResumedWrite() }),
+    ("testBackupExternalCatalogEditBlocksRestoringIntoAbsentTarget", { try $0.testBackupExternalCatalogEditBlocksRestoringIntoAbsentTarget() }),
+    ("testFilteredMoveCrashBeforeSourceRemovalKeepsRecoverableSource", { try $0.testFilteredMoveCrashBeforeSourceRemovalKeepsRecoverableSource() }),
+    ("testFilteredMoveRefusesDestinationEditedAfterPublication", { try $0.testFilteredMoveRefusesDestinationEditedAfterPublication() }),
+    ("testDiscardUsesTrashAndPreservesSourceAndCurrentTarget", { try $0.testDiscardUsesTrashAndPreservesSourceAndCurrentTarget() }),
+    ("testResumeFileAfterReopeningPrivateStorage", { try $0.testResumeFileAfterReopeningPrivateStorage() }),
+    ("testResumeAfterActualAbruptProcessExit", { try $0.testResumeAfterActualAbruptProcessExit() }),
+    ("testResumeFolderReusesCompletedAndPartialFiles", { try $0.testResumeFolderReusesCompletedAndPartialFiles() }),
+    ("testResumeRejectsSourceEditEvenWithRestoredModificationDate", { try $0.testResumeRejectsSourceEditEvenWithRestoredModificationDate() }),
+    ("testResumeRefusesTamperedPrefixWithoutOverwritingIt", { try $0.testResumeRefusesTamperedPrefixWithoutOverwritingIt() }),
+    ("testResumeRejectsHardLinkedPartial", { try $0.testResumeRejectsHardLinkedPartial() }),
+    ("testResumeRejectsReplacedParentAndSymlinkStage", { try $0.testResumeRejectsReplacedParentAndSymlinkStage() }),
+    ("testResumeCanCancelDuringPrefixVerification", { try $0.testResumeCanCancelDuringPrefixVerification() }),
+    ("testResumePreservesConflictingTargetUntilPublication", { try $0.testResumePreservesConflictingTargetUntilPublication() }),
+    ("testBackupRestoreAfterRestartPreservesCurrentVersionAsNewBackup", { try $0.testBackupRestoreAfterRestartPreservesCurrentVersionAsNewBackup() }),
+    ("testBackupRestoreRefusesStaleTargetAndChangedBackup", { try $0.testBackupRestoreRefusesStaleTargetAndChangedBackup() }),
+    ("testBackupFolderRestorationRetainsCurrentFolderTree", { try $0.testBackupFolderRestorationRetainsCurrentFolderTree() }),
+    ("testHistoryExternalEditsBlockBeforeAnyDataCopy", { try $0.testHistoryExternalEditsBlockBeforeAnyDataCopy() }),
+    ("testHistoryDamagedDocumentIsNeverReplaced", { try $0.testHistoryDamagedDocumentIsNeverReplaced() }),
+    ("testUnavailableRecoveryEntryCanBeForgottenWithoutDeletingData", { try $0.testUnavailableRecoveryEntryCanBeForgottenWithoutDeletingData() }),
+    ("testFilteredMovePreservesExcludedFilesAndSupportsSessionUndo", { try $0.testFilteredMovePreservesExcludedFilesAndSupportsSessionUndo() }),
+    ("testFilteredMoveConflictsAndStalePlanNeverRemoveSource", { try $0.testFilteredMoveConflictsAndStalePlanNeverRemoveSource() }),
+    ("testFilteredMoveCancellationRetainsAllSourcesAndPreviousTarget", { try $0.testFilteredMoveCancellationRetainsAllSourcesAndPreviousTarget() }),
+    ("testFilteredMoveRulesPersistAsJournalVersionThree", { try $0.testFilteredMoveRulesPersistAsJournalVersionThree() }),
     ("testListingBatchesPreserveMetadataAndHiddenRules", { try $0.testListingBatchesPreserveMetadataAndHiddenRules() }),
     ("testListingCancellationStopsAfterPublishedBatch", { try $0.testListingCancellationStopsAfterPublishedBatch() }),
     ("testEditedSingleNameRetainsOriginalVersionAndLiteralText", { try $0.testEditedSingleNameRetainsOriginalVersionAndLiteralText() })
 ]
 var failed = 0
-for (name, test) in tests {
+let testFilter = CommandLine.arguments.firstIndex(of:"--filter").flatMap { CommandLine.arguments.indices.contains($0+1) ? CommandLine.arguments[$0+1] : nil }
+let selectedTests = tests.filter { testFilter.map($0.0.localizedCaseInsensitiveContains) ?? true }
+guard !selectedTests.isEmpty else { fputs("Keine passenden Tests.\n",stderr);exit(2) }
+for (name, test) in selectedTests {
     let suite = CoreTests(); assertionFailures = []
     do { try suite.setUpWithError(); try test(suite) } catch { assertionFailures.append(error.localizedDescription) }
     do { try suite.tearDownWithError() } catch { assertionFailures.append("Cleanup: " + error.localizedDescription) }
     if assertionFailures.isEmpty { print("PASS " + name) } else { failed += 1; print("FAIL " + name + "\n" + assertionFailures.joined(separator:"\n")) }
 }
-print("\(tests.count - failed)/\(tests.count) tests passed")
+print("\(selectedTests.count - failed)/\(selectedTests.count) tests passed")
 exit(failed == 0 ? 0 : 1)

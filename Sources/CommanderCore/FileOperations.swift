@@ -13,6 +13,7 @@ public struct OperationReport {
     public var skipped: [URL] = []
     public var undo: [UndoStep] = []
     public var errors: [String] = []
+    public var reusedBytes: Int64 = 0
     public init() {}
 }
 
@@ -41,7 +42,7 @@ public enum FileOperations {
     public static func transferOne(_ source: URL, to requested: URL, kind: TransferKind, policy: ConflictPolicy, token: CancellationToken = .init()) throws -> UndoStep? {
         try transferPrepared(source,to:requested,kind:kind,policy:policy,token:token,tree:nil,expectedTarget:nil,byteProgress:{ _,_,_ in })
     }
-    static func transferPrepared(_ source: URL,to requested: URL,kind: TransferKind,policy: ConflictPolicy,token: CancellationToken,tree: CopyTree?,expectedTarget: TargetVersion?,validateTarget: (() throws -> Void)? = nil,byteProgress: @escaping (String,Int64,Int64) -> Void) throws -> UndoStep? {
+    static func transferPrepared(_ source: URL,to requested: URL,kind: TransferKind,policy: ConflictPolicy,token: CancellationToken,tree: CopyTree?,expectedTarget: TargetVersion?,validateTarget: (() throws -> Void)? = nil,history: TransferHistory? = nil,intentKind: TransferKind? = nil,reused: (Int64)->Void = { _ in },byteProgress: @escaping (String,Int64,Int64) -> Void) throws -> UndoStep? {
         let fm = FileManager.default
         try validateTarget?()
         guard FileSystem.exists(source) else { throw CommanderError.message("Quelle existiert nicht mehr.") }
@@ -68,26 +69,31 @@ public enum FileOperations {
         try token.check()
         let parent = target.deletingLastPathComponent()
         let parentVersion = try FileStamp(parent)
-        let staging = parent.appendingPathComponent(".zweicommander-transfer-" + UUID().uuidString)
+        var staging = parent.appendingPathComponent(".zweicommander-transfer-" + UUID().uuidString)
+        var recovery: ResumableCopy?
         var backup: URL?
         var published = false
         defer {
-            if !published,FileSystem.exists(staging),let current = try? FileStamp(parent),current.sameObject(as:parentVersion) { try? fm.removeItem(at:staging) }
+            if recovery == nil,!published,FileSystem.exists(staging),let current = try? FileStamp(parent),current.sameObject(as:parentVersion) { try? fm.removeItem(at:staging) }
         }
         let before = try FileStamp(source)
         if kind == .copy {
             let snapshot = try tree ?? CopyTree.scan(source,token:token)
             try snapshot.validate(source,token:token)
-            try snapshot.copy(source,to:staging,token:token,progress:byteProgress)
+            recovery = try history?.beginCopy(source:source,target:target,tree:snapshot,kind:intentKind ?? kind,policy:policy,token:token)
+            if let recovery { staging = recovery.stage;try recovery.copy(snapshot,token:token,progress:byteProgress);reused(recovery.reusedBytes) }
+            else { try snapshot.copy(source,to:staging,token:token,progress:byteProgress) }
         }
         try token.check()
         try validateTarget?()
+        try recovery?.validateForPublish(token:token)
         guard try FileStamp(parent).sameObject(as:parentVersion) else { throw CommanderError.message("Zielordner wurde während des Vorgangs ersetzt.") }
         guard try FileStamp(source) == before else { throw CommanderError.message("Quelle wurde während des Vorgangs verändert. Bitte erneut versuchen.") }
         if policy != .keepBoth { try expectation.validate(target) }
         if FileSystem.exists(target) {
             guard policy == .replace else { throw CommanderError.message("Ziel wurde inzwischen angelegt; nichts überschrieben.") }
             let saved = parent.appendingPathComponent(".zweicommander-backup-" + UUID().uuidString)
+            _ = try history?.stageBackup(original:target,stored:saved)
             try fm.moveItem(at: target, to: saved)
             backup = saved
         }
@@ -101,6 +107,7 @@ public enum FileOperations {
             }
             throw error
         }
+        try recovery?.published()
         return UndoStep(current: target, original: kind == .move ? source : nil, backup: backup, stamp: try FileStamp(target))
     }
 

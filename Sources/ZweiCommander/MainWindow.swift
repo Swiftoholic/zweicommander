@@ -107,6 +107,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     let cache: URL
     var onRebuildMenus: (() -> Void)?
     var operationWindow: OperationQueueController?
+    var recoveryWindow: RecoveryController?
     var programLauncher: ((ProgramLaunchRequest) -> Void)?
     var keyCompareController: CompareController? { secondaryWindows.compactMap { $0 as? CompareController }.first { $0.window === NSApp.keyWindow || (NSApp.keyWindow?.sheetParent != nil && $0.window === NSApp.keyWindow?.sheetParent) } }
     var keySearchController: SearchController? { secondaryWindows.compactMap { $0 as? SearchController }.first { $0.window === NSApp.keyWindow } }
@@ -161,8 +162,11 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         jobs.onStatus = { [weak self] text,done in
             guard let self else { return }; self.content.status.stringValue = text
             let active = self.jobs.active
-            self.content.cancel.isHidden = active == nil;self.content.pause.isHidden = active == nil
-            self.content.pause.title = active.map { [.paused,.pausing].contains($0.state) ? "Fortsetzen" : "Pause" } ?? "Pause"
+            self.content.cancel.isHidden = active == nil;self.content.pause.isHidden = active == nil && self.jobs.pending == 0
+            self.content.pause.title = active.map { [.paused,.pausing].contains($0.state) ? "Fortsetzen" : "Pause" } ?? (self.jobs.scheduler.isHeld && self.jobs.pending > 0 ? "Fortsetzen" : "Pause")
+            self.content.pause.setHelp("Pause / Fortsetzen","Übertragung und nachfolgende Aufträge pausieren oder fortsetzen.",shortcut:CommandHelp.shortcut("pauseTransfers"))
+            self.content.cancel.setHelp("Abbrechen","Laufenden Auftrag abbrechen; fertige Schritte bleiben erhalten.",shortcut:CommandHelp.shortcut("stopTransfers"))
+            self.content.queueButton.setHelp("Aufträge","Wartende, laufende und frühere Dateivorgänge ansehen.",shortcut:CommandHelp.shortcut("operations"))
             self.content.pause.image = NSImage(systemSymbolName:self.content.pause.title == "Fortsetzen" ? "play.fill" : "pause.fill",accessibilityDescription:self.content.pause.title)
             self.content.queueButton.title = "Aufträge (\(self.jobs.pending+self.jobs.scheduler.snapshots.filter { $0.state == .review }.count))"
             self.content.progress.isHidden = self.jobs.pending == 0
@@ -385,7 +389,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         let controller = TransferSetupController(sources:sources,destination:entry.intent.destination,kind:entry.intent.kind,validateDestination:{ url in
             guard !FileSystem.isInside(url,cache) else { throw CommanderError.message("Temporäre Archivordner sind schreibgeschützt.") }
         })
-        let notice = missing > 0 ? "\(missing) gespeicherte Quelle(n) fehlen und werden ausgelassen. Vorhandene Ziele und den neuen Plan prüfen." : "Neuer Dateiplan: vorhandene Ziele prüfen und Einzelentscheidungen erneut treffen. Kein Fortsetzen an einer Byteposition."
+        let notice = missing > 0 ? "\(missing) gespeicherte Quelle(n) fehlen und werden ausgelassen. Vorhandene Ziele und den neuen Plan prüfen." : "Neuer Dateiplan: Ziele prüfen und Einzelentscheidungen erneut treffen. Passende Teilkopien werden vor dem Fortsetzen vollständig geprüft."
         controller.apply(entry.intent,notice:notice)
         controller.onSubmit = { [weak self] plan,start in self?.enqueueTransfer(plan,start:start,replacing:id) ?? false }
         secondaryWindows.append(controller);controller.showWindow(nil);return controller
@@ -394,9 +398,11 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         if operationWindow == nil {
             operationWindow = OperationQueueController(jobs)
             operationWindow?.onReview = { [weak self] id in self?.reviewTransfer(id) }
+            operationWindow?.onRecovery = { [weak self] in self?.showRecovery() }
         }
         if let id { operationWindow?.select(id) }
         operationWindow?.showWindow(nil)
+        if let operationWindow { operationWindow.window?.makeFirstResponder(operationWindow.table) }
     }
     func openArchive(_ url:URL,in pane:PaneView) {
         let dest = cache.appendingPathComponent(UUID().uuidString)

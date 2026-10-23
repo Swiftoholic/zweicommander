@@ -9,6 +9,9 @@ public struct TransferIntent: Codable {
     public let policy: ConflictPolicy
     public let filter: TransferFilter
     public let mergeFolders: Bool
+    init(sources: [URL],destination: URL,kind: TransferKind,policy: ConflictPolicy,filter: TransferFilter) {
+        self.sources = sources;self.destination = destination;self.kind = kind;self.policy = policy;self.filter = filter;mergeFolders = false
+    }
     public init(_ plan: TransferPlan) {
         sources = plan.entries.map(\.source);destination = plan.destination;kind = plan.kind
         policy = plan.policy;filter = plan.filter;mergeFolders = plan.merge != nil
@@ -17,7 +20,7 @@ public struct TransferIntent: Codable {
         guard !sources.isEmpty,sources.count <= 1000,Set(sources).count == sources.count else { throw journalError("Ungültige Quellauswahl.") }
         for url in sources+[destination] { try validateJournalURL(url) }
         try filter.validate()
-        guard kind == .copy || (!mergeFolders && !filter.isActive) else { throw journalError("Ungültige Regeln für einen Verschiebeauftrag.") }
+        guard kind == .copy || (!mergeFolders && !filter.structureOnly) else { throw journalError("Ungültige Regeln für einen Verschiebeauftrag.") }
     }
 }
 
@@ -42,8 +45,9 @@ private struct JournalDocument: Codable {
     var version = 1
     var entries: [TransferJournalEntry] = []
     func validate() throws {
-        guard [1,2].contains(version) else { throw journalError("Diese Auftragsdatei hat eine unbekannte Version.") }
-        guard version == 2 || !entries.contains(where: { $0.intent.filter.modifiedAge != nil }) else { throw journalError("Relative Altersfilter benötigen die neue Auftragsversion.") }
+        guard [1,2,3].contains(version) else { throw journalError("Diese Auftragsdatei hat eine unbekannte Version.") }
+        guard version >= 2 || !entries.contains(where: { $0.intent.filter.modifiedAge != nil }) else { throw journalError("Relative Altersfilter benötigen die neue Auftragsversion.") }
+        guard version >= 3 || !entries.contains(where: { $0.intent.kind == .move && $0.intent.filter.isActive }) else { throw journalError("Gefiltertes Verschieben benötigt die neue Auftragsversion.") }
         guard entries.count <= TransferJournal.maximumEntries,Set(entries.map(\.id)).count == entries.count else { throw journalError("Zu viele oder doppelte Aufträge.") }
         for entry in entries {
             try entry.intent.validate()
@@ -93,6 +97,8 @@ public final class TransferJournal: @unchecked Sendable {
     private var dirFD: Int32 = -1,lockFD: Int32 = -1
     private var directoryVersion: JournalFileVersion?
     private var diskVersion: JournalFileVersion?
+    private var historyVersion: JournalFileVersion?
+    private var historyLoaded = false
     private var document = JournalDocument()
     private var lastWrite = Date.distantPast
 
@@ -181,13 +187,62 @@ public final class TransferJournal: @unchecked Sendable {
         guard fstatat(dirFD,".journal.lock",&lockValue,AT_SYMLINK_NOFOLLOW) == 0,fstat(lockFD,&held) == 0,
               isPrivateRegular(lockValue),lockValue.st_dev == held.st_dev,lockValue.st_ino == held.st_ino else { throw journalError("Die Sperrdatei wurde verändert.") }
     }
-    private func currentDiskVersion() throws -> JournalFileVersion? {
+    private func currentDiskVersion(_ name: String = "journal.json") throws -> JournalFileVersion? {
         var value = stat()
-        if fstatat(dirFD,"journal.json",&value,AT_SYMLINK_NOFOLLOW) != 0 {
+        if fstatat(dirFD,name,&value,AT_SYMLINK_NOFOLLOW) != 0 {
             if errno == ENOENT { return nil };throw journalError("Die Auftragsdatei ist nicht lesbar.")
         }
         guard isPrivateRegular(value),value.st_size >= 0,value.st_size <= Self.maximumBytes else { throw journalError("Die Auftragsdatei ist keine sichere reguläre Datei oder zu groß.") }
         return JournalFileVersion(value)
+    }
+
+    // Shares the journal's lifetime lock; recovery metadata never introduces a second writer.
+    func loadHistory() throws -> Data? {
+        lock.lock();defer { lock.unlock() }
+        try validateDirectory()
+        let expected = try currentDiskVersion("history.json")
+        guard let expected else { historyLoaded = true;historyVersion = nil;return nil }
+        let fd = openat(dirFD,"history.json",O_RDONLY|O_NOFOLLOW|O_CLOEXEC)
+        guard fd >= 0 else { throw journalError("Wiederherstellungsdaten sind nicht lesbar.") };defer { close(fd) }
+        var value = stat()
+        guard fstat(fd,&value) == 0,JournalFileVersion(value) == expected,isPrivateRegular(value),value.st_mode & 0o077 == 0 else { throw journalError("Wiederherstellungsdaten wurden verändert.") }
+        var data = Data(),buffer = [UInt8](repeating:0,count:65536)
+        while true {
+            let count = read(fd,&buffer,buffer.count)
+            if count == 0 { break };if count < 0 && errno == EINTR { continue }
+            guard count > 0,data.count+count <= Self.maximumBytes else { throw journalError("Wiederherstellungsdaten sind nicht vollständig lesbar.") }
+            data.append(contentsOf:buffer.prefix(count))
+        }
+        guard try currentDiskVersion("history.json") == expected else { throw journalError("Wiederherstellungsdaten wurden beim Lesen verändert.") }
+        historyVersion = expected;historyLoaded = true;return data
+    }
+    func saveHistory(_ data: Data) throws {
+        lock.lock();defer { lock.unlock() }
+        guard historyLoaded,data.count <= Self.maximumBytes else { throw journalError("Wiederherstellungsablage ist nicht verfügbar oder voll.") }
+        try validateDirectory()
+        guard try currentDiskVersion("history.json") == historyVersion else { throw journalError("Wiederherstellungsdaten wurden außerhalb der App verändert.") }
+        let name = ".history-"+UUID().uuidString+".tmp"
+        let fd = openat(dirFD,name,O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC,0o600)
+        guard fd >= 0 else { throw journalError("Wiederherstellungsdaten lassen sich nicht anlegen.") }
+        defer { close(fd);unlinkat(dirFD,name,0) }
+        try data.withUnsafeBytes { buffer in
+            var offset = 0
+            while offset < buffer.count {
+                let count = write(fd,buffer.baseAddress!.advanced(by:offset),buffer.count-offset)
+                if count < 0 && errno == EINTR { continue }
+                guard count > 0 else { throw journalError("Wiederherstellungsdaten konnten nicht geschrieben werden.") };offset += count
+            }
+        }
+        guard fsync(fd) == 0 else { throw journalError("Wiederherstellungsdaten konnten nicht gesichert werden.") }
+        try validateDirectory()
+        guard try currentDiskVersion("history.json") == historyVersion else { throw journalError("Wiederherstellungsdaten wurden beim Speichern verändert.") }
+        guard renameat(dirFD,name,dirFD,"history.json") == 0 else { throw journalError("Wiederherstellungsdaten konnten nicht veröffentlicht werden.") }
+        historyVersion = try currentDiskVersion("history.json")
+        guard fsync(dirFD) == 0 else { throw journalError("Wiederherstellungsablage konnte nicht gesichert werden.") }
+    }
+    func checkHistory() throws {
+        lock.lock();defer { lock.unlock() };try validateDirectory()
+        guard historyLoaded,try currentDiskVersion("history.json") == historyVersion else { throw journalError("Wiederherstellungsdaten wurden außerhalb der App verändert.") }
     }
     private func readDisk() throws -> Data? {
         try validateDirectory();diskVersion = try currentDiskVersion()
@@ -209,7 +264,7 @@ public final class TransferJournal: @unchecked Sendable {
     }
     private func save(_ next: JournalDocument) throws {
         var next = next
-        next.version = next.entries.contains { $0.intent.filter.modifiedAge != nil } ? 2 : 1
+        next.version = next.entries.contains { $0.intent.kind == .move && $0.intent.filter.isActive } ? 3 : next.entries.contains { $0.intent.filter.modifiedAge != nil } ? 2 : 1
         try next.validate();let encoder = JSONEncoder();encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(next)
         guard data.count <= Self.maximumBytes else { throw journalError("Die Auftragsablage ist voll. Bitte erledigte Aufträge ausblenden.") }

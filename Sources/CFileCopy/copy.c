@@ -2,6 +2,9 @@
 #include <copyfile.h>
 #include <errno.h>
 #include <sys/types.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
 
 struct zc_context { zc_copy_progress callback; void *user; };
 static int status_callback(int what, int stage, copyfile_state_t state,
@@ -48,4 +51,59 @@ int zc_copy_fd(int source_fd, int destination_fd, zc_copy_progress callback, voi
     int error = result == 0 ? 0 : (errno ? errno : EIO);
     copyfile_state_free(state);
     return error;
+}
+
+static ssize_t read_block(int fd, void *buffer, size_t size, off_t offset) {
+    size_t count = 0;
+    while (count < size) {
+        ssize_t n = pread(fd, (char *)buffer + count, size - count, offset + count);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) return -1;
+        count += n;
+    }
+    return count;
+}
+int zc_verify_prefix_fd(int source_fd, int destination_fd, int64_t bytes,
+                        zc_copy_progress callback, void *context) {
+    if (bytes < 0) return EINVAL;
+    const size_t block = 1024 * 1024;
+    char *source = malloc(block), *destination = malloc(block);
+    if (!source || !destination) { free(source); free(destination); return ENOMEM; }
+    int error = 0;
+    for (int64_t offset = 0; offset < bytes;) {
+        size_t size = (size_t)(bytes - offset < (int64_t)block ? bytes - offset : block);
+        if (read_block(source_fd, source, size, offset) < 0 ||
+            read_block(destination_fd, destination, size, offset) < 0) { error = EIO; break; }
+        if (memcmp(source, destination, size)) { error = EILSEQ; break; }
+        offset += size;
+        if (callback && callback(context, offset)) { error = ECANCELED; break; }
+    }
+    free(source); free(destination); return error;
+}
+int zc_resume_fd(int source_fd, int destination_fd, int64_t offset, int64_t total,
+                 zc_copy_progress callback, void *context) {
+    if (offset < 0 || total < offset) return EINVAL;
+    const size_t block = 1024 * 1024;
+    char *buffer = malloc(block);
+    if (!buffer) return ENOMEM;
+    int error = 0;
+    if (callback && callback(context, offset)) { free(buffer); return ECANCELED; }
+    while (offset < total) {
+        size_t size = (size_t)(total - offset < (int64_t)block ? total - offset : block);
+        if (read_block(source_fd, buffer, size, offset) < 0) { error = EIO; break; }
+        size_t written = 0;
+        while (written < size) {
+            ssize_t n = pwrite(destination_fd, buffer + written, size - written, offset + written);
+            if (n < 0 && errno == EINTR) continue;
+            if (n <= 0) { error = errno ? errno : EIO; break; }
+            written += n;
+        }
+        if (error) break;
+        offset += size;
+        if (callback && callback(context, offset)) { error = ECANCELED; break; }
+    }
+    free(buffer); return error;
+}
+int zc_metadata_fd(int source_fd, int destination_fd) {
+    return fcopyfile(source_fd, destination_fd, NULL, COPYFILE_METADATA) == 0 ? 0 : (errno ? errno : EIO);
 }

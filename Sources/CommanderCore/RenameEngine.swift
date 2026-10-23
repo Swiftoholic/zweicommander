@@ -1,7 +1,7 @@
 import Foundation
 import Darwin
 
-struct RenameVersion: Equatable {
+struct RenameVersion: Equatable, Codable {
     let device: dev_t,inode: ino_t,mode: mode_t,size: off_t
     let modifiedSeconds: Int,modifiedNanos: Int,changedSeconds: Int,changedNanos: Int,birthSeconds: Int,birthNanos: Int
     var isDirectory: Bool { mode & S_IFMT == S_IFDIR }

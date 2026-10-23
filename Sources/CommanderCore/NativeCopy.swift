@@ -6,6 +6,7 @@ struct CopyNode: Equatable {
     let stamp: FileStamp
     let directory: Bool, link: Bool
     let bytes: Int64
+    let version: RenameVersion
 }
 struct CopyTree: Equatable {
     let nodes: [CopyNode]
@@ -30,7 +31,7 @@ struct CopyTree: Equatable {
             guard entry.isDirectory || entry.isSymbolicLink || entry.isRegularFile else { throw CommanderError.message("Spezialdatei wird nicht kopiert: \(url.path)") }
             let stamp = try FileStamp(url)
             if !directory && !compiled.includesMetadata(size:Int64(clamping:stamp.size),modified:stamp.date,isLink:entry.isSymbolicLink) { return entry.isSymbolicLink ? .skip : .leaf }
-            nodes.append(CopyNode(relative:relative,stamp:stamp,directory:directory,link:entry.isSymbolicLink,bytes:entry.isRegularFile && !entry.isSymbolicLink ? Int64(clamping:stamp.size) : 0))
+            nodes.append(CopyNode(relative:relative,stamp:stamp,directory:directory,link:entry.isSymbolicLink,bytes:entry.isRegularFile && !entry.isSymbolicLink ? Int64(clamping:stamp.size) : 0,version:try RenameVersion.read(url)))
             return directory ? .descend : entry.isSymbolicLink ? .skip : .leaf
         }
         let directory = try append(source,relative:"")
@@ -72,6 +73,7 @@ struct CopyTree: Equatable {
                 try fm.createDirectory(at:to,withIntermediateDirectories:false,attributes:[.posixPermissions:0o700])
             } else {
                 let offset = completed
+                progress(node.relative.isEmpty ? source.lastPathComponent : node.relative,completed,totalBytes)
                 try NativeCopy.copy(from,to:to,token:token) { count in progress(node.relative.isEmpty ? source.lastPathComponent : node.relative,offset+min(node.bytes,count),totalBytes) }
                 completed += node.bytes
                 progress(node.relative.isEmpty ? source.lastPathComponent : node.relative,completed,totalBytes)
@@ -102,6 +104,24 @@ private final class NativeCopyContext {
     }
 }
 enum NativeCopy {
+    static func resumeDescriptors(_ source: Int32,to destination: Int32,offset: Int64,total: Int64,token: CancellationToken,verifying: @escaping (Int64)->Void,progress: @escaping (Int64)->Void) throws {
+        func invoke(_ callback: @escaping (Int64)->Void,_ body: (UnsafeMutableRawPointer)->Int32) throws {
+            try token.check();let context = NativeCopyContext(token,callback)
+            let result = body(Unmanaged.passUnretained(context).toOpaque())
+            if let error = context.error { throw error }
+            if result == EILSEQ { throw recoveryError("Teilkopie stimmt nicht mit der Quelle überein. Sie bleibt zur Prüfung erhalten.") }
+            guard result == 0 else { throw NSError(domain:NSPOSIXErrorDomain,code:Int(result)) };try token.check()
+        }
+        let bridge: @convention(c) (UnsafeMutableRawPointer?,Int64)->Int32 = { raw,count in
+            guard let raw else { return 1 };return Unmanaged<NativeCopyContext>.fromOpaque(raw).takeUnretainedValue().update(count)
+        }
+        if offset > 0 { try invoke(verifying) { zc_verify_prefix_fd(source,destination,offset,bridge,$0) } }
+        try invoke(progress) { zc_resume_fd(source,destination,offset,total,bridge,$0) }
+    }
+    static func metadataDescriptors(_ source: Int32,to destination: Int32) throws {
+        let result = zc_metadata_fd(source,destination)
+        guard result == 0 else { throw NSError(domain:NSPOSIXErrorDomain,code:Int(result)) }
+    }
     static func copyDescriptors(_ source: Int32,to destination: Int32,token: CancellationToken,progress: @escaping (Int64)->Void) throws {
         try token.check();let context = NativeCopyContext(token,progress)
         let result = zc_copy_fd(source,destination,{ raw,bytes in

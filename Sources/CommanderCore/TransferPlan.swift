@@ -25,6 +25,7 @@ public struct PlannedTransfer: Identifiable {
     public let conflict: Bool
     let tree: CopyTree
     let targetVersion: TargetVersion
+    let sourceParentVersion: RenameVersion
     public func object(at index: Int) -> PlannedObject? {
         guard tree.nodes.indices.contains(index) else { return nil }
         let node = tree.nodes[index]
@@ -41,7 +42,7 @@ public struct TransferPlan {
     let destinationVersion: FileStamp
     public let entries: [PlannedTransfer]
     public var bytes: Int64 { merge?.bytes ?? entries.reduce(0) { $0+$1.bytes } }
-    public var initialItems: [TransferItemProgress] { merge?.initialItems ?? entries.map { TransferItemProgress(id:$0.id,source:$0.source,target:$0.target,state:.waiting,bytes:0,totalBytes:$0.bytes,isByteTracked:kind == .copy,message:"") } }
+    public var initialItems: [TransferItemProgress] { merge?.initialItems ?? entries.map { TransferItemProgress(id:$0.id,source:$0.source,target:$0.target,state:.waiting,bytes:0,totalBytes:$0.bytes,isByteTracked:kind == .copy || filter.isActive,message:"") } }
     public func selecting(_ ids: Set<UUID>) -> TransferPlan { TransferPlan(kind:kind,policy:policy,destination:destination,filter:filter,ageReference:ageReference,merge:merge?.selecting(ids),destinationVersion:destinationVersion,entries:entries.filter { ids.contains($0.id) }) }
     public func resolving(_ action: UUID,with decision: MergeDecision) throws -> TransferPlan {
         guard let merge else { throw CommanderError.message("Einzelentscheidungen benötigen den Zusammenführen-Modus.") }
@@ -69,7 +70,7 @@ public struct TransferProgress {
 public enum TransferPlanner {
     public static func prepare(_ urls: [URL],to destination: URL,kind: TransferKind,policy: ConflictPolicy,filter: TransferFilter = .init(),mergeFolders: Bool = false,token: CancellationToken = .init(),referenceDate: Date = Date()) throws -> TransferPlan {
         guard kind == .copy || !mergeFolders else { throw CommanderError.message("Ordnerzusammenführung ist derzeit nur beim Kopieren verfügbar.") }
-        guard kind == .copy || !filter.isActive else { throw CommanderError.message("Dateifilter und Strukturkopien sind derzeit nur beim Kopieren verfügbar. Verschieben benötigt die vollständige Auswahl.") }
+        guard kind == .copy || !filter.structureOnly else { throw CommanderError.message("Nur Ordnerstruktur ist beim Verschieben nicht verfügbar.") }
         _ = try CompiledTransferFilter(filter,referenceDate:referenceDate)
         let ageReference = filter.modifiedAge != nil && !filter.structureOnly ? referenceDate : nil
         guard !urls.isEmpty else { throw CommanderError.message("Keine Objekte ausgewählt.") }
@@ -83,13 +84,17 @@ public enum TransferPlanner {
             if FileSystem.canonical(source) == FileSystem.canonical(target) && !(kind == .copy && policy == .keepBoth) { throw CommanderError.message("Quelle und Ziel sind identisch.") }
             let tree = try CopyTree.scan(source,filter:filter,token:token,referenceDate:ageReference)
             guard !tree.nodes.isEmpty else { return nil }
-            return PlannedTransfer(id:UUID(),source:source,target:target,bytes:tree.bytes,objectCount:tree.nodes.count,fileCount:tree.nodes.filter { !$0.directory && !$0.link }.count,directoryCount:tree.nodes.filter(\.directory).count,linkCount:tree.nodes.filter(\.link).count,conflict:FileSystem.exists(target),tree:tree,targetVersion:try TargetVersion(target))
+            return PlannedTransfer(id:UUID(),source:source,target:target,bytes:tree.bytes,objectCount:tree.nodes.count,fileCount:tree.nodes.filter { !$0.directory && !$0.link }.count,directoryCount:tree.nodes.filter(\.directory).count,linkCount:tree.nodes.filter(\.link).count,conflict:FileSystem.exists(target),tree:tree,targetVersion:try TargetVersion(target),sourceParentVersion:try RenameVersion.read(source.deletingLastPathComponent()))
         }
         let merge = mergeFolders ? try MergePlan.prepare(entries,to:destination,policy:policy,token:token) : nil
         return TransferPlan(kind:kind,policy:policy,destination:destination,filter:filter,ageReference:ageReference,merge:merge,destinationVersion:destinationVersion,entries:entries)
     }
-    public static func execute(_ plan: TransferPlan,token: CancellationToken = .init(),validateExecution: (() throws -> Void)? = nil,progress: @escaping (TransferProgress) -> Void = { _ in }) -> OperationReport {
-        if let merge = plan.merge { return merge.execute(entries:plan.entries,token:token,validateExecution:validateExecution,progress:progress) }
+    public static func execute(_ plan: TransferPlan,token: CancellationToken = .init(),history: TransferHistory? = nil) -> OperationReport {
+        execute(plan,token:token,history:history,progress:{ _ in })
+    }
+    public static func execute(_ plan: TransferPlan,token: CancellationToken = .init(),history: TransferHistory? = nil,validateExecution: (() throws -> Void)? = nil,progress: @escaping (TransferProgress) -> Void) -> OperationReport {
+        if plan.kind == .move && plan.filter.isActive { return FilteredMove.execute(plan,token:token,validateExecution:validateExecution,history:history,progress:progress) }
+        if let merge = plan.merge { return merge.execute(entries:plan.entries,token:token,validateExecution:validateExecution,history:history,progress:progress) }
         var report = OperationReport()
         var items = plan.initialItems
         var last = Date.distantPast, detail = "Prüfe Dateiplan …"
@@ -123,8 +128,13 @@ public enum TransferPlanner {
                 try validateExecution?()
                 current = index;deliveredBytes = false
                 items[index].state = .running; detail = entry.source.lastPathComponent; emit()
-                let step = try FileOperations.transferPrepared(entry.source,to:entry.target,kind:plan.kind,policy:plan.policy,token:token,tree:entry.tree,expectedTarget:entry.targetVersion,validateTarget:validateExecution) { name,bytes,_ in
-                    items[index].bytes = max(items[index].bytes,bytes); detail = name; emit(false)
+                var objectName = "",objectStart: Int64 = 0,objectDelivered = false
+                let step = try FileOperations.transferPrepared(entry.source,to:entry.target,kind:plan.kind,policy:plan.policy,token:token,tree:entry.tree,expectedTarget:entry.targetVersion,validateTarget:validateExecution,history:history,reused:{ report.reusedBytes += $0 }) { name,bytes,_ in
+                    let changed = name != objectName
+                    if changed { objectName = name;objectStart = bytes;objectDelivered = false }
+                    let first = !objectDelivered && bytes > objectStart
+                    if first { objectDelivered = true }
+                    items[index].bytes = max(items[index].bytes,bytes); detail = name; emit(first || changed)
                 }
                 if let step {
                     items[index].state = .completed; items[index].message = step.current.lastPathComponent
