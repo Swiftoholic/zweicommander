@@ -173,7 +173,15 @@ def fixtures(base):
     write(recovery, "Links/Warten.txt", "Warten\n")
     (recovery / "Rechts/PauseZiel").mkdir(parents=True)
     (recovery / "Links/Groß.bin").write_bytes(bytes(range(256)) * (128 * 1024))
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery
+    remote = base / "remote"
+    for name in ["Links/Projekt/Unterordner", "Links/Projekt/Leer", "Rechts", "Downloads", "Server/Eingang/Infos", "Server/Eingang/Leer"]:
+        (remote / name).mkdir(parents=True, exist_ok=True)
+    (remote / "Links/Projekt/Unterordner/Grüße.txt").write_text("Upload content ✔\n", encoding="utf-8")
+    (remote / "Links/Projekt/Daten.txt").write_text("Upload file\n", encoding="utf-8")
+    (remote / "Links/Projekt/Null.bin").write_bytes(b"")
+    (remote / "Server/Eingang/Infos/Grüße.txt").write_text("Remote content ✔\n", encoding="utf-8")
+    (remote / "Server/Eingang/Null.bin").write_bytes(b"")
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote
 
 
 def main():
@@ -233,9 +241,11 @@ def main():
             ("compare-reload", "--compare-smoke", roots[11], str(prefix), "COMPARE UI PASS ", "COMPARE SMOKE PASS 30 checks", 30),
             ("recovery-save", "--recovery-smoke", roots[15], str(prefix), "RECOVERY UI PASS ", "RECOVERY SMOKE PASS 40 checks", 40),
             ("recovery-reload", "--recovery-smoke", roots[15], str(prefix), "RECOVERY UI PASS ", "RECOVERY SMOKE PASS 15 checks", 15),
+            ("remote-save", "--remote-smoke", roots[16], str(prefix), "REMOTE UI PASS ", "REMOTE SMOKE PASS 31 checks", 31),
+            ("remote-reload", "--remote-smoke", roots[16], str(prefix), "REMOTE UI PASS ", "REMOTE SMOKE PASS 14 checks", 14),
         ]
         if args.skip_foreground:
-            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload"}
+            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload"}
             skipped = [case for case in cases if case[0] in foreground]
             cases = [case for case in cases if case[0] not in foreground]
             print("Ausgelassen: " + ", ".join(case[0] for case in skipped) + " · " + str(sum(case[-1] for case in skipped)) + " Vordergrundprüfungen offen", flush=True)
@@ -247,9 +257,21 @@ def main():
         compare_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         appearance_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         ux_suite = "local.zweicommander.tests." + str(uuid.uuid4())
+        remote_suite = "local.zweicommander.tests." + str(uuid.uuid4())
+        remote_server = None
         try:
             for name, flag, root, image, pass_prefix, marker, expected in cases:
                 command = [str(binary), flag, str(root), image]
+                if name.startswith("remote-"):
+                    if remote_server is None:
+                        fixture = Path(__file__).resolve().parents[1] / "Tests/fixtures/ftp_server.py"
+                        remote_server = subprocess.Popen(["/usr/bin/python3", str(fixture), str(root / "Server"), "--delay", "0.001"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                        deadline = time.monotonic() + 5
+                        while not (root / "Server/port.txt").is_file() and time.monotonic() < deadline and remote_server.poll() is None:
+                            time.sleep(0.02)
+                        if not (root / "Server/port.txt").is_file():
+                            raise SystemExit("Lokaler Remote-Testserver konnte nicht gestartet werden")
+                    command += [name.removeprefix("remote-"), "--remote-test-suite", remote_suite]
                 if name.startswith("journal-"):
                     command += [name.removeprefix("journal-")]
                 if name.startswith("recovery-"):
@@ -301,6 +323,14 @@ def main():
                     raise SystemExit(name + ": fehlgeschlagen; Protokoll in " + str(args.results / (name + ".log")))
                 print(name + ": " + str(count) + " native UI-Prüfungen bestanden", flush=True)
         finally:
+            if remote_server is not None:
+                remote_server.terminate()
+                try:
+                    remote_server.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    remote_server.kill()
+                    remote_server.wait()
+            subprocess.run(["defaults", "delete", remote_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", age_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", workspace_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

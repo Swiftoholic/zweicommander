@@ -71,7 +71,7 @@ extension MainWindow {
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.17.0
+        ZWEICOMMANDER · Version 0.18.0
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -164,10 +164,14 @@ extension MainWindow {
         Das Hilfe-Menü importiert unterstützte INI-Hauptdateien mit den zugehörigen .shc-, .find.ini-, .mren.ini- und .wcx.ini-Dateien. Übernommen werden unterstützte Spalten, Listenfarben, Sortierung, versteckte Dateien und Tastenkürzel sowie Such-, Zähler- und Archivvorgaben. Favoriten und Laufwerkspfade bleiben unberücksichtigt. Der Importbericht zeigt erkannte aktive und inaktive Plug-ins. Windows-Programme werden nicht geladen. Die Dateistruktur-Vorschau liest PE-/Mach-O-Köpfe und PE-Versionsinformationen. Quick Look ergänzt die Office-Textvorschau. Über das Hilfe-Menü lassen sich die Einstellungen vor dem Import wiederherstellen.
 
         MACOS
-        Systemeinstellungen → Datenschutz & Sicherheit regelt den Zugriff auf geschützte Ordner. Diese App umgeht die macOS-Zugriffskontrollen nicht. Eingebundene Netzwerkvolumes werden wie lokale Ordner angezeigt. Der FTP/FTPS/SFTP-Dialog kann Serverordner anzeigen und einzelne Dateien hoch-/herunterladen. SFTP setzt einen eingerichteten SSH-Schlüssel/ssh-agent und geprüfte Hostschlüssel voraus. Rekursive SFTP-Transfers und Passwortanmeldung sind über den Terminalclient möglich. Remote-Transfers überschreiben keine bei der Vorprüfung vorhandenen Namen. Ein unterbrochener Upload kann eine unvollständige Remote-Datei hinterlassen.
+        Systemeinstellungen → Datenschutz & Sicherheit regelt den Zugriff auf geschützte Ordner. Diese App umgeht die macOS-Zugriffskontrollen nicht. Eingebundene Netzwerkvolumes werden wie lokale Ordner angezeigt.
+        Cmd+Shift+K öffnet „Serververbindungen“. Bis zu 50 Profile speichern Protokoll, Server, Port, Benutzer, Serverordner sowie optionale Schlüssel-/CA-Dateipfade lokal. FTP-/FTPS-Passwörter werden nur auf ausdrückliche Wahl beim Speichern im macOS-Schlüsselbund abgelegt. Ohne Speichern gelten eingegebene Passwörter für diese Sitzung. Ein gespeichertes Passwort wird nicht an geänderte Server, Benutzer, Ports oder Protokolle übertragen. SFTP verwendet einen SSH-Schlüssel/ssh-agent und bereits geprüfte Hostschlüssel; Passwortanmeldung bleibt über den Terminalclient möglich. FTPS verwendet explizites TLS auf Steuer- und Datenverbindung mit Zertifikatsprüfung. Eine optionale CA-Datei ergänzt die Vertrauensprüfung; es gibt keinen Modus ohne Zertifikatsprüfung.
+        Im Serverfenster fokussiert Cmd+L den Serverpfad, Enter öffnet ihn, Cmd+R liest neu. F5 prüft ausgewählte Downloads, F6 wählt lokale Dateien und Ordner zum Hochladen. Unbestätigte Adressänderungen sperren Dateiaktionen auf der vorherigen Liste.
+        Ganze Ordner werden bis zu 10.000 Dateien und Ordnern je Auftrag einschließlich leerer Ordner geprüft. Verknüpfungen und Spezialdateien werden abgewiesen. Erst die Vorschau mit Cmd+Enter starten oder mit Cmd+Shift+Enter vormerken. Remote-Aufträge erscheinen in der gemeinsamen Warteschlange; Leertaste pausiert oder setzt fort, Enter startet einen wartenden Auftrag. Fortschritt und Abbruch gelten auch innerhalb einer Datei. Lange Pausen können zu einer Zeitüberschreitung des Servers führen.
+        Vorhandene Zielnamen sperren den Auftrag. Downloads werden zuerst in eine neue lokale Zwischenablage geladen, vor Veröffentlichung nochmals geprüft und anschließend ohne Ersetzen veröffentlicht. Bei Upload-Abbruch können neue Teilinhalte auf dem Server bleiben. FTP/FTPS prüft freie Zielnamen vorab. Änderungen anderer Benutzer zwischen Prüfung und Upload können diese Absicherung aufheben. Remote-Aufträge bleiben sitzungsbezogen und werden nicht in das lokale Kopierjournal geschrieben. Vor Beenden abschließen, abbrechen oder aus der Warteschlange entfernen. Ein Fortsetzen nach App-Neustart und Remote-Rückgängig sind noch nicht enthalten.
 
         STAND DIESER VERSION
-        Dies ist eine frühe Version. Unter anderem fehlen rekursive Remote-Transfers im Fenster, Windows-Plug-ins, MTP-/iPhone-Geräteprotokolle, frei programmierbare Metadaten-Spalten, ID3-Regeln, Secure Wipe sowie das Fortsetzen von Kopien mit Verknüpfungen oder mehr als 2.000 Objekten. Eine vollständige Liste liegt beim Quellcode.
+        Dies ist eine frühe Version. Unter anderem fehlen dauerhaftes Remote-Fortsetzen, Remote-Umbenennen/Löschen, Windows-Plug-ins, MTP-/iPhone-Geräteprotokolle, frei programmierbare Metadaten-Spalten, ID3-Regeln, Secure Wipe sowie das Fortsetzen von Kopien mit Verknüpfungen oder mehr als 2.000 Objekten. Eine vollständige Liste liegt beim Quellcode.
 
         TASTENKÜRZEL-BEFEHLE
         """ + AppDelegate.menuDefinitions.flatMap { $0.1 }.map { "\($0.1) = \($0.0)  [\($0.2)]" }.joined(separator:"\n")

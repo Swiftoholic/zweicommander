@@ -1,94 +1,138 @@
 import AppKit
 import CommanderCore
 
-final class RemoteWindow:NSWindowController,NSTableViewDelegate,NSTableViewDataSource,NSWindowDelegate {
-    let connection:RemoteConnection
-    let table = CommanderTableView(),scroll = NSScrollView(),path = input("/"),local = input(),status = label("Bereit",size:11,color:.secondaryLabelColor)
-    let jobs = JobQueue()
-    var entries:[RemoteEntry] = []
-    var listedPath = "/"
-    var onFilesChanged:(()->Void)?
-    var buttons:[NSButton] = []
-    init(_ connection:RemoteConnection,localDirectory:URL) {
-        self.connection = connection
-        let window = NSWindow(contentRect:NSRect(x:0,y:0,width:820,height:550),styleMask:[.titled,.closable,.resizable,.miniaturizable],backing:.buffered,defer:false)
-        window.title = connection.kind.rawValue+" · "+connection.user+"@"+connection.host; window.isReleasedWhenClosed = false; window.minSize = NSSize(width:720,height:400)
-        super.init(window:window); window.delegate = self
-        let root = NSView(frame:window.contentView!.bounds); window.contentView = root
-        path.frame = NSRect(x:100,y:508,width:700,height:26); path.autoresizingMask = [.width,.minYMargin]; path.target = self; path.action = #selector(refresh)
-        let remoteLabel = label("Serverordner"); remoteLabel.frame = NSRect(x:16,y:512,width:80,height:20); remoteLabel.autoresizingMask = [.minYMargin]
-        local.stringValue = localDirectory.path; local.frame = NSRect(x:100,y:472,width:700,height:26); local.autoresizingMask = [.width,.minYMargin]
-        let localLabel = label("Lokal"); localLabel.frame = NSRect(x:16,y:476,width:80,height:20); localLabel.autoresizingMask = [.minYMargin]
-        let actions = row([
-            ActionButton("Übergeordnet",symbol:"arrow.up",action:{ [weak self] in guard let self else { return }; self.path.stringValue = (self.listedPath as NSString).deletingLastPathComponent; if self.path.stringValue.isEmpty { self.path.stringValue = "/" }; self.refresh() }),
-            ActionButton("Aktualisieren",symbol:"arrow.clockwise",action:{ [weak self] in self?.refresh() }),
-            ActionButton("Herunterladen",symbol:"arrow.down",action:{ [weak self] in self?.download() }),
-            ActionButton("Hochladen …",symbol:"arrow.up.doc",action:{ [weak self] in self?.upload() }),
-            ActionButton("Abbrechen",symbol:"xmark.circle",action:{ [weak self] in self?.jobs.cancel() })
-        ])
-        actions.frame = NSRect(x:16,y:432,width:788,height:30); actions.autoresizingMask = [.width,.minYMargin]
-        buttons = actions.arrangedSubviews.compactMap {$0 as? NSButton}; buttons.removeLast()
-        for (id,title,width) in [("name","Name",CGFloat(450)),("type","Art",160),("size","Größe",140)] { let c = NSTableColumn(identifier:.init(id)); c.title = title; c.width = width; table.addTableColumn(c) }
-        table.delegate = self; table.dataSource = self; table.rowHeight = 25; table.usesAlternatingRowBackgroundColors = true; table.allowsMultipleSelection = true; table.target = self; table.doubleAction = #selector(openDirectory)
-        scroll.frame = NSRect(x:0,y:36,width:820,height:384); scroll.autoresizingMask = [.width,.height]; scroll.documentView = table; scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true
-        status.frame = NSRect(x:16,y:10,width:788,height:20); status.autoresizingMask = [.width]
-        [remoteLabel,path,localLabel,local,actions,scroll,status].forEach { root.addSubview($0) }
-        jobs.onStatus = { [weak self] text,_ in self?.status.stringValue = text }
-        window.center(); refresh()
+final class RemoteWindow: NSWindowController,NSTableViewDelegate,NSTableViewDataSource,NSWindowDelegate,NSTextFieldDelegate {
+    var connection: RemoteConnection
+    let transfers: JobQueue
+    let browse = JobQueue()
+    let table = operationTable([("name","Name",440),("type","Art",150),("size","Größe",140)])
+    let path = input("/"),local = input(),status = label("Bereit",size:12,color:.secondaryLabelColor)
+    let downloadButton = ActionButton("Herunterladen",symbol:"arrow.down",action:{}),uploadButton = ActionButton("Hochladen …",symbol:"arrow.up.doc",action:{})
+    private(set) var entries: [RemoteEntry] = []
+    private(set) var listedPath: String?
+    private var buttons: [NSControl] = []
+    private var listing = false
+    var onFilesChanged: (()->Void)?
+    var onReview: ((RemoteTransferController)->Void)?
+    var onQueue: (()->Void)?
+    var onPlanSubmitted: ((UUID)->Void)?
+    var uploadSelection: ((URL,@escaping ([URL])->Void)->Void)?
+    init(_ connection: RemoteConnection,localDirectory: URL,path: String = "/",jobs: JobQueue) {
+        self.connection = connection;transfers = jobs
+        let window = WorkflowWindow(contentRect:NSRect(x:0,y:0,width:920,height:590),styleMask:[.titled,.closable,.resizable,.miniaturizable],backing:.buffered,defer:false)
+        window.title = connection.kind.rawValue+" · "+connection.user+"@"+connection.host;window.minSize = NSSize(width:840,height:480);window.isReleasedWhenClosed = false
+        super.init(window:window);window.delegate = self
+        let root = OperationContent(frame:window.contentView!.bounds);root.autoresizingMask = [.width,.height];window.contentView = root
+        self.path.stringValue = path;self.path.frame = NSRect(x:116,y:536,width:780,height:28);self.path.autoresizingMask = [.width,.minYMargin];self.path.target = self;self.path.action = #selector(refresh);self.path.delegate = self
+        self.path.toolTip = "Serverordner eingeben und mit Enter öffnen. ⌘L fokussiert den Pfad."
+        local.stringValue = localDirectory.path;local.frame = NSRect(x:116,y:496,width:780,height:28);local.autoresizingMask = [.width,.minYMargin];local.toolTip = "Lokaler Zielordner für Downloads und Startordner für die Upload-Auswahl."
+        for (title,y) in [("Serverordner",540),("Lokal",500)] { let field = label(title);field.frame = NSRect(x:18,y:y,width:94,height:20);field.autoresizingMask = [.minYMargin];root.addSubview(field) }
+        downloadButton.perform = { [weak self] in self?.download() };uploadButton.perform = { [weak self] in self?.upload() }
+        let up = ActionButton("Übergeordnet",symbol:"arrow.up",action:{ [weak self] in guard let self,let current = self.listedPath else { return };self.path.stringValue = current == "/" ? "/" : (current as NSString).deletingLastPathComponent;self.refresh() })
+        let reload = ActionButton("Aktualisieren",symbol:"arrow.clockwise",action:{ [weak self] in self?.refresh() })
+        let queue = ActionButton("Aufträge",symbol:"list.bullet.rectangle",action:{ [weak self] in self?.onQueue?() })
+        let cancel = ActionButton("Liste abbrechen",symbol:"xmark.circle",action:{ [weak self] in self?.browse.cancel() })
+        let actions = row([up,reload,downloadButton,uploadButton,queue,cancel]);actions.frame = NSRect(x:16,y:450,width:888,height:32);actions.autoresizingMask = [.width,.minYMargin];root.addSubview(actions)
+        up.setHelp("Übergeordnet","Zum übergeordneten Serverordner wechseln.",shortcut:"⌘↑");reload.setHelp("Aktualisieren","Serverliste neu lesen.",shortcut:"⌘R")
+        downloadButton.setHelp("Herunterladen","Ausgewählte Dateien und Ordner nach einer Vorschau herunterladen.",shortcut:"F5")
+        uploadButton.setHelp("Hochladen","Lokale Dateien und ganze Ordner auswählen und vor dem Hochladen prüfen.",shortcut:"F6")
+        queue.setHelp("Aufträge","Gemeinsame Warteschlange mit Pause, Abbruch und Reihenfolge öffnen.",shortcut:CommandHelp.shortcut("operations"))
+        buttons = [up,reload,downloadButton,uploadButton,self.path,local]
+        table.delegate = self;table.dataSource = self;table.allowsMultipleSelection = true;table.target = self;table.doubleAction = #selector(openDirectory)
+        let scroll = operationScroll(table);scroll.frame = NSRect(x:0,y:70,width:920,height:368);scroll.autoresizingMask = [.width,.height];root.addSubview(scroll)
+        status.frame = NSRect(x:18,y:10,width:884,height:50);status.autoresizingMask = [.width];status.maximumNumberOfLines = 3;status.lineBreakMode = .byWordWrapping
+        [self.path,local,status].forEach(root.addSubview)
+        browse.onStatus = { [weak self] text,_ in if self?.listing == true { self?.status.stringValue = text } }
+        window.workflowKeys = { [weak self] event in
+            guard let self else { return false }
+            if WorkflowKeys.matches(event,"l",.command) { window.makeFirstResponder(self.path);self.path.selectText(nil);return true }
+            if WorkflowKeys.matches(event,"r",.command) { self.refresh();return true }
+            if WorkflowKeys.matches(event,String(UnicodeScalar(NSUpArrowFunctionKey)!),.command) { up.perform?();return true }
+            if WorkflowKeys.matches(event,String(UnicodeScalar(NSF5FunctionKey)!)) { self.download();return true }
+            if WorkflowKeys.matches(event,String(UnicodeScalar(NSF6FunctionKey)!)) { self.upload();return true }
+            return false
+        }
+        (table as? CommanderTableView)?.workflowKeys = window.workflowKeys
+        window.initialFirstResponder = table;window.center();refresh()
     }
     required init?(coder:NSCoder) { fatalError() }
-    func busy(_ value:Bool) { buttons.forEach { $0.isEnabled = !value }; path.isEnabled = !value; local.isEnabled = !value }
+    private func updateActions() {
+        buttons.forEach { $0.isEnabled = !listing }
+        let current = listedPath != nil && path.stringValue == listedPath
+        downloadButton.isEnabled = !listing && current && !table.selectedRowIndexes.isEmpty
+        uploadButton.isEnabled = !listing && current
+    }
+    func controlTextDidChange(_ obj: Notification) { updateActions() }
+    func tableViewSelectionDidChange(_ notification: Notification) { updateActions() }
     @objc func refresh() {
-        guard jobs.pending == 0 else { return }
-        let location = path.stringValue; busy(true)
-        jobs.submit("Serverliste lesen",work:{ [connection] token,_ in try RemoteService.list(connection,path:location,token:token) },completion:{ [weak self] result in
-            guard let self else { return }; self.busy(false)
-            switch result { case .success(let entries): self.entries = entries; self.listedPath = location; self.table.reloadData(); self.status.stringValue = "\(entries.count) Objekte · \(self.connection.kind.rawValue)"
-            case .failure(let e): self.path.stringValue = self.listedPath; showFailure(CommanderError.message(e.localizedDescription+(self.connection.kind == .sftp ? "\n\nSFTP benötigt einen SSH-Schlüssel/ssh-agent und einen bereits geprüften Hostschlüssel. Die Ersteinrichtung ist über „SFTP im Terminal“ möglich." : ""))) }
-        })
+        guard !listing else { return }
+        do {
+            let location = try RemoteService.normalized(path.stringValue);path.stringValue = location;listing = true;updateActions();status.textColor = .secondaryLabelColor
+            browse.submit("Serverliste lesen",work:{ [connection] token,_ in try RemoteService.list(connection,path:location,token:token) },completion:{ [weak self] result in
+                guard let self else { return };self.listing = false
+                switch result {
+                case .success(let entries):self.entries = entries;self.listedPath = location;self.table.reloadData();self.status.stringValue = "\(entries.count) Objekte · Ordnerübertragungen mit Vorschau · F5 Download · F6 Upload"
+                case .failure(let error):self.status.stringValue = error.localizedDescription;self.status.toolTip = error.localizedDescription;self.status.textColor = .systemOrange
+                }
+                self.updateActions()
+            })
+        } catch { status.stringValue = error.localizedDescription;status.textColor = .systemOrange;updateActions() }
     }
     @objc func openDirectory() {
-        guard jobs.pending == 0,table.clickedRow >= 0,entries.indices.contains(table.clickedRow) else { return }
-        let entry = entries[table.clickedRow]; if entry.isDirectory { path.stringValue = RemoteService.child(listedPath,entry.name); refresh() }
+        let index = table.clickedRow >= 0 ? table.clickedRow : table.selectedRow
+        guard !listing,path.stringValue == listedPath,entries.indices.contains(index),entries[index].isDirectory,!entries[index].isLink else { return }
+        path.stringValue = RemoteService.child(listedPath!,entries[index].name);refresh()
     }
     func download() {
+        guard downloadButton.isEnabled,let remote = listedPath else { return }
         let selected = table.selectedRowIndexes.compactMap { entries.indices.contains($0) ? entries[$0] : nil }
-        guard !selected.isEmpty else { return }
-        let directory = URL(fileURLWithPath:(local.stringValue as NSString).expandingTildeInPath),remote = listedPath
-        guard FileSystem.isDirectory(directory) else { showFailure(CommanderError.message("Lokalen Zielordner prüfen.")); return }
-        guard dialog("Dateien herunterladen",message:"\(selected.count) Dateien nach \(directory.path). Bestehende Dateien werden nicht überschrieben.",buttons:["Herunterladen","Abbrechen"]) == 0 else { return }
-        busy(true)
-        jobs.submit("Download",work:{ [connection] token,progress in var count = 0; for entry in selected { try token.check(); progress(entry.name); _ = try RemoteService.download(connection,path:remote,entry:entry,to:directory,token:token); count += 1 }; return count },completion:{ [weak self] result in
-            self?.busy(false); self?.onFilesChanged?(); switch result { case .success(let count): self?.status.stringValue = "\(count) Dateien heruntergeladen"; case .failure(let e): showFailure(e) }
-        })
+        review(direction:.download,path:remote,sources:[],entries:selected)
     }
     func upload() {
-        let panel = NSOpenPanel(); panel.directoryURL = URL(fileURLWithPath:local.stringValue); panel.canChooseDirectories = false; panel.allowsMultipleSelection = true
-        guard panel.runModal() == .OK else { return }; let urls = panel.urls,remote = listedPath
-        guard dialog("Dateien auf Server hochladen?",message:"\(urls.count) Dateien nach \(connection.host):\(remote). Bestehende Namen werden abgewiesen. Bei Verbindungsabbruch können unvollständige Dateien auf dem Server verbleiben.",buttons:["Hochladen","Abbrechen"]) == 0 else { return }
-        busy(true)
-        jobs.submit("Upload",work:{ [connection] token,progress in for url in urls { try token.check(); progress(url.lastPathComponent); try RemoteService.upload(connection,source:url,path:remote,token:token) } },completion:{ [weak self] result in
-            self?.busy(false); if case .failure(let e) = result { showFailure(e) }; self?.refresh()
-        })
+        guard uploadButton.isEnabled,let remote = listedPath,let window else { return }
+        let initial = URL(fileURLWithPath:(local.stringValue as NSString).expandingTildeInPath)
+        let receive: ([URL])->Void = { [weak self] urls in guard !urls.isEmpty else { return };self?.review(direction:.upload,path:remote,sources:urls,entries:[]) }
+        if let uploadSelection { uploadSelection(initial,receive);return }
+        let panel = NSOpenPanel();panel.directoryURL = initial;panel.canChooseDirectories = true;panel.canChooseFiles = true;panel.allowsMultipleSelection = true;panel.prompt = "Übertragung prüfen"
+        panel.beginSheetModal(for:window) { response in if response == .OK { receive(panel.urls) } }
     }
-    func numberOfRows(in tableView:NSTableView)->Int { entries.count }
-    func tableView(_ tableView:NSTableView,viewFor tableColumn:NSTableColumn?,row:Int)->NSView? {
-        let entry = entries[row]
-        switch tableColumn?.identifier.rawValue { case "name": return label((entry.isDirectory ? "▸ " : "")+entry.name); case "type":return label(entry.isDirectory ? "Ordner" : entry.isLink ? "Verknüpfung" : "Datei",color:.secondaryLabelColor); default:return label(entry.isDirectory ? "—" : bytes(entry.size),color:.secondaryLabelColor) }
+    func review(direction: RemoteDirection,path: String,sources: [URL],entries: [RemoteEntry]) {
+        let directory = URL(fileURLWithPath:(local.stringValue as NSString).expandingTildeInPath)
+        let controller = RemoteTransferController(connection:connection,direction:direction,path:path,local:directory,sources:sources,entries:entries)
+        controller.onSubmit = { [weak self,connection,transfers] plan,start in
+            let id = transfers.submitReported((plan.direction == .upload ? "Upload" : "Download")+" · "+connection.host,start:start,items:plan.initialItems,notifyQueuedCancellation:true,body:{ token,reporter in
+                let session = try RemoteService.transport(connection,token:token)
+                return try RemotePlanner.execute(plan,using:session,token:token,progress:reporter.transfer)
+            },completion:{ [weak self] result in
+                self?.onFilesChanged?()
+                if let self,self.window?.isVisible == true {
+                    switch result { case .success(let value):self.status.stringValue = "\(value.files) Dateien übertragen · "+bytes(value.bytes);case .failure(let error):self.status.stringValue = error.localizedDescription;self.status.toolTip = error.localizedDescription;self.status.textColor = .systemOrange }
+                    if plan.direction == .upload,self.listedPath == plan.remoteDirectory { self.refresh() }
+                }
+            })
+            self?.onPlanSubmitted?(id);return true
+        }
+        onReview?(controller)
     }
-    func windowShouldClose(_ sender:NSWindow)->Bool { if jobs.pending > 0 { _ = dialog("Transfer läuft",message:"Bitte zuerst den Transfer abschließen oder abbrechen.",buttons:["OK"]); return false }; return true }
+    func windowWillClose(_ notification: Notification) { browse.cancel();connection.password = "" }
+    func numberOfRows(in tableView: NSTableView) -> Int { entries.count }
+    func tableView(_ tableView: NSTableView,viewFor column: NSTableColumn?,row: Int) -> NSView? {
+        guard entries.indices.contains(row) else { return nil };let entry = entries[row]
+        let value = column?.identifier.rawValue == "name" ? (entry.isDirectory ? "▸ " : "")+entry.name : column?.identifier.rawValue == "type" ? entry.isLink ? "Verknüpfung" : entry.isDirectory ? "Ordner" : "Datei" : entry.isDirectory ? "—" : bytes(entry.size)
+        return label(value)
+    }
 }
-
 extension MainWindow {
     func remoteConnect() {
-        let kind = NSPopUpButton(); kind.addItems(withTitles:RemoteProtocol.allCases.map(\.rawValue))
-        let host = input(),user = input(NSUserName()),password = NSSecureTextField(string:""),port = input("",placeholder:"SFTP: 22 · FTP/FTPS: 21")
-        guard dialog("FTP / SFTP verbinden",message:"SFTP verwendet deinen SSH-Schlüssel bzw. ssh-agent und bekannte Hostschlüssel. FTPS prüft das TLS-Zertifikat. Anmeldedaten werden nur für dieses Fenster im Speicher gehalten.",accessory:form([("Protokoll",kind),("Server",host),("Benutzer",user),("FTP-Passwort",password),("Port",port)]),buttons:["Verbinden","Abbrechen"]) == 0 else { return }
-        let selected = RemoteProtocol.allCases[kind.indexOfSelectedItem]
-        do {
-            let p = port.stringValue.isEmpty ? (selected == .sftp ? 22 : 21) : Int(port.stringValue) ?? 0
-            let connection = try RemoteConnection(kind:selected,host:host.stringValue,user:user.stringValue,password:password.stringValue,port:p)
-            let window = RemoteWindow(connection,localDirectory:active.currentURL); window.onFilesChanged = { [weak self] in self?.refresh() }; secondaryWindows.append(window); window.showWindow(nil)
-        } catch { showFailure(error) }
+        if let existing = secondaryWindows.compactMap({ $0 as? RemoteConnectionController }).first(where: { $0.window?.isVisible == true }) { existing.showWindow(nil);return }
+        let controller = RemoteConnectionController()
+        controller.onConnect = { [weak self] connection,path in self?.showRemote(connection,path:path) }
+        secondaryWindows.append(controller);controller.showWindow(nil)
+    }
+    @discardableResult func showRemote(_ connection: RemoteConnection,path: String) -> RemoteWindow {
+        let controller = RemoteWindow(connection,localDirectory:active.currentURL,path:path,jobs:jobs)
+        controller.onFilesChanged = { [weak self] in self?.refresh() };controller.onQueue = { [weak self] in self?.showOperations() }
+        controller.onReview = { [weak self] review in self?.secondaryWindows.append(review);review.showWindow(nil) }
+        secondaryWindows.append(controller);controller.showWindow(nil);return controller
     }
 }

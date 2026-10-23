@@ -1,27 +1,68 @@
 import Foundation
+import CryptoKit
 
-public enum RemoteProtocol:String,CaseIterable { case sftp = "SFTP (SSH-Schlüssel)",ftps = "FTPS (TLS)",ftp = "FTP (unverschlüsselt)" }
+public enum RemoteProtocol: String,CaseIterable,Codable { case sftp = "SFTP (SSH-Schlüssel)",ftps = "FTPS (TLS)",ftp = "FTP (unverschlüsselt)" }
 public struct RemoteConnection {
-    public var kind:RemoteProtocol
-    public var host:String
-    public var user:String
-    public var password:String
-    public var port:Int
-    public init(kind:RemoteProtocol,host:String,user:String,password:String = "",port:Int) throws {
+    public var kind: RemoteProtocol
+    public var host: String,user: String,password: String
+    public var port: Int
+    public var identityFile: URL?,knownHostsFile: URL?,caFile: URL?
+    public init(kind: RemoteProtocol,host: String,user: String,password: String = "",port: Int,identityFile: URL? = nil,knownHostsFile: URL? = nil,caFile: URL? = nil) throws {
         let allowed = CharacterSet(charactersIn:"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-_:")
-        guard !host.isEmpty,!host.hasPrefix("-"),host.unicodeScalars.allSatisfy({allowed.contains($0)}),(1...65535).contains(port),!user.isEmpty,!user.hasPrefix("-"),!user.contains("@"),!user.contains(":"),!user.contains("\0"),!user.contains("\n"),!user.contains("\r"),!password.contains("\0"),!password.contains("\n"),!password.contains("\r") else { throw CommanderError.message("Ungültige Verbindungsdaten.") }
-        self.kind = kind; self.host = host; self.user = user; self.password = password; self.port = port
+        guard !host.isEmpty,host.count <= 253,!host.hasPrefix("-"),host.unicodeScalars.allSatisfy({ allowed.contains($0) }),
+              (1...65535).contains(port),!user.isEmpty,user.count <= 255,!user.hasPrefix("-"),!user.contains("@"),!user.contains(":"),
+              !user.unicodeScalars.contains(where: { CharacterSet.whitespacesAndNewlines.contains($0) || CharacterSet.controlCharacters.contains($0) }),
+              !password.contains("\0"),!password.contains("\n"),!password.contains("\r") else { throw CommanderError.message("Ungültige Verbindungsdaten.") }
+        for url in [identityFile,knownHostsFile,caFile].compactMap({ $0 }) { guard url.isFileURL else { throw CommanderError.message("Schlüssel und Zertifikate benötigen lokale Dateipfade.") };try RemoteService.validatePath(url.path) }
+        self.kind = kind;self.host = host;self.user = user;self.password = password;self.port = port
+        self.identityFile = identityFile;self.knownHostsFile = knownHostsFile;self.caFile = caFile
+    }
+    public func authenticated(_ password: String) throws -> RemoteConnection {
+        try RemoteConnection(kind:kind,host:host,user:user,password:password,port:port,identityFile:identityFile,knownHostsFile:knownHostsFile,caFile:caFile)
+    }
+    public var endpointID: String {
+        let data = try! JSONEncoder().encode([kind.rawValue,host.lowercased(),String(port),user])
+        return SHA256.hash(data:data).map { String(format:"%02x",$0) }.joined()
+    }
+    public func address(_ path: String) -> URL {
+        var url = URLComponents();url.scheme = kind == .sftp ? "sftp" : kind == .ftps ? "ftps" : "ftp";url.host = host;url.port = port;url.path = path
+        return url.url ?? URL(string:"remote:/")!
     }
 }
-public struct RemoteEntry {
-    public let name:String
-    public let isDirectory:Bool
-    public let isLink:Bool
-    public let size:Int64
+public struct RemoteEntry: Equatable {
+    public let name: String
+    public let isDirectory: Bool,isLink: Bool
+    public let size: Int64
+    public let version: String
+    public init(name: String,isDirectory: Bool,isLink: Bool = false,size: Int64 = 0,version: String = "") {
+        self.name = name;self.isDirectory = isDirectory;self.isLink = isLink;self.size = size;self.version = version
+    }
+}
+public protocol RemoteTransport: AnyObject {
+    var endpointID: String { get }
+    func list(_ path: String) throws -> [RemoteEntry]
+    func download(_ path: String,to descriptor: Int32,size: Int64,progress: @escaping (Int64)->Void) throws
+    func upload(_ descriptor: Int32,size: Int64,to path: String,progress: @escaping (Int64)->Void) throws
+    func mkdir(_ path: String) throws
 }
 public enum RemoteService {
-    public static func validatePath(_ path:String) throws {
-        guard !path.contains("\n"),!path.contains("\r"),!path.contains("\0"),!path.isEmpty else { throw CommanderError.message("Remote-Pfade dürfen keine Zeilenumbrüche enthalten.") }
+    public static func validatePath(_ path: String) throws {
+        guard !path.isEmpty,path.utf8.count <= 32768,!path.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw CommanderError.message("Remote-Pfad ist leer, zu lang oder enthält Steuerzeichen.") }
+    }
+    public static func normalized(_ path: String) throws -> String {
+        try validatePath(path)
+        guard path.hasPrefix("/") else { throw CommanderError.message("Remote-Pfade müssen mit / beginnen.") }
+        var parts: [String] = []
+        for part in path.split(separator:"/") {
+            if part == "." { continue }
+            if part == ".." { if !parts.isEmpty { parts.removeLast() };continue }
+            try FileSystem.validateName(String(part));parts.append(String(part))
+        }
+        return "/"+parts.joined(separator:"/")
+    }
+    public static func transport(_ connection: RemoteConnection,token: CancellationToken = .init()) throws -> RemoteTransport {
+        try token.check();let connection = try connection.authenticated(connection.password)
+        return connection.kind == .sftp ? try SFTPTransport(connection,token:token) : FTPTransport(connection,token:token)
     }
     public static func batchQuote(_ path:String) throws -> String {
         try validatePath(path)
@@ -30,25 +71,6 @@ public enum RemoteService {
             if "\\\"*?[]".contains(char) { return "\\"+String(char) }; return String(char)
         }.joined()
         return "\""+escaped+"\""
-    }
-    private static func sftp(_ connection:RemoteConnection,commands:[String],token:CancellationToken) throws -> String {
-        let host = connection.host.contains(":") ? "[\(connection.host)]" : connection.host
-        return try ProcessRunner.run("/usr/bin/sftp",arguments:["-b","-","-oBatchMode=yes","-oStrictHostKeyChecking=yes","-oConnectTimeout=10","-P",String(connection.port),connection.user+"@"+host],input:Data((commands.joined(separator:"\n")+"\n").utf8),token:token,timeout:3600)
-    }
-    private static func ftp(_ connection:RemoteConnection,path:String,directory:Bool,options:[String] = [],token:CancellationToken) throws -> String {
-        try validatePath(path)
-        var url = URLComponents(); url.scheme = "ftp"; url.host = connection.host; url.port = connection.port
-        let fullPath = (path.hasPrefix("/") ? path : "/"+path)+(directory && !path.hasSuffix("/") ? "/" : "")
-        let allowed = CharacterSet(charactersIn:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~/")
-        guard let encoded = fullPath.addingPercentEncoding(withAllowedCharacters:allowed) else { throw CommanderError.message("FTP-Pfad kann nicht kodiert werden.") }
-        url.percentEncodedPath = encoded
-        guard let address = url.url?.absoluteString else { throw CommanderError.message("Ungültige FTP-Adresse.") }
-        func configQuote(_ value:String)->String { value.replacingOccurrences(of:"\\",with:"\\\\").replacingOccurrences(of:"\"",with:"\\\"") }
-        let config = "user = \""+configQuote(connection.user+":"+connection.password)+"\"\n"
-        var arguments = ["--disable","--config","-","--silent","--show-error","--fail","--connect-timeout","15","--max-time","3600","--proto","=ftp","--ftp-pasv","--globoff"]
-        if connection.kind == .ftps { arguments.append("--ssl-reqd") }
-        arguments += options+[address]
-        return try ProcessRunner.run("/usr/bin/curl",arguments:arguments,input:Data(config.utf8),token:token,timeout:3610)
     }
     public static func parseListing(_ text:String,mlsd:Bool) throws -> [RemoteEntry] {
         let unix = try NSRegularExpression(pattern:"^([dl-])[rwxstST-]{9}[+@.]?\\s+\\d+\\s+\\S+\\s+\\S+\\s+(\\d+)\\s+\\S+\\s+\\d+\\s+\\S+\\s+(.+)$")
@@ -61,47 +83,35 @@ public enum RemoteService {
                 let name = String(line[line.index(after:space)...]),type = facts["type"]?.lowercased() ?? ""
                 if type == "cdir" || type == "pdir" { continue }
                 guard !name.isEmpty,!name.contains("/"),type == "dir" || type == "file" || type.contains("slink") else { unparsed += 1; continue }
-                entries.append(RemoteEntry(name:name,isDirectory:type == "dir",isLink:type.contains("slink"),size:Int64(facts["size"] ?? "0") ?? 0)); continue
+                guard let size = Int64(facts["size"] ?? "0"),size >= 0,type != "file" || facts["size"] != nil else { unparsed += 1;continue }
+                entries.append(RemoteEntry(name:name,isDirectory:type == "dir",isLink:type.contains("slink"),size:size,version:facts["modify"] ?? "")); continue
             }
             guard let match = unix.firstMatch(in:line,range:NSRange(line.startIndex...,in:line)),let t = Range(match.range(at:1),in:line),let s = Range(match.range(at:2),in:line),let n = Range(match.range(at:3),in:line) else { unparsed += 1; continue }
             let type = String(line[t]); var name = String(line[n])
             if type == "l",let arrow = name.range(of:" -> ",options:.backwards) { name = String(name[..<arrow.lowerBound]) }
             if name == "." || name == ".." { continue }
             guard !name.contains("/"),!name.isEmpty else { unparsed += 1; continue }
-            entries.append(RemoteEntry(name:name,isDirectory:type == "d",isLink:type == "l",size:Int64(line[s]) ?? 0))
+            guard let size = Int64(line[s]) else { unparsed += 1;continue }
+            entries.append(RemoteEntry(name:name,isDirectory:type == "d",isLink:type == "l",size:size,version:String(line[..<n.lowerBound])))
         }
         guard unparsed == 0 else { throw CommanderError.message("Server-Dateiliste enthält \(unparsed) nicht lesbare Zeilen. Das Listenformat wird nicht vollständig unterstützt; es wurden keine Transfers ausgeführt.") }
+        for entry in entries { try FileSystem.validateName(entry.name);guard entry.size >= 0 else { throw CommanderError.message("Ungültige Remote-Dateigröße.") } }
+        guard Set(entries.map(\.name)).count == entries.count else { throw CommanderError.message("Doppelte Server-Dateinamen.") }
         return entries.sorted { a,b in a.isDirectory != b.isDirectory ? a.isDirectory : a.name.localizedStandardCompare(b.name) == .orderedAscending }
     }
-    public static func list(_ connection:RemoteConnection,path:String,token:CancellationToken = .init()) throws -> [RemoteEntry] {
-        if connection.kind == .sftp { return try parseListing(sftp(connection,commands:["ls -la "+batchQuote(path)],token:token),mlsd:false) }
-        do { return try parseListing(ftp(connection,path:path,directory:true,options:["--request","MLSD"],token:token),mlsd:true) }
-        catch { try token.check(); return try parseListing(ftp(connection,path:path,directory:true,token:token),mlsd:false) }
+    public static func list(_ connection: RemoteConnection,path: String,token: CancellationToken = .init()) throws -> [RemoteEntry] {
+        try transport(connection,token:token).list(normalized(path))
     }
-    public static func child(_ path:String,_ name:String) -> String { (path.hasSuffix("/") ? path : path+"/")+name }
-    public static func download(_ connection:RemoteConnection,path:String,entry:RemoteEntry,to directory:URL,token:CancellationToken = .init()) throws -> URL {
-        try FileSystem.validateName(entry.name)
-        guard !entry.isDirectory,!entry.isLink else { throw CommanderError.message("Remote-Transfers unterstützen hier reguläre Einzeldateien. Für rekursive SFTP-Transfers den Terminalzugang verwenden.") }
-        let dest = directory.appendingPathComponent(entry.name)
-        guard !FileSystem.exists(dest) else { throw CommanderError.message("Lokales Ziel existiert bereits: "+entry.name) }
-        let staging = directory.appendingPathComponent(".zweicommander-download-"+UUID().uuidString)
-        defer { if FileSystem.exists(staging) { try? FileManager.default.removeItem(at:staging) } }
-        let remote = child(path,entry.name)
-        if connection.kind == .sftp { _ = try sftp(connection,commands:["get -p "+batchQuote(remote)+" "+batchQuote(staging.path)],token:token) }
-        else { _ = try ftp(connection,path:remote,directory:false,options:["--output",staging.path],token:token) }
-        try token.check()
-        guard try FileEntry(url:staging).size == entry.size else { throw CommanderError.message("Heruntergeladene Dateigröße stimmt nicht mit der Liste überein. Bitte die Serverliste aktualisieren.") }
-        try FileManager.default.moveItem(at:staging,to:dest)
-        return dest
+    public static func child(_ path: String,_ name: String) -> String { (path.hasSuffix("/") ? path : path+"/")+name }
+    public static func download(_ connection: RemoteConnection,path: String,entry: RemoteEntry,to directory: URL,token: CancellationToken = .init()) throws -> URL {
+        let session = try transport(connection,token:token)
+        let plan = try RemotePlanner.download(session,entries:[entry],path:path,to:directory,token:token)
+        _ = try RemotePlanner.execute(plan,using:session,token:token)
+        return directory.appendingPathComponent(entry.name)
     }
-    public static func upload(_ connection:RemoteConnection,source:URL,path:String,token:CancellationToken = .init()) throws {
-        let entry = try FileEntry(url:source)
-        guard entry.isRegularFile else { throw CommanderError.message("Bitte reguläre Einzeldateien zum Hochladen auswählen.") }
-        try validatePath(source.lastPathComponent)
-        let existing = try list(connection,path:path,token:token)
-        guard !existing.contains(where:{$0.name.caseInsensitiveCompare(source.lastPathComponent) == .orderedSame}) else { throw CommanderError.message("Remote-Ziel ist bereits belegt: "+source.lastPathComponent) }
-        let remote = child(path,source.lastPathComponent)
-        if connection.kind == .sftp { _ = try sftp(connection,commands:["put -p "+batchQuote(source.path)+" "+batchQuote(remote)],token:token) }
-        else { _ = try ftp(connection,path:remote,directory:false,options:["--upload-file",source.path],token:token) }
+    public static func upload(_ connection: RemoteConnection,source: URL,path: String,token: CancellationToken = .init()) throws {
+        let session = try transport(connection,token:token)
+        let plan = try RemotePlanner.upload(session,sources:[source],to:path,token:token)
+        _ = try RemotePlanner.execute(plan,using:session,token:token)
     }
 }

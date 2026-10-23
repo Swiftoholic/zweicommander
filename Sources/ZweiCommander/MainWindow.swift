@@ -111,11 +111,22 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     var programLauncher: ((ProgramLaunchRequest) -> Void)?
     var keyCompareController: CompareController? { secondaryWindows.compactMap { $0 as? CompareController }.first { $0.window === NSApp.keyWindow || (NSApp.keyWindow?.sheetParent != nil && $0.window === NSApp.keyWindow?.sheetParent) } }
     var keySearchController: SearchController? { secondaryWindows.compactMap { $0 as? SearchController }.first { $0.window === NSApp.keyWindow } }
-    var pendingWork:Int { secondaryWindows.compactMap { $0 as? CompareController }.filter { $0.isComparing || $0.isPreparingPlan }.count + secondaryWindows.compactMap { $0 as? SearchController }.filter(\.isSearching).count + jobs.pending + secondaryWindows.compactMap { $0 as? RemoteWindow }.reduce(0) { $0+$1.jobs.pending } }
+    var pendingWork: Int {
+        let comparisons = secondaryWindows.compactMap { $0 as? CompareController }.filter { $0.isComparing || $0.isPreparingPlan }.count
+        let searches = secondaryWindows.compactMap { $0 as? SearchController }.filter(\.isSearching).count
+        let lists = secondaryWindows.compactMap { $0 as? RemoteWindow }.reduce(0) { $0+$1.browse.pending }
+        let profiles = secondaryWindows.compactMap { $0 as? RemoteConnectionController }.filter(\.isWorking).count
+        return comparisons+searches+lists+profiles+jobs.pending
+    }
     var canTerminate: Bool {
-        !left.inlineRename.hasPendingCommit && !right.inlineRename.hasPendingCommit &&
-        secondaryWindows.compactMap { $0 as? CompareController }.allSatisfy { !$0.isComparing && !$0.isPreparingPlan } && secondaryWindows.compactMap { $0 as? SearchController }.allSatisfy { !$0.isSearching } && jobs.canClose && secondaryWindows.compactMap { $0 as? RemoteWindow }.allSatisfy { $0.jobs.pending == 0 } &&
-            !jobs.scheduler.snapshots.filter(\.isPending).contains { snapshot in jobs.journal?.entry(snapshot.id)?.intent.sources.contains { FileSystem.isInside($0,cache) } == true }
+        guard !left.inlineRename.hasPendingCommit,!right.inlineRename.hasPendingCommit,jobs.canClose else { return false }
+        guard secondaryWindows.compactMap({ $0 as? CompareController }).allSatisfy({ !$0.isComparing && !$0.isPreparingPlan }),
+              secondaryWindows.compactMap({ $0 as? SearchController }).allSatisfy({ !$0.isSearching }),
+              secondaryWindows.compactMap({ $0 as? RemoteWindow }).allSatisfy({ $0.browse.pending == 0 }),
+              secondaryWindows.compactMap({ $0 as? RemoteConnectionController }).allSatisfy({ !$0.isWorking }) else { return false }
+        return !jobs.scheduler.snapshots.filter(\.isPending).contains { snapshot in
+            jobs.journal?.entry(snapshot.id)?.intent.sources.contains { FileSystem.isInside($0,cache) } == true
+        }
     }
 
     init(startLeft: URL? = nil,startRight: URL? = nil) {

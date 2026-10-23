@@ -7,7 +7,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         ("Datei",[("Öffnen","open","cmd+o"),("Vorschau","preview","F3"),("Mit TextEdit bearbeiten","edit","F4"),("Neuer Ordner …","newFolder","F7"),("Neue Datei …","newFile","shift+F4"),("—","",""),("Kopieren …","copy","F5"),("Verschieben …","move","F6"),("Umbenennen …","rename","F2"),("Mehrfachumbenennen …","batchRename","cmd+shift+m"),("In den Papierkorb …","trash","F8"),("—","",""),("Archiv erstellen …","pack","option+F5"),("Archiv entpacken …","extract","option+F6"),("Symbolische Verknüpfung …","symlink",""),("Eigenschaften","properties","cmd+i"),("Rechte und Datum …","attributes","")]),
         ("Bearbeiten",[("Rückgängig","undo","cmd+z"),("Ausschneiden","clipboardCut","cmd+x"),("Kopieren","clipboardCopy","cmd+c"),("Einfügen …","clipboardPaste","cmd+v"),("Pfad kopieren","copyPath","cmd+shift+c"),("—","",""),("Alles auswählen","selectAll","cmd+a"),("Auswahl umkehren","invertSelection","cmd+shift+a"),("Nach Muster auswählen …","selectPattern","cmd+shift+s")]),
         ("Ansicht",[("Aktualisieren","refresh","cmd+r"),("Versteckte Dateien","hidden","cmd+shift+."),("Ordnerbaum","tree","cmd+shift+t"),("Details","details","cmd+1"),("Miniaturbilder","thumbnails","cmd+2"),("Symbole","icons","cmd+3"),("Ordneransicht merken …","rememberView",""),("Gespeicherte Ordneransichten …","folderViews",""),("Schnellansicht","quickView","cmd+y"),("Anordnung wechseln","orientation","cmd+option+h"),("Ein-/Zweifensteransicht","onePane","cmd+shift+1"),("Fensterinhalte tauschen","swap","cmd+u"),("Gleicher Ordner im anderen Fenster","sameFolder","cmd+shift+u"),("Verknüpftes Navigieren","linked",""),("Flache Ansicht","flat","cmd+b"),("Schnellfilter","filter","cmd+shift+f"),("Werkzeugleiste anpassen …","customizeToolbar","")]),
-        ("Gehe zu",[("Pfad eingeben","path","cmd+l"),("Übergeordneter Ordner","parent","cmd+up"),("Zurück","back","cmd+["),("Vorwärts","forward","cmd+]"),("Benutzerordner","home","cmd+shift+h"),("Im Finder zeigen","reveal","cmd+shift+r"),("Favorit hinzufügen/entfernen","favorite","cmd+d"),("Favoriten bearbeiten …","editFavorites",""),("Terminal öffnen","terminal","cmd+shift+p"),("Mit Netzwerkvolume verbinden …","connect","cmd+k"),("FTP / SFTP verbinden …","remote","cmd+shift+k"),("SFTP im Terminal …","sftp","")]),
+        ("Gehe zu",[("Pfad eingeben","path","cmd+l"),("Übergeordneter Ordner","parent","cmd+up"),("Zurück","back","cmd+["),("Vorwärts","forward","cmd+]"),("Benutzerordner","home","cmd+shift+h"),("Im Finder zeigen","reveal","cmd+shift+r"),("Favorit hinzufügen/entfernen","favorite","cmd+d"),("Favoriten bearbeiten …","editFavorites",""),("Terminal öffnen","terminal","cmd+shift+p"),("Mit Netzwerkvolume verbinden …","connect","cmd+k"),("Serververbindungen …","remote","cmd+shift+k"),("SFTP im Terminal …","sftp","")]),
         ("Tabs",[("Neuer Tab","newTab","cmd+t"),("Tab duplizieren","duplicateTab",""),("Tab schließen","closeTab","cmd+w"),("Andere Tabs schließen","closeOtherTabs",""),("Nächster Tab","nextTab","cmd+option+right"),("Vorheriger Tab","previousTab","cmd+option+left"),("Nach links verschieben","moveTabLeft",""),("Nach rechts verschieben","moveTabRight",""),("Tab sperren/entsperren","lockTab",""),("Tab benennen …","nameTab",""),("Leere Dateisammlung","newCollection",""),("Aus Sammlung entfernen","removeCollectionItem",""),("Auswahl als Dateisammlung","collection",""),("Dateisammlung speichern …","saveCollection",""),("Dateisammlung öffnen …","loadCollection","")]),
         ("Werkzeuge",[("Dateien suchen …","search","cmd+f"),("Duplikate suchen …","duplicates",""),("Ordner vergleichen / synchronisieren …","compare","cmd+shift+d"),("Ordnergröße berechnen","folderSize",""),("Prüfsummen berechnen …","hash",""),("Prüfsummenliste prüfen …","verifyHash",""),("Datei teilen …","split",""),("Teileliste zusammenfügen …","join",""),("Dateiliste exportieren …","export",""),("Shell-Befehl …","shell",""),("Vorgangsprotokoll","log","")]),
         ("Aufträge",[("Warteschlange anzeigen","operations","cmd+shift+j"),("Sicherungen und Teilkopien …","recovery","cmd+option+j"),("—","",""),("Pause / Fortsetzen","pauseTransfers","cmd+option+p"),("Laufenden Auftrag abbrechen","stopTransfers","cmd+option+.")]),
@@ -31,11 +31,15 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let navigationSmoke = args.firstIndex(of:"--navigation-smoke")
         let fileUXSmoke = args.firstIndex(of:"--file-ux-smoke")
         let recoverySmoke = args.firstIndex(of:"--recovery-smoke")
+        let remoteSmoke = args.firstIndex(of:"--remote-smoke")
         let compareSmoke = args.firstIndex(of:"--compare-smoke")
-        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke].compactMap { $0 }.first
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke].compactMap { $0 }.first
         Preferences.testMode = testIndex != nil
         if Preferences.testMode { setvbuf(stdout,nil,_IOLBF,0) }
         if Preferences.testMode { Preferences.state = SavedState() }
+        if remoteSmoke != nil,let index = args.firstIndex(of:"--remote-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
+            Preferences.remoteProfileTestDefaults = UserDefaults(suiteName:args[index+1])
+        }
         if let index = journalSmoke ?? ageSmoke ?? recoverySmoke,args.indices.contains(index+1) {
             Preferences.transferJournalTestDirectory = URL(fileURLWithPath:args[index+1]).appendingPathComponent("Auftragsablage")
         }
@@ -74,6 +78,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         main.onRebuildMenus = { [weak self] in self?.buildMenus(); self?.main.updateFunctionLabels() }
         buildMenus(); main.showWindow(nil); main.left.focus()
         NSApp.activate(ignoringOtherApps:true)
+        if let remoteSmoke,args.indices.contains(remoteSmoke+3),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runRemoteSmoke(root:root,prefix:args[remoteSmoke+2],reload:args[remoteSmoke+3] == "reload") }
+        }
         if let recoverySmoke,args.indices.contains(recoverySmoke+3),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runRecoverySmoke(root:root,prefix:args[recoverySmoke+2],reload:args[recoverySmoke+3] == "reload") }
         }

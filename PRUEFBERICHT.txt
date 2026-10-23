@@ -1,8 +1,8 @@
-ZweiCommander 0.17.0 (Build 18) — Prüfung abgeschlossen am 23. Oktober 2026
+ZweiCommander 0.18.0 (Build 19) — Prüfung abgeschlossen am 23. Oktober 2026
 
 Ergebnis
-- 227/227 Dateikern- und Integrationstests bestanden.
-- 731/731 native UI-Prüfungen in 31 Durchläufen am finalen
+- 244/244 Dateikern- und Integrationstests bestanden.
+- 776/776 native UI-Prüfungen in 33 Durchläufen am finalen
   universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
   Darstellung nach erneutem App-Start 9, Mittelstreifen und Mausbedienung 26,
@@ -20,11 +20,12 @@ Ergebnis
   Mehrfachumbenennen und Profile speichern 20, nach Neustart verwenden 27,
   Sucharbeitsbereich und Profile speichern 22, nach Neustart verwenden 25,
   Ordnervergleich und Profile speichern 24, nach Neustart verwenden 30,
-  Wiederherstellung/Tastaturabläufe speichern 40, nach Neustart verwenden 15.
+  Wiederherstellung/Tastaturabläufe speichern 40, nach Neustart verwenden 15,
+  Serverprofile und rekursive Übertragungen 31, Profile nach Neustart 14.
 - Die Serie wurde in zwei Gruppen am identischen Release-Build ausgeführt:
-  24 Durchläufe mit 529 Prüfungen sowie sieben Durchläufe mit
-  202 Prüfungen für aktive Adress-, Such-, Vergleichs- und Wiederherstellungs-
-  fenster in einer entsperrten GUI-Sitzung.
+  24 Durchläufe mit 529 Prüfungen sowie neun Durchläufe mit
+  247 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
+  und Serverfenster in einer entsperrten GUI-Sitzung.
   Alle Durchläufe sind vollständig bestanden;
   es stehen keine ausgelassenen Vordergrundprüfungen mehr aus.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
@@ -537,11 +538,89 @@ Vergleich und Synchronisieren ohne Löschen; Archive und Pfadmanipulationen;
 Teilen/Zusammenfügen; INI-Kodierungen, Einstellungsimport und künstliche Werte,
 die nicht in exportierte Profile gelangen dürfen.
 
-Netzwerk
-Ein echter FTP-Test prüft Auflisten, Download, Upload und belegte Zielnamen
-gegen einen ausschließlich lokalen Server auf 127.0.0.1. FTPS und SFTP wurden
-nicht Ende zu Ende gegen einen Server geprüft. Parser- und Eingabetests sind
-kein Nachweis vollständiger Serverkompatibilität.
+Netzwerk und Verbindungsprofile
+17 zusätzliche Kerntests prüfen lokale Verbindungsprofile, Größen- und
+Pfadvalidierung, fehlende/überlaufende Servergrößen, Ausschluss von Passwörtern
+aus Profildaten, Endpoint-Zuordnung nach Protokoll/Server/Port/Benutzer,
+fehlende Schlüsselbund-Einträge und Schutz vor veralteten Profiländerungen.
+Ein künstlicher Passwortspeicher prüft Rücknahme bei Speicherfehlern,
+Profilwechsel, Löschen und Wiederherstellung des vorherigen Passworts bei
+fehlgeschlagenem Speichern. Unlesbare und unbekannte Profile bleiben erhalten.
+
+Der echte macOS-Schlüsselbund wurde separat mit einem eigens angelegten
+künstlichen Eintrag geprüft: Anlegen, Lesen, Aktualisieren, Entfernen und
+Bestätigung, dass der Eintrag danach fehlt. Die normale private
+Passwortablage wurde nicht ausgelesen; der künstliche Eintrag ist entfernt.
+
+FTP/FTPS werden gegen einen ausschließlich auf 127.0.0.1 gebundenen Testserver
+geprüft. FTPS verwendet temporäre Testzertifikate und verschlüsselte Steuer-
+und Datenverbindungen für Listen, rekursive Uploads und Downloads. Geprüft
+werden verschachtelte Unicode-Namen, Sonderzeichen, leere Dateien und Ordner,
+Pause/Fortsetzen innerhalb einer Datei, Abbruch und lokale Nichtveröffentlichung.
+Ein unverschlüsselter Server wird bei gewähltem FTPS vor dem Senden des
+Passworts abgewiesen. Nicht vertraute Zertifikate und auch ein vertrautes
+Zertifikat mit falschem Hostnamen werden abgewiesen. Fehlgeschlagene Anmeldungen
+werden nicht als Listenformatfehler mit einer zweiten Passwortübermittlung
+wiederholt; Passwortwerte gelangen nicht in die geprüften Fehlermeldungen.
+
+Die SFTP-Prüfungen verwenden den echten macOS-System-SFTP-Server über private
+lokale Pipes. Sie prüfen den SFTP-v3-Protokollablauf, exklusive Dateianlage,
+rekursive Inhalte, Endprüfung der Dateigröße, Links ohne Traversierung,
+veränderte Quellen und neue Einträge seit der Vorschau, ersetzte lokale
+Elternordner sowie Pause/Fortsetzen und Abbruch innerhalb einer Datei.
+Eine zunächst zu spät gemeldete Byteänderung bei sehr schnellen Übertragungen
+wurde korrigiert und mit dem tatsächlichen Stillstand der Zieldatei während
+der bestätigten Pause geprüft.
+
+Ein vollständiger SSH-Anmelde-/Verschlüsselungslauf gegen einen Server ist
+weiterhin offen. Ein privater Loopback-Versuch scheiterte an der macOS-
+Audit-/Root-Anforderung des System-SSH-Daemons. Es wurden keine Systemdienste,
+Benutzerschlüssel, bekannten Hosts oder SSH-Einstellungen geändert und keine
+Administratorrechte angefordert. Die erfolgreiche SFTP-Protokollprüfung über
+Pipes ist kein Nachweis vollständiger SSH-Serverkompatibilität.
+
+Zwei zusätzliche native App-Prozesse prüfen 45 Bedienungsschritte mit echten
+Feldern, Fenstern und Menü-/Tastenaktionen, einer eigenen Präferenzdomäne,
+einem künstlichen Passwortspeicher und einem lokalen FTP-Server. 31 Schritte
+prüfen Speichern per Cmd+S, versteckte Passwortfelder, einen geänderten
+Endpoint ohne Passwortübernahme, Cmd+L im Serverfenster, gesperrte Dateiaktionen
+auf unbestätigten Adressen, Ordner-Vorschau ohne Dateiänderung, Cmd+Shift+Enter
+zum Vormerken, Enter in der gemeinsamen Warteschlange und Cmd+Enter zum Start.
+Ausgeführte verschachtelte Dateien werden mit den erwarteten Inhalten
+verglichen; leere Dateien und Ordner bleiben erhalten. Vorhandene Ziele
+sperren beide Startarten. Remote-Aufträge erscheinen nicht im Kopierjournal
+und sperren bei offenen Sitzungsvorgängen das reguläre Beenden.
+
+F5 und F6 werden auch als Tastenereignisse an die Servertabelle übergeben.
+Die Upload-Auswahl wird an der Betriebssystemschnittstelle mit künstlichen
+Datei-URLs bedient, wie die abgefangenen Programmaufrufe. Die tatsächliche
+Auswahl im macOS-Dateidialog wird nicht Ende zu Ende automatisiert.
+
+14 weitere Schritte laden die Profilmetadaten nach einem getrennten App-Start,
+prüfen ein fehlendes Passwort ohne Verbindung, die erneute Eingabe ohne
+Duplikatprofil, das echte Bestätigungsblatt beim Löschen samt Abbruch und
+vollständigem Entfernen, SFTP-Schlüsselfelder, ungültige Ports sowie den Erhalt
+beschädigter Profildaten. Helle und dunkle Profil-, Server- und Vorschauflächen
+werden zusätzlich als lokale künstliche Fensteraufnahmen geprüft.
+
+Remote-Grenzen
+SFTP nutzt SSH-Schlüssel/Agent und strikt geprüfte bekannte Hostschlüssel;
+Passwortanmeldung im Fenster ist nicht enthalten. FTPS unterstützt explizites
+AUTH TLS; implizites FTPS auf Port 990 ist nicht enthalten. FTP ist unverschlüsselt.
+Bis zu 10.000 Dateien/Ordner und 100 Ebenen je Auftrag; Links und Spezialdateien
+werden abgewiesen. Vorhandene Zielnamen sperren den Plan, kein Zusammenführen
+oder Ersetzen bestehender Remote-Bäume. SFTP nutzt exklusive Dateianlage;
+FTP/FTPS prüft freie Namen, besitzt für STOR aber keine atomische Exklusivgarantie
+gegen gleichzeitige Änderungen auf dem Server. Änderungen mit gleichen,
+vom Server gemeldeten Metadaten sind nicht zuverlässig erkennbar; keine
+Remote-Inhaltsprüfsumme. Neu veröffentlichte Downloads haben private Rechte;
+Remote-Rechte, Zeitstempel, ACLs und erweiterte Attribute werden nicht allgemein
+übernommen. Lange Pausen können serverseitige Zeitüberschreitungen auslösen.
+Abgebrochene Uploads können neue Teilinhalte hinterlassen; keine automatische
+Remote-Bereinigung. Sitzungsvorgänge müssen vor dem Beenden bearbeitet oder
+entfernt werden; kein Remote-Neustartjournal, dauerhaftes Fortsetzen oder
+allgemeines Remote-Rückgängig. Externe FTP-/FTPS-/SSH-Server und längere
+Alltagssitzungen benötigen weitere Laufzeitprüfungen.
 
 Grenzen
 Zusammenführen veröffentlicht einzelne Dateien. Bei Abbruch bleiben fertige

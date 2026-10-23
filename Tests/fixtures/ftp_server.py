@@ -1,17 +1,33 @@
 """Loopback-only FTP fixture for integration tests; never used by the application."""
+import argparse
+import datetime
 import os
+import ssl
+import time
 from pathlib import Path
 import socket
 import socketserver
 import sys
 
-ROOT = Path(sys.argv[1]).resolve()
+parser = argparse.ArgumentParser()
+parser.add_argument('root', type=Path)
+parser.add_argument('--cert', type=Path)
+parser.add_argument('--key', type=Path)
+parser.add_argument('--delay', type=float, default=0)
+parser.add_argument('--password')
+args = parser.parse_args()
+ROOT = args.root.resolve()
+TLS = None
+if args.cert:
+    TLS = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    TLS.load_cert_chain(str(args.cert), str(args.key))
 
 
 class FTP(socketserver.StreamRequestHandler):
     def handle(self):
         self.cwd = ROOT
         self.passive = None
+        self.data_tls = False
         self.reply('220 ZweiCommander test fixture')
         try:
             while True:
@@ -20,10 +36,26 @@ class FTP(socketserver.StreamRequestHandler):
                     break
                 parts = raw.decode('utf-8').rstrip('\r\n').split(' ', 1)
                 cmd, arg = parts[0].upper(), parts[1] if len(parts) > 1 else ''
-                if cmd == 'USER':
+                if cmd == 'AUTH' and TLS:
+                    self.reply('234 Start TLS')
+                    self.connection = TLS.wrap_socket(self.connection, server_side=True)
+                    self.rfile = self.connection.makefile('rb')
+                    self.wfile = self.connection.makefile('wb')
+                elif cmd == 'PBSZ' and TLS:
+                    self.reply('200 Buffer accepted')
+                elif cmd == 'PROT' and TLS:
+                    self.data_tls = arg == 'P'
+                    self.reply('200 Protection accepted')
+                elif cmd == 'USER':
                     self.reply('331 Password required')
                 elif cmd == 'PASS':
-                    self.reply('230 Logged in')
+                    counter = ROOT / '.login-count'
+                    counter.write_text(str(int(counter.read_text()) + 1 if counter.exists() else 1))
+                    if args.password is not None and arg != args.password:
+                        self.reply('530 Login denied')
+                    else:
+                        (ROOT / '.login-used').touch()
+                        self.reply('230 Logged in')
                 elif cmd == 'PWD':
                     self.reply('257 "/%s"' % str(self.cwd.relative_to(ROOT)).replace('.', ''))
                 elif cmd == 'SYST':
@@ -46,20 +78,40 @@ class FTP(socketserver.StreamRequestHandler):
                     self.passive.settimeout(10)
                     port = self.passive.getsockname()[1]
                     self.reply('229 Entering Extended Passive Mode (|||%d|)' % port if cmd == 'EPSV' else '227 Entering Passive Mode (127,0,0,1,%d,%d)' % (port // 256, port % 256))
+                elif cmd == 'MKD':
+                    p = self.path(arg)
+                    try:
+                        p.mkdir()
+                        self.reply('257 Directory created')
+                    except FileExistsError:
+                        self.reply('550 Already exists')
                 elif cmd in ('MLSD', 'LIST', 'RETR', 'STOR'):
                     self.reply('150 Opening data connection')
                     data, _ = self.passive.accept()
+                    data.settimeout(10)
+                    if self.data_tls:
+                        data = TLS.wrap_socket(data, server_side=True)
+                        (ROOT / '.data-tls-used').touch()
                     with data:
                         if cmd in ('MLSD', 'LIST'):
                             rows = []
                             for p in sorted(self.cwd.iterdir()):
                                 if cmd == 'MLSD':
-                                    rows.append('type=%s;size=%d;modify=20261017000000; %s\r\n' % ('dir' if p.is_dir() else 'file', p.stat().st_size, p.name))
+                                    kind = 'OS.unix=slink' if p.is_symlink() else 'dir' if p.is_dir() else 'file'
+                                    modified = datetime.datetime.fromtimestamp(p.lstat().st_mtime, datetime.timezone.utc).strftime('%Y%m%d%H%M%S.%f')
+                                    rows.append('type=%s;size=%d;modify=%s; %s\r\n' % (kind, p.lstat().st_size, modified, p.name))
                                 else:
                                     rows.append('%srw-r--r-- 1 user group %d Oct 17 12:00 %s\r\n' % ('d' if p.is_dir() else '-', p.stat().st_size, p.name))
                             data.sendall(''.join(rows).encode('utf-8'))
                         elif cmd == 'RETR':
-                            data.sendall(self.path(arg).read_bytes())
+                            with self.path(arg).open('rb') as source:
+                                while True:
+                                    chunk = source.read(32768)
+                                    if not chunk:
+                                        break
+                                    data.sendall(chunk)
+                                    if args.delay:
+                                        time.sleep(args.delay)
                         else:
                             with self.path(arg).open('xb') as output:
                                 while True:
@@ -67,6 +119,13 @@ class FTP(socketserver.StreamRequestHandler):
                                     if not chunk:
                                         break
                                     output.write(chunk)
+                                    if args.delay:
+                                        time.sleep(args.delay)
+                        if self.data_tls:
+                            try:
+                                data.unwrap()
+                            except (ssl.SSLError, OSError):
+                                pass
                     self.passive.close()
                     self.passive = None
                     self.reply('226 Transfer complete')

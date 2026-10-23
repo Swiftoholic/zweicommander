@@ -170,6 +170,8 @@ extension AppDelegate {
             check(actionCell?.stringValue == "Datei verschieben","move preview uses the actual operation name")
             move.startButton.performClick(nil);await waitFor({ main.jobs.pending == 0 },"real move")
             check(!FileSystem.exists(budget) && (try? String(contentsOf:right.appendingPathComponent("Budget.csv"))) == "Posten;Betrag\nPlan;42\n","compact move dialog transfers the actual selected file")
+            main.window?.makeKeyAndOrderFront(nil)
+            await waitFor({ main.keyWorkflowWindow == nil },"main toolbar command context")
             main.command("customizeToolbar")
             let editor = require(main.secondaryWindows.last as? ToolbarEditorController,"toolbar editor")
             let original = Preferences.toolbarSettings()

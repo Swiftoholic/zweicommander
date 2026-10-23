@@ -8,7 +8,8 @@ let package = Package(
     targets: [
         .target(name: "CArchive", linkerSettings: [.linkedLibrary("archive.2")]),
         .target(name: "CFileCopy"),
-        .target(name: "CommanderCore", dependencies: ["CArchive", "CFileCopy"]),
+        .target(name: "CRemote", linkerSettings: [.linkedLibrary("curl")]),
+        .target(name: "CommanderCore", dependencies: ["CArchive", "CFileCopy", "CRemote"], linkerSettings: [.linkedFramework("Security")]),
         .executableTarget(name: "ZweiCommander", dependencies: ["CommanderCore"]),
         .executableTarget(name: "CommanderCoreTests", dependencies: ["CommanderCore", "CArchive"], path: "Tests/CommanderCoreTests")
     ]

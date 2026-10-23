@@ -4,6 +4,21 @@ import CArchive
 
 let coreTestExecutable = URL(fileURLWithPath:CommandLine.arguments[0]).standardizedFileURL
 setvbuf(stdout,nil,_IOLBF,0)
+if CommandLine.arguments.contains("--keychain-probe") {
+    var result: Int32 = 0
+    let keychain = RemoteKeychain(service:"local.zweicommander.tests."+UUID().uuidString,allowInteraction:false),account = UUID().uuidString
+    do {
+        defer { try? keychain.remove(account:account) }
+        try keychain.save("synthetic-first",account:account)
+        guard try keychain.password(account:account) == "synthetic-first" else { throw CommanderError.message("Keychain read mismatch") }
+        try keychain.save("synthetic-updated",account:account)
+        guard try keychain.password(account:account) == "synthetic-updated" else { throw CommanderError.message("Keychain update mismatch") }
+        try keychain.remove(account:account)
+        guard try keychain.password(account:account) == nil else { throw CommanderError.message("Keychain cleanup mismatch") }
+        print("KEYCHAIN PROBE PASS create/read/update/delete; isolated synthetic entry removed")
+    } catch { print("KEYCHAIN PROBE FAIL "+error.localizedDescription);result = 1 }
+    exit(result)
+}
 runRecoveryChildIfRequested()
 runFilteredMoveChildIfRequested()
 
@@ -598,6 +613,23 @@ let tests: [(String, (CoreTests) throws -> Void)] = [
     ("testOfficeXmlRejectsEntitiesCorruptionAndZipExpansion", { try $0.testOfficeXmlRejectsEntitiesCorruptionAndZipExpansion() }),
     ("testWindowsVersionResourceAndPEHeader", { try $0.testWindowsVersionResourceAndPEHeader() }),
     ("testBinaryInspectorHandlesMalformedAndUniversalHeaders", { try $0.testBinaryInspectorHandlesMalformedAndUniversalHeaders() }),
+    ("testRemoteLoginFailureDoesNotRetryPasswordAsListingFallback", { try $0.testRemoteLoginFailureDoesNotRetryPasswordAsListingFallback() }),
+    ("testRemoteTLSRejectsTrustedCertificateForWrongHost", { try $0.testRemoteTLSRejectsTrustedCertificateForWrongHost() }),
+    ("testRemoteRejectsUnknownAndOverflowingListingSizes", { try $0.testRemoteRejectsUnknownAndOverflowingListingSizes() }),
+    ("testRemoteDeletionMetadataFailureRestoresItsCredential", { try $0.testRemoteDeletionMetadataFailureRestoresItsCredential() }),
+    ("testRemoteCredentialReplacementNeverReusesSecretsForChangedLogin", { try $0.testRemoteCredentialReplacementNeverReusesSecretsForChangedLogin() }),
+    ("testRemoteFTPSPauseResumeAndCancelInsideDownload", { try $0.testRemoteFTPSPauseResumeAndCancelInsideDownload() }),
+    ("testRemoteProfilesExcludePasswordsAndScopeCredentialsToEndpoint", { try $0.testRemoteProfilesExcludePasswordsAndScopeCredentialsToEndpoint() }),
+    ("testRemoteProfileStoreRollsBackBothStoresOnWriteFailure", { try $0.testRemoteProfileStoreRollsBackBothStoresOnWriteFailure() }),
+    ("testRemoteProfileDeletionMissingCredentialsAndStaleEdits", { try $0.testRemoteProfileDeletionMissingCredentialsAndStaleEdits() }),
+    ("testRemoteProfileValidationNormalizationAndLimit", { try $0.testRemoteProfileValidationNormalizationAndLimit() }),
+    ("testRemoteSFTPRecursiveRoundTripWithEmptyFoldersAndUnicode", { try $0.testRemoteSFTPRecursiveRoundTripWithEmptyFoldersAndUnicode() }),
+    ("testRemoteSFTPExclusiveCreateAndLinkRejection", { try $0.testRemoteSFTPExclusiveCreateAndLinkRejection() }),
+    ("testRemotePlansRejectChangedSourcesNewEntriesAndCaseCollisions", { try $0.testRemotePlansRejectChangedSourcesNewEntriesAndCaseCollisions() }),
+    ("testRemoteDownloadRejectsReplacedParentAndCancelsWithoutPublication", { try $0.testRemoteDownloadRejectsReplacedParentAndCancelsWithoutPublication() }),
+    ("testRemoteSFTPPauseResumeAndCancelInsideFile", { try $0.testRemoteSFTPPauseResumeAndCancelInsideFile() }),
+    ("testRemoteTLSRefusesPlaintextDowngradeBeforeSendingPassword", { try $0.testRemoteTLSRefusesPlaintextDowngradeBeforeSendingPassword() }),
+    ("testRemoteFTPSRecursiveTransfersValidateTLSAndBothDataDirections", { try $0.testRemoteFTPSRecursiveTransfersValidateTLSAndBothDataDirections() }),
     ("testFTPLoopbackListingDownloadAndUpload", { try $0.testFTPLoopbackListingDownloadAndUpload() }),
     ("testRemoteListingHandlesSpacesAndUnicode", { try $0.testRemoteListingHandlesSpacesAndUnicode() }),
     ("testRemoteCommandsRejectInjectionAndMalformedListings", { try $0.testRemoteCommandsRejectInjectionAndMalformedListings() }),
