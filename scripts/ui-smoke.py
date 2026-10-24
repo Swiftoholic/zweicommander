@@ -196,7 +196,11 @@ def fixtures(base):
         write(selection, "Server/Auswahl/" + name, "synthetic remote content\n")
     for index in range(3000):
         write(selection, f"Masse/Datei-{index:04d}.txt", "bulk\n")
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection
+    tabs = base / "tabs"
+    for name in ("Links/A", "Links/B", "Rechts"):
+        (tabs / name).mkdir(parents=True)
+    write(tabs, "Links/notiz.txt", "synthetic tab fixture\n")
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs
 
 
 def main():
@@ -260,9 +264,11 @@ def main():
             ("remote-reload", "--remote-smoke", roots[16], str(prefix), "REMOTE UI PASS ", "REMOTE SMOKE PASS 14 checks", 14),
             ("server-pane", "--server-pane-smoke", roots[17], str(prefix), "SERVER PANE PASS ", "SERVER PANE SMOKE PASS 47 checks", 47),
             ("selection", "--selection-smoke", roots[18], str(prefix), "SELECTION UI PASS ", "SELECTION SMOKE PASS 90 checks", 90),
+            ("tabs-save", "--tabs-smoke", roots[19], str(prefix), "TABS UI PASS ", "TABS SMOKE PASS 56 checks", 56),
+            ("tabs-reload", "--tabs-smoke", roots[19], str(prefix), "TABS UI PASS ", "TABS SMOKE PASS 9 checks", 9),
         ]
         if args.skip_foreground:
-            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection"}
+            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload"}
             skipped = [case for case in cases if case[0] in foreground]
             cases = [case for case in cases if case[0] not in foreground]
             print("Ausgelassen: " + ", ".join(case[0] for case in skipped) + " · " + str(sum(case[-1] for case in skipped)) + " Vordergrundprüfungen offen", flush=True)
@@ -275,6 +281,7 @@ def main():
         appearance_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         ux_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         remote_suite = "local.zweicommander.tests." + str(uuid.uuid4())
+        tabs_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         remote_server = None
         pane_server = None
         try:
@@ -298,6 +305,10 @@ def main():
                         if not (root / "Server/port.txt").is_file():
                             raise SystemExit("Lokaler Remote-Testserver konnte nicht gestartet werden")
                     command += [name.removeprefix("remote-"), "--remote-test-suite", remote_suite]
+                if name.startswith("tabs-"):
+                    command += ["--tabs-test-suite", tabs_suite]
+                    if name == "tabs-reload":
+                        command += ["--reload-tabs"]
                 if name.startswith("journal-"):
                     command += [name.removeprefix("journal-")]
                 if name.startswith("recovery-"):
@@ -340,7 +351,7 @@ def main():
                     command += ["--wait-for-foreground"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
-                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180 if name == "navigation" and args.interactive else 90 if name in {"server-pane", "selection"} else 45)
+                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180 if name == "navigation" and args.interactive else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
                     except subprocess.TimeoutExpired:
                         raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
                 output = (args.results / (name + ".log")).read_text(encoding="utf-8")
@@ -371,6 +382,7 @@ def main():
                 except subprocess.TimeoutExpired:
                     remote_server.kill()
                     remote_server.wait()
+            subprocess.run(["defaults", "delete", tabs_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", remote_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", age_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

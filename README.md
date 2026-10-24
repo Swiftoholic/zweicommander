@@ -2,7 +2,7 @@
 
 ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Tabs und Tastaturbedienung. Er wird in Swift und AppKit entwickelt und verwendet Systembibliotheken für Dateivorgänge, Vorschau und Archive.
 
-**Version 0.20.0 ist eine frühe, ausführbare Version.** Das neue Auswahlmenü ergänzt Musterwahl mit Vorschau, gleiche Endungen und Stammnamen, einen Merkspeicher pro Tab sowie Auswahl in Dateien. Sechs Textformate machen markierte Namen und Pfade direkt weiterverwendbar. Lokale Dateilisten, Sammlungen, Archive und Server-Tabs teilen die Auswahlwerkzeuge. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+**Version 0.21.0 ist eine frühe, ausführbare Version.** Tabgruppen speichern die normalen Ordner beider Seiten mit Reihenfolge, Namen, Sperren und Ansichten. Die Vorschau prüft verfügbare Ziele; Laden ergänzt Tabs oder ersetzt ausdrücklich ungesperrte Ordnertabs. Zuletzt verwendete und geschlossene Tabs sowie neue Ordneraktionen zwischen den Seiten ergänzen die Tastaturbedienung. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 ## Funktionen
 
@@ -13,7 +13,8 @@ ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Ta
 - Namen, Stammnamen, Pfade, URLs, lokale Shell-Argumente und Tabellen in die Zwischenablage kopieren.
 - Direktes Umbenennen mit F2, Fehlerhinweisen an der Eingabe und Rückgängig in der Sitzung.
 - Ordner und Tabs als hervorgehobene Ablageziele; automatisches Öffnen beim Verweilen, Kopieren mit Vorschau.
-- Tabs umordnen und duplizieren, ausgewählten Tab und Ansicht wiederherstellen.
+- Tabs umordnen und duplizieren, zuletzt verwendete Tabs wechseln, geschlossene lokale Tabs wieder öffnen und Ordner auf der anderen Seite öffnen.
+- Lokale Tabgruppen für beide Seiten mit Vorschau, Ansichten und Sperren speichern, verwalten und erneut öffnen.
 - Ordneransichten mit optionaler Vererbung sowie Ordner- und Programmfavoriten.
 - Kopieren und Verschieben mit kompaktem Dialog, Vorschau, Warteschlange, Pause, Abbruch und Sicherung beim Ersetzen.
 - Sichtbare Filter mit Trefferzahl, Aufheben-Aktion und Hinweisen zu leeren oder nicht lesbaren Ordnern.
@@ -120,6 +121,13 @@ Ein aktiver Schnellfilter zeigt Trefferzahl und Gesamtzahl der eingelesenen Obje
 Über der Dateiliste stehen Darstellung, Sortierspalte und Richtung bereit. Das Symbolraster unterstützt Mehrfachauswahl, Pfeiltasten, Öffnen, Schnellfilter, Vorschau, Dateizwischenablage und Kopieren/Verschieben wie die Liste. Kleine Bildvorschauen werden auf höchstens 144 Pixel verkleinert dekodiert; Links erhalten keine Bildvorschau. Die Anordnung folgt der Sortierung, einzelne Symbole lassen sich nicht frei platzieren.
 
 Tabs lassen sich innerhalb eines Dateifensters ziehen oder über Menübefehle verschieben. Ihr Kontextmenü bietet Duplizieren, Benennen, Sperren und Schließen. **Andere Tabs schließen** erhält gesperrte Tabs. Duplikate übernehmen Pfad, Verlauf und Ansicht, bleiben aber entsperrt. Normale Tabs speichern Reihenfolge, Auswahl und manuelle Darstellung einschließlich Sortierung, Ordnerbaum und Spalten. Sammlungen und temporäre Archive werden nicht als dauerhafte Tabs gespeichert.
+
+**Ctrl+Tab** wechselt zwischen den zuletzt verwendeten Tabs einer Seite. **Cmd+Option+Z** öffnet den zuletzt geschlossenen verfügbaren lokalen Tab mit Name, Verlauf und Ansicht. Bis zu 30 geschlossene lokale Tabs und Sammlungen bleiben für diese Sitzung erhalten; nicht verfügbare Ordner bleiben vorgemerkt. Server und temporäre Archivtabs werden nicht im Schließverlauf gehalten. **Cmd+Option+U** kopiert den aktuellen Tab auf die andere Seite und erhält den Quellfokus.
+
+**Cmd+Enter** öffnet den fokussierten Ordner in einem neuen Tab, **Cmd+Option+Enter** auf der anderen Seite und **Cmd+Option+O** in einem neuen Tab dort. Aktionen zur Gegenseite erhalten die Quellauswahl und den Quellfokus. Die Befehle stehen auch im Kontextmenü bereit; während einer Adress- oder Texteingabe werden sie nicht auf die Dateiliste angewendet.
+
+**Tabs → Tabgruppen …** (**Cmd+Option+G**) speichert bis zu 50 lokale Gruppen mit je höchstens 100 Ordnern pro Seite. Reihenfolge, aktiver Tab, Namen, Sperren und Ansichten gehören zur Gruppe. Server, Archive, temporäre Cachepfade und Sammlungen sind ausgeschlossen. Die Gruppe wird mit verfügbaren und fehlenden Ordnern angezeigt; mindestens ein verfügbarer Ordner je Seite ist nötig. Fehlende Ziele werden ausgelassen. Standardmäßig werden neue Tabs angefügt. **Ungesperrte Ordnertabs ersetzen** erhält gesperrte Tabs und Spezialansichten; entfernte lokale Tabs können während der Sitzung wieder geöffnet werden. Verfügbarkeit wird im Hintergrund geprüft. Änderungen an Gruppe oder aktuellen Tabs erfordern eine neue Vorschau. Im Gruppenfenster fokussiert **Cmd+L** den Namen, **Cmd+R** prüft neu, **Cmd+Enter** öffnet, **Escape** schließt. Gruppen lassen sich umbenennen, umordnen, mit aktuellen Tabs aktualisieren und entfernen. Beschädigte oder neuere Gruppendaten werden nicht überschrieben. Gruppen speichern Pfade lokal und werden nicht automatisch als öffentliche Dateien exportiert.
+
 
 **Ansicht → Ordneransicht merken …** speichert die aktuelle Ansicht für einen Ordner, auf Wunsch einschließlich Unterordnern. Die speziellste passende Regel hat Vorrang; gleiche Namensanfänge gelten nicht als Unterordner. Ohne passende Regel gilt die manuelle Ansicht des Tabs. Unter **Gespeicherte Ordneransichten …** lassen sich Regeln entfernen und ihr Geltungsbereich ändern. Regeln beziehen sich auf normalisierte vollständige Pfade; symbolische Ordnerverknüpfungen haben eigene Regeln.
 
@@ -298,7 +306,7 @@ python3 scripts/ui-smoke.py --app ../ZweiCommander.app --results /tmp/ZweiComman
 python3 scripts/check-public.py
 ```
 
-Die 278 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die 35 nativen Oberflächendurchläufe mit 913 Prüfungen verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil. Sie verändern keine persönlichen Benutzereinstellungen; eigene Einstellungsbereiche werden anschließend entfernt.
+Die 290 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die 37 nativen Oberflächendurchläufe mit 978 Prüfungen verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil. Sie verändern keine persönlichen Benutzereinstellungen; eigene Einstellungsbereiche werden anschließend entfernt.
 
 Die Serie prüft Dateiaktionen und Vorschau, Ordner- und Tab-Ablageziele, Ordneradressen mit Maus/Tastatur, 3.000 Dateien, Hell-/Dunkelflächen und Darstellung nach Neustart, Suche, Vergleich, Umbenennen und deren Profile. Getrennte App-Prozesse prüfen gespeicherte Aufträge, relative Altersfilter, abruptes Prozessende, beschädigte oder extern geänderte Ablagen, Byte-Fortsetzung, Sicherungswiederherstellung und die neuen Tastaturabläufe. Ausgeführte Dateiaktionen werden anhand ihrer tatsächlichen Inhalte geprüft. Die Dateikerntests beenden außerdem echte Kindprozesse während einer Kopie und vor dem Entfernen einer gefiltert verschobenen Quelle. Weitere Prüfungen verwenden den echten System-SFTP-Server über lokale Pipes und einen lokalen FTP-/FTPS-Server mit temporären Testzertifikaten; verschachtelte Dateien, Pause, Abbruch, Zertifikats- und Profilfehler werden am tatsächlichen Ergebnis geprüft. Die Server-Tab-Prüfung verwendet einen eigenen FTP-Server und prüft tatsächliche Übertragungen und Mutationen über Menü- und Tastaturaktionen. Die nativen Profilprüfungen verwenden einen künstlichen Passwortspeicher; der echte Schlüsselbund wird getrennt mit einem anschließend entfernten künstlichen Eintrag geprüft.
 
@@ -310,11 +318,11 @@ Ein zusätzlicher vollständiger SSH/SFTP-Lauf verwendet den nativen `/usr/bin/s
 python3 scripts/ssh-smoke.py --python /Pfad/zur/Testumgebung/bin/python --tests /Pfad/CommanderCoreTests --results /Pfad/Pruefprotokolle
 ```
 
-Die neun zusätzlichen SSH-Prüfungen erzeugen eigene Anmelde- und Hostschlüssel, prüfen unbekannte/geänderte Hosts und falsche Schlüssel, rekursive Transfers, Mutationen und Abbruch innerhalb einer Datei. Der Testserver lauscht ausschließlich auf `127.0.0.1`; temporäre Schlüssel werden entfernt. Systemdienste, persönliche SSH-Konfiguration und bekannte Hosts bleiben unverändert. Diese Zusatzprüfungen werden getrennt von den 278 Kerntests gezählt; ohne Testabhängigkeit wird kein SSH-Erfolg behauptet.
+Die neun zusätzlichen SSH-Prüfungen erzeugen eigene Anmelde- und Hostschlüssel, prüfen unbekannte/geänderte Hosts und falsche Schlüssel, rekursive Transfers, Mutationen und Abbruch innerhalb einer Datei. Der Testserver lauscht ausschließlich auf `127.0.0.1`; temporäre Schlüssel werden entfernt. Systemdienste, persönliche SSH-Konfiguration und bekannte Hosts bleiben unverändert. Diese Zusatzprüfungen werden getrennt von den 290 Kerntests gezählt; ohne Testabhängigkeit wird kein SSH-Erfolg behauptet.
 
 `check-public.py` prüft die im Git-Index enthaltenen Dateien vor einer Veröffentlichung. Erlaubt sind die Projektdateien, Quellcode, Werkzeuge und künstlichen Testdaten. Lokale Protokolle, Buildprodukte und Arbeitsunterlagen gehören nicht ins Repository.
 
-Die vollständige Serie mit 35 Durchläufen und 913 Prüfungen benötigt eine entsperrte GUI-Sitzung. `--skip-foreground` lässt elf Durchläufe mit 384 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-, Serverfenster, Server-Tabs und Auswahlvorschau ausdrücklich aus; die übrigen 24 Durchläufe umfassen 529 Prüfungen. Ausgelassene Fälle werden nicht als bestanden gezählt. Die Adressleistenprüfung benötigt ein aktives Prüffenster. Falls macOS die Aktivierung aus dem Hintergrund ablehnt, wartet `ui-smoke.py --interactive` bei Bedarf auf einen Klick in „ZweiCommander · Bedienungsprüfung“. Dieses Fenster für den kurzen Bedienungslauf vorne lassen; für diesen Prozess gilt ein Zeitlimit von 180 Sekunden. Vorschläge werden im normalen Betrieb weiterhin nur im aktiven Fenster eingeblendet.
+Die vollständige Serie mit 37 Durchläufen und 978 Prüfungen benötigt eine entsperrte GUI-Sitzung. `--skip-foreground` lässt 13 Durchläufe mit 449 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-, Serverfenster, Server-Tabs und Auswahlvorschau ausdrücklich aus; die übrigen 24 Durchläufe umfassen 529 Prüfungen. Ausgelassene Fälle werden nicht als bestanden gezählt. Die Adressleistenprüfung benötigt ein aktives Prüffenster. Falls macOS die Aktivierung aus dem Hintergrund ablehnt, wartet `ui-smoke.py --interactive` bei Bedarf auf einen Klick in „ZweiCommander · Bedienungsprüfung“. Dieses Fenster für den kurzen Bedienungslauf vorne lassen; für diesen Prozess gilt ein Zeitlimit von 180 Sekunden. Vorschläge werden im normalen Betrieb weiterhin nur im aktiven Fenster eingeblendet.
 
 ## Projektstruktur
 

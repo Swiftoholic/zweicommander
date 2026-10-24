@@ -192,7 +192,7 @@ extension MainWindow {
             content.status.stringValue = "Ordneransicht gespeichert";applyFolderViews()
         }
     }
-    func applyFolderViews() { for pane in [left,right] { pane.restoreTabView() };saveState() }
+    func applyFolderViews() { for pane in [left,right] { pane.tab.sessionViewPinned = false;pane.restoreTabView() };saveState() }
     func showFolderViews() {
         let controller = FolderViewsController();controller.onChange = { [weak self] in self?.applyFolderViews() }
         secondaryWindows.append(controller);controller.showWindow(nil)

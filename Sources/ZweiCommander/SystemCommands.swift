@@ -47,22 +47,8 @@ extension MainWindow {
         let scroll = NSScrollView();scroll.hasVerticalScroller = true;scroll.documentView = shortcuts
         let answer = dialog("Einstellungen",message:"Eigene Tastenkürzel: eine Zeile je Befehl, z. B. copy=F5 oder search=cmd+f. Leere Liste verwendet die Standardbelegung. Befehlsnamen stehen in der Hilfe.",accessory:form([("Erscheinungsbild",theme),("Listendichte",density),("Listenschrift",fontSize),("Werkzeugleiste",toolbarLabels),("Farben",importedColors),("",hidden),("Tastenkürzel",scroll)],width:660),buttons:["Speichern","Abbrechen"])
         guard answer == 0 else { return }
-        var keys:[String:String] = [:]
-        let known = Set(AppDelegate.menuDefinitions.flatMap { $0.1.map { $0.1 } })
-        for line in shortcuts.string.components(separatedBy:.newlines) where !line.trimmingCharacters(in:.whitespaces).isEmpty {
-            let parts = line.split(separator:"=",maxSplits:1).map { $0.trimmingCharacters(in:.whitespaces) }
-            guard parts.count == 2,known.contains(parts[0]),AppDelegate.parseShortcut(parts[1]) != nil else { showFailure(CommanderError.message("Ungültige Tastenkürzel-Zeile: "+line)); return }
-            keys[parts[0]] = parts[1]
-        }
-        func shortcutID(_ text:String)->String? { AppDelegate.parseShortcut(text).map { $0.0+":"+String($0.1.rawValue) } }
-        var assigned = Set(["cmd+q","cmd+h","cmd+m","cmd+,"].compactMap(shortcutID))
-        for (_,commands) in AppDelegate.menuDefinitions {
-            for (title,id,defaultKey) in commands where !id.isEmpty {
-                let key = (keys[id] ?? defaultKey).lowercased()
-                if key.isEmpty { continue }
-                guard let normalized = shortcutID(key),assigned.insert(normalized).inserted else { showFailure(CommanderError.message("Tastenkürzel doppelt belegt: \(key) bei „\(title)“.")); return }
-            }
-        }
+        let keys:[String:String]
+        do { keys = try AppDelegate.shortcutOverrides(shortcuts.string) } catch { showFailure(error);return }
         var updatedAppearance = AppearanceSettings();updatedAppearance.compact = density.indexOfSelectedItem == 0;updatedAppearance.fontSize = AppearanceSettings.fontSizes[fontSize.indexOfSelectedItem];updatedAppearance.toolbarLabels = toolbarLabels.state == .on;updatedAppearance.importedColors = importedColors.state == .on
         do { try Preferences.saveAppearance(updatedAppearance) } catch { showFailure(error);return }
         Preferences.state.theme = theme.indexOfSelectedItem; Preferences.state.showHidden = hidden.state == .on; Preferences.state.shortcuts = keys
@@ -71,7 +57,7 @@ extension MainWindow {
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.18.0
+        ZWEICOMMANDER · Version 0.21.0
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -96,6 +82,10 @@ extension MainWindow {
         Cmd+Option+A wählt Dateien, Cmd+Option+Shift+A wählt alles ab. Cmd+Option+E beziehungsweise N ergänzt gleiche Endungen beziehungsweise Stammnamen; zusätzlich Shift entfernt diese Treffer. Cmd+Option+S merkt die Auswahl für den aktuellen Tab und Ordner, Cmd+Option+R stellt noch sichtbare Markierungen wieder her. Der Merkspeicher gilt bis zum Schließen des Tabs oder Beenden der App.
         „Auswahl in Datei speichern …“ schreibt ausdrücklich markierte Adressen als JSON. „Auswahl aus Datei laden …“ markiert passende sichtbare Einträge. Eine Datei ohne passende Adressen erhält die bestehende Auswahl; eine ausdrücklich leere Auswahldatei hebt die Markierung auf. Grenzen: 10.000 Einträge und 2 MiB. Die Datei enthält Pfade; daher nur bewusst weitergeben.
         Unter „Bearbeiten“ und im Kontextmenü „Text kopieren“ stehen Namen, Namen ohne Endung, vollständige Pfade, Datei-URLs, Shell-Argumente und eine Tabelle bereit. Cmd+Option+C kopiert Namen, zusätzlich Shift Namen ohne Endung. Cmd+Shift+C kopiert Pfade oder ohne Auswahl die Ordneradresse. Shell-Argumente sind für lokale Dateien einfach quotiert; die Kopie führt nichts aus. Tabellen verwenden Tabulatoren, Byte-Größen und ISO-Datum; Tabulatoren, Zeilenumbrüche und Backslashes in Namen werden sichtbar maskiert. Serveradressen enthalten keine Zugangsdaten. Das normale Cmd+C/X/V bleibt die Dateizwischenablage.
+
+        TABGRUPPEN UND ORDNER
+        Cmd+Option+G öffnet Tabgruppen. Beide Seiten werden mit Ordnern, Reihenfolge, gewähltem Tab, Namen, Sperren und Ansichten gespeichert. Server-, Archiv- und Sammlungstabs bleiben sitzungsbezogen. Standardmäßig werden neue Tabs ergänzt. „Ungesperrte Ordnertabs ersetzen“ lässt gesperrte Tabs und Spezialansichten offen. Nicht verfügbare Ordner stehen in der Vorschau; mindestens ein verfügbarer Ordner je Seite ist nötig. Geänderte Gruppen oder Tabs erfordern eine erneute Prüfung. Im Gruppenfenster: Cmd+L Name, Cmd+R neu prüfen, Cmd+Enter öffnen, Escape schließen.
+        Ctrl+Tab wechselt zum zuletzt verwendeten Tab. Cmd+Option+Z öffnet den zuletzt geschlossenen verfügbaren lokalen Tab mit Verlauf und Ansicht. Bis zu 30 lokale Tabs und Sammlungen bleiben dafür in der Sitzung erhalten; Server und temporäre Archivtabs werden nicht aufgehoben. Cmd+Option+U kopiert den aktuellen Tab auf die andere Seite. Cmd+Enter öffnet einen fokussierten Ordner in einem neuen Tab, Cmd+Option+Enter auf der anderen Seite, Cmd+Option+O in einem neuen Tab dort. Bei Aktionen zur Gegenseite bleibt der Fokus an der Quelle.
 
         DARSTELLUNG UND NAVIGATION
         Oben rechts zwischen System, Hell und Dunkel wählen. Hell verwendet helle Dateilisten und Dokumentflächen; Dunkel Grautöne mit heller Schrift. Die aktive Seite erhält eine blaue Pfadzeile. Importierte Hintergrundfarben gelten nur im passenden Modus; Schrift- und Dateitypfarben werden bei Bedarf für ausreichenden Kontrast angepasst. Über Einstellungen lassen sich kompakte oder größere Zeilen, Listenschriftgröße, Werkzeugbeschriftungen und importierte Farben wählen. Die Darstellungsvorgaben werden getrennt von Tabs und Importprofil lokal gespeichert.
@@ -179,7 +169,7 @@ extension MainWindow {
         Vorhandene Zielnamen sperren den Auftrag. Downloads werden zuerst in eine neue lokale Zwischenablage geladen, vor Veröffentlichung nochmals geprüft und anschließend ohne Ersetzen veröffentlicht. Bei Upload-Abbruch können neue Teilinhalte auf dem Server bleiben. FTP/FTPS prüft freie Zielnamen vorab. Änderungen anderer Benutzer zwischen Prüfung und Upload können diese Absicherung aufheben. Remote-Aufträge bleiben sitzungsbezogen und werden nicht in das lokale Kopierjournal geschrieben. Vor Beenden abschließen, abbrechen oder aus der Warteschlange entfernen. Ein Fortsetzen nach App-Neustart und Remote-Rückgängig sind noch nicht enthalten.
 
         STAND DIESER VERSION
-        Dies ist eine frühe Version. Unter anderem fehlen dauerhaftes Remote-Fortsetzen, Remote-Umbenennen/Löschen, Windows-Plug-ins, MTP-/iPhone-Geräteprotokolle, frei programmierbare Metadaten-Spalten, ID3-Regeln, Secure Wipe sowie das Fortsetzen von Kopien mit Verknüpfungen oder mehr als 2.000 Objekten. Eine vollständige Liste liegt beim Quellcode.
+        Dies ist eine frühe Version. Unter anderem fehlen dauerhaftes Remote-Fortsetzen, Windows-Plug-ins, MTP-/iPhone-Geräteprotokolle, frei programmierbare Metadaten-Spalten, ID3-Regeln, Secure Wipe sowie das Fortsetzen von Kopien mit Verknüpfungen oder mehr als 2.000 Objekten. Eine vollständige Liste liegt beim Quellcode.
 
         TASTENKÜRZEL-BEFEHLE
         """ + AppDelegate.menuDefinitions.flatMap { $0.1 }.map { "\($0.1) = \($0.0)  [\($0.2)]" }.joined(separator:"\n")

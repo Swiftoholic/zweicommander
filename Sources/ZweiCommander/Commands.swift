@@ -14,6 +14,7 @@ extension MainWindow {
         defer { updateChromeState();content.needsLayout = true }
         do {
             if try handleSelectionCommand(id) { return }
+            if try handleTabCommand(id) { return }
             if serverCommandEnabled(id) == false { content.status.stringValue = "Für diesen Vorgang eine passende Auswahl und einen lokalen Ordner öffnen. Serverdateien können mit F5/F6 übertragen werden.";return }
             if try handleServerCommand(id) { return }
             switch id {
@@ -78,6 +79,7 @@ extension MainWindow {
             case "linked": linked.toggle(); content.status.stringValue = linked ? "Verknüpftes Navigieren aktiv" : "Verknüpftes Navigieren aus"
             case "swap":
                 let tabs = left.tabs,index = left.tabIndex; left.tabs = right.tabs; left.tabIndex = right.tabIndex; right.tabs = tabs; right.tabIndex = index
+                let recent = left.recentTabIDs,local = left.lastLocalTabID;left.recentTabIDs = right.recentTabIDs;left.lastLocalTabID = right.lastLocalTabID;right.recentTabIDs = recent;right.lastLocalTabID = local
                 left.restoreTabView();right.restoreTabView()
                 left.rebuildTabs(); right.rebuildTabs(); refresh()
             case "sameFolder": other.navigate(active.currentURL); active.focus()

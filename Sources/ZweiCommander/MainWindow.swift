@@ -148,6 +148,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         content.split.isVertical = Preferences.state.vertical
         content.firstLayout = true; content.needsLayout = true
         for pane in [left,right] {
+            pane.sessionCacheRoot = cache
             pane.showHidden = Preferences.state.showHidden
             if let profile = Preferences.state.importedProfile { pane.configure(profile:profile,isLeft:pane === left) }
             pane.initializeView()
@@ -158,7 +159,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             pane.onDrop = { [weak self] urls,dest in self?.transfer(urls,to:dest,kind:.copy) }
             pane.onCollectionDrop = { [weak pane] urls in pane?.addToCollection(urls) }
             pane.onCommand = { [weak self] cmd in self?.command(cmd) }
-            pane.onValidateCommand = { [weak self] cmd in self?.selectionCommandEnabled(cmd) ?? self?.serverCommandEnabled(cmd) ?? true }
+            pane.onValidateCommand = { [weak self] cmd in self?.selectionCommandEnabled(cmd) ?? self?.tabCommandEnabled(cmd) ?? self?.serverCommandEnabled(cmd) ?? true }
             pane.onRename = { [weak self,weak pane] item,request in self?.renameInline(item,in:pane,request:request) }
             pane.onState = { [weak self] in self?.saveState();self?.updateChromeState() }
             pane.onSelection = { [weak self, weak pane] urls in

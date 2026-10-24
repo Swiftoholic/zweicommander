@@ -29,6 +29,13 @@ enum CommandHelp {
         "preview":"Die ausgewählte Datei mit Quick Look ansehen.",
         "edit":"Die ausgewählte Datei mit TextEdit öffnen.",
         "newFolder":"Im aktiven Ordner einen neuen Unterordner anlegen.",
+        "tabGroups":"Ordner beider Seiten als lokale Gruppe speichern, verwalten und mit Vorschau öffnen.",
+        "lastTab":"Zum zuletzt verwendeten anderen Tab dieser Seite wechseln. Wiederholtes Drücken wechselt zwischen zwei Tabs.",
+        "reopenTab":"Den zuletzt geschlossenen verfügbaren lokalen Tab mit Verlauf, Namen und Ansicht wieder öffnen. Der Merkspeicher gilt für diese Sitzung.",
+        "copyTabToOther":"Den aktuellen Tab mit Verlauf und Ansicht auf die andere Seite kopieren; der Fokus bleibt hier.",
+        "openInNewTab":"Den fokussierten Ordner in einem neuen Tab auf dieser Seite öffnen.",
+        "openInOther":"Den fokussierten Ordner auf der anderen Seite öffnen; der Fokus bleibt hier.",
+        "openInOtherTab":"Den fokussierten Ordner in einem neuen Tab auf der anderen Seite öffnen; der Fokus bleibt hier.",
         "newTab":"Einen weiteren Tab mit dem aktuellen Ordner öffnen.",
         "closeTab":"Diesen Tab schließen. Gesperrte Tabs bleiben geöffnet.",
         "terminal":"Ein Terminal im Ordner der aktiven Seite öffnen.",
@@ -61,7 +68,7 @@ enum CommandHelp {
         let fallback = AppDelegate.menuDefinitions.flatMap { $0.1 }.first { $0.1 == id }?.2 ?? ""
         var value = (Preferences.state.shortcuts[id] ?? fallback).lowercased()
         if value == "space" { return "Leertaste" }
-        for (word,symbol) in [("cmd+","⌘"),("shift+","⇧"),("option+","⌥"),("alt+","⌥"),("control+","⌃"),("ctrl+","⌃"),("left","←"),("right","→"),("up","↑"),("down","↓")] { value = value.replacingOccurrences(of:word,with:symbol) }
+        for (word,symbol) in [("cmd+","⌘"),("shift+","⇧"),("option+","⌥"),("alt+","⌥"),("control+","⌃"),("ctrl+","⌃"),("left","←"),("right","→"),("up","↑"),("down","↓"),("return","↩"),("tab","⇥")] { value = value.replacingOccurrences(of:word,with:symbol) }
         return value.uppercased()
     }
     static func apply(_ button:ActionButton,id:String,title:String? = nil,context:String? = nil) {

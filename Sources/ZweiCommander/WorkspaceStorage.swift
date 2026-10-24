@@ -46,7 +46,7 @@ extension PaneView {
     func initializeView() { defaultView = viewSettings;restoreTabView() }
     func restoreTabView() {
         var settings = tab.view ?? defaultView ?? FolderViewSettings()
-        if remote == nil && tab.collection == nil && tab.archiveRoot == nil,
+        if !tab.sessionViewPinned,remote == nil && tab.collection == nil && tab.archiveRoot == nil,
            let rule = (try? Preferences.workspaceLibrary())?.view(for:currentURL) { settings = rule.settings }
         applyView(settings)
     }
@@ -54,7 +54,7 @@ extension PaneView {
         var value = viewSettings;value.display = mode
         applyView(value);rememberTabView();focus()
     }
-    func rememberTabView() { guard !changingView else { return };tab.view = viewSettings;onState?() }
+    func rememberTabView() { guard !changingView else { return };tab.view = viewSettings;tab.sessionViewPinned = true;onState?() }
     @objc func viewModeChanged() { changeDisplay(PaneDisplayMode.allCases[viewMode.indexOfSelectedItem]) }
     @objc func sortModeChanged() {
         let keys = ["name","ext","size","modified","kind","attributes","permissions","path"]

@@ -17,7 +17,7 @@ final class FolderTabButton: NSButton, NSDraggingSource {
         closeButton.setAccessibilityLabel("Tab schließen: "+title);closeButton.perform = { [weak self] in guard let self else { return };self.pane?.closeTab(self.tabID) }
         closeButton.isHidden = tab.locked || pane.tabs.count == 1;addSubview(closeButton)
         let menu = NSMenu()
-        for (title,command) in [("Tab duplizieren","duplicateTab"),("Tab schließen","closeTab"),("Andere Tabs schließen","closeOtherTabs"),("Tab sperren/entsperren","lockTab"),("Tab benennen …","nameTab"),("Nach links verschieben","moveTabLeft"),("Nach rechts verschieben","moveTabRight")] {
+        for (title,command) in [("Tab duplizieren","duplicateTab"),("Auf andere Seite kopieren","copyTabToOther"),("Geschlossenen Tab wieder öffnen","reopenTab"),("Tabgruppen …","tabGroups"),("Tab schließen","closeTab"),("Andere Tabs schließen","closeOtherTabs"),("Tab sperren/entsperren","lockTab"),("Tab benennen …","nameTab"),("Nach links verschieben","moveTabLeft"),("Nach rechts verschieben","moveTabRight")] {
             let item = NSMenuItem(title:title,action:#selector(run(_:)),keyEquivalent:"");item.target = self;item.representedObject = command;menu.addItem(item)
         }
         self.menu = menu
@@ -109,7 +109,7 @@ extension PaneView {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         endPathEditing(restoreFocus:false)
         tabIndex = index;filterField.stringValue = "";restoreTabView();rebuildTabs();refresh();focus()
-        if remote == nil { lastLocalTabID = tab.id }
+        if remote == nil,tab.archiveRoot == nil,tab.collection == nil { lastLocalTabID = tab.id }
     }
     func stepTab(_ offset: Int) { selectTab(tabs[(tabIndex+offset+tabs.count)%tabs.count].id) }
     func moveTab(_ id: UUID,to index: Int) {
@@ -126,6 +126,7 @@ extension PaneView {
     }
     func closeOtherTabs() {
         let current = tab
+        for item in tabs where item !== current && !item.locked { rememberClosedTab(item) }
         tabs.removeAll { $0 !== current && !$0.locked };tabIndex = tabs.firstIndex(where: { $0 === current })!
         rebuildTabs();refresh();focus()
     }

@@ -12,6 +12,7 @@ final class FolderTab {
     var archiveRoot: URL?
     var archiveOrigin: URL?
     var view: FolderViewSettings?
+    var sessionViewPinned = false
     var remote: RemoteFolderSession?
     var remoteEntries: [RemoteEntry] = []
     var selectionMemory: (scope:String,urls:Set<URL>)?
@@ -86,6 +87,9 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     var treeVisible = false { didSet { tree.isHidden = !treeVisible; needsLayout = true } }
     var tabs: [FolderTab] = []
     var tabIndex = 0
+    var recentTabIDs:[UUID] = []
+    var closedTabs:[FolderTab] = []
+    var sessionCacheRoot:URL?
     var lastLocalTabID: UUID?
     var tab: FolderTab { tabs[tabIndex] }
     var currentURL: URL { tab.url }
@@ -178,7 +182,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         }
         if !Preferences.testMode { table.autosaveName = "ZweiCommander.columns"; table.autosaveTableColumns = true }
         let menu = NSMenu()
-        for (title,command) in [("Öffnen","open"),("Vorschau","preview"),("Im Finder zeigen","reveal"),("Kopieren …","copy"),("Verschieben …","move"),("Umbenennen …","rename"),("Mehrfachumbenennen …","batchRename"),("In den Papierkorb …","trash"),("Eigenschaften …","properties")] {
+        for (title,command) in [("Öffnen","open"),("Ordner in neuem Tab öffnen","openInNewTab"),("Ordner auf anderer Seite öffnen","openInOther"),("Ordner in neuem Tab auf anderer Seite","openInOtherTab"),("Vorschau","preview"),("Im Finder zeigen","reveal"),("Kopieren …","copy"),("Verschieben …","move"),("Umbenennen …","rename"),("Mehrfachumbenennen …","batchRename"),("In den Papierkorb …","trash"),("Eigenschaften …","properties")] {
             let item = NSMenuItem(title: title, action: #selector(contextCommand(_:)), keyEquivalent: ""); item.target = self; item.representedObject = command; menu.addItem(item)
         }
         for (title,commands) in [("Text kopieren",MainWindow.selectionCopyCommands.map { ($0.0,$0.1) }),("Auswahl",[("Nach Muster auswählen …","selectPattern"),("Gleiche Endung hinzufügen","sameExtension"),("Gleichen Stammnamen hinzufügen","sameStem"),("Auswahl merken","saveSelection"),("Auswahl wiederherstellen","restoreSelection")])] {
@@ -357,6 +361,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     func activate() { onActivate?(self) }
     func focus() { activate(); window?.makeFirstResponder(displayMode == .icons ? grid : table) }
     func rebuildTabs() {
+        noteTabActivation()
         let existing = Dictionary(uniqueKeysWithValues:tabsStack.arrangedSubviews.compactMap { ($0 as? FolderTabButton).map { ($0.tabID,$0) } })
         var views: [NSView] = []
         for (index,tab) in tabs.enumerated() {
@@ -383,7 +388,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     func closeTab() { closeTab(tab.id) }
     func closeTab(_ id: UUID) {
         guard tabs.count > 1,let index = tabs.firstIndex(where: { $0.id == id }),!tabs[index].locked else { NSSound.beep();return }
-        let activeID = tab.id;tabs.remove(at:index)
+        let activeID = tab.id;rememberClosedTab(tabs[index]);tabs.remove(at:index)
         tabIndex = tabs.firstIndex(where: { $0.id == activeID }) ?? min(index,tabs.count-1)
         restoreTabView();rebuildTabs();refresh();focus()
     }
@@ -398,7 +403,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         let old = currentURL
         if tab.locked && u != old { newTab(url: u); return }
         if let root = tab.archiveRoot, !FileSystem.isInside(u, root) { tab.archiveRoot = nil; tab.archiveOrigin = nil }
-        tab.url = u; tab.collection = nil; filterField.stringValue = ""
+        tab.url = u; tab.collection = nil;tab.sessionViewPinned = false; filterField.stringValue = ""
         tab.history = Array(tab.history.prefix(tab.position+1)); tab.history.append(u); tab.position = tab.history.count-1
         restoreTabView();rebuildTabs(); refresh(); focus()
         if !linked { onNavigate?(self,old,u) }
@@ -407,7 +412,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         let i = tab.position+offset; guard i >= 0 && i < tab.history.count else { return }
         if remote != nil { let value = tab.history[i];tab.position = i;navigateRemote(value,history:false);return }
         if tab.locked && tab.history[i] != currentURL { newTab(url:tab.history[i]);return }
-        tab.position = i; tab.url = tab.history[i]; tab.collection = nil
+        tab.position = i; tab.url = tab.history[i]; tab.collection = nil;tab.sessionViewPinned = false
         if let root = tab.archiveRoot, !FileSystem.isInside(tab.url, root) { tab.archiveRoot = nil; tab.archiveOrigin = nil }
         restoreTabView();rebuildTabs(); refresh(); focus()
     }

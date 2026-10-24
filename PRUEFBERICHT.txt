@@ -1,8 +1,8 @@
-ZweiCommander 0.20.0 (Build 21) — Prüfung abgeschlossen am 24. Oktober 2026
+ZweiCommander 0.21.0 (Build 22) — Prüfung abgeschlossen am 24. Oktober 2026
 
 Ergebnis
-- 278/278 Dateikern- und Integrationstests bestanden.
-- 913/913 native UI-Prüfungen in 35 Durchläufen am finalen
+- 290/290 Dateikern- und Integrationstests bestanden.
+- 978/978 native UI-Prüfungen in 37 Durchläufen am finalen
   universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
   Darstellung nach erneutem App-Start 9, Mittelstreifen und Mausbedienung 26,
@@ -23,11 +23,12 @@ Ergebnis
   Wiederherstellung/Tastaturabläufe speichern 40, nach Neustart verwenden 15,
   Serverprofile und rekursive Übertragungen 31, Profile nach Neustart 14,
   Server-Tabs und Mutationen im Hauptfenster 47,
-  Auswahl und Textzwischenablage 90.
+  Auswahl und Textzwischenablage 90, Tabgruppen und Sitzungsabläufe 56,
+  Tabgruppen nach erneutem App-Start 9.
 - Die Serie wurde in zwei Gruppen am identischen Release-Build ausgeführt:
-  24 Durchläufe mit 529 Prüfungen sowie elf Durchläufe mit
-  384 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
-  und Serverfenster sowie Server-Tabs und Auswahlvorschau in einer
+  24 Durchläufe mit 529 Prüfungen sowie 13 Durchläufe mit
+  449 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
+  und Serverfenster sowie Server-Tabs, Auswahlvorschau und Tabgruppen in einer
   entsperrten GUI-Sitzung.
   Alle Durchläufe sind vollständig bestanden;
   es stehen keine ausgelassenen Vordergrundprüfungen mehr aus.
@@ -89,6 +90,37 @@ Auswahldateien enthalten ausdrücklich gespeicherte Pfade, keine Inhalte
 oder Zugangsdaten. Keine automatische Wiederherstellung nach Neustart.
 Shell-Kopie führt nichts aus. Sehr große Listen und aufwendige reguläre
 Ausdrücke benötigen weitere Praxisprüfungen.
+
+Tabgruppen, Tabverlauf und Ordnerkürzel
+12 zusätzliche Kernprüfungen prüfen beide Seiten, Reihenfolge, Auswahl,
+Namen, Sperren und Ansichten sowie Grenzen für Namen, Pfade, Anzahl,
+Dokumentgröße und Version. Unicode-Namen und doppelte Kennungen,
+ungültige Ansichten und beschädigte/falsch typisierte Daten werden geprüft.
+Ungültige Mutationen verändern den bisherigen Gruppenzustand nicht.
+
+65 neue native Prüfungen laufen in zwei getrennten App-Prozessen.
+Menükürzel prüfen MRU-Wechsel, Wiederöffnen lokaler Tabs mit Verlauf und
+Ansicht, Sperren, nicht verfügbare Ordner, neue Ordner-Tabs und Gegenseite.
+Tabkopien erhalten Quellfokus und sichtbare Ansichten einschließlich des
+Vorrangs vor automatischen Ordnerregeln bis zum nächsten Ordnerwechsel.
+Gruppen speichern beide Seiten, benannte/gesperrte Tabs und Ansichten,
+laden sie nach einem neuen Prozess und unterstützen Reihenfolge und Namen.
+Anhängen und ausdrücklich gewähltes Ersetzen prüfen die verbleibenden
+Sperren und Sammlungen. Geänderte Tabzustände, extern veränderte Gruppen,
+fehlende Ordner sowie beschädigte und neuere Dokumente sperren veraltete
+Übernahmen. Temporäre Archivpfade sind auch bei verlorenen Archivmetadaten
+ausgeschlossen. Die Prüfung verwendet eigene lokale Einstellungsbereiche;
+allgemeine Zwischenablage und persönliche Einstellungen bleiben erhalten.
+Helle und dunkle Dialogbilder einschließlich lesbarer Spaltentitel werden
+nach einem tatsächlich verarbeiteten Themenwechsel geprüft.
+Leere Kürzelzuweisungen deaktivieren Standards ausdrücklich; doppelte
+Befehlszeilen, Kollisionen und reservierte App-Kürzel werden abgewiesen.
+
+Grenzen: Gruppen enthalten normale lokale Ordnertabs, keine vollständigen
+Fensterlayouts, Server, Archive oder Sammlungen. Geschlossene Tabs bleiben
+höchstens 30 Einträge lang in der Sitzung. Verfügbarkeit von Netzwerkordnern
+wird vor Öffnen im Hintergrund neu geprüft; reale nicht antwortende
+Netzwerkfreigaben sind nicht Ende zu Ende automatisiert.
 
 Byte-Fortsetzung, Sicherungen und gefiltertes Verschieben
 24 zusätzliche Dateikerntests prüfen fortgesetzte Einzeldateien und Ordner,
@@ -625,7 +657,7 @@ leere Ordner. Anlegen, Umbenennen, geprüfte rekursive Löschung und ein
 Abbruch innerhalb einer verschlüsselten Dateiübertragung sind geprüft.
 Der öffentliche Prüflauf entfernt erzeugte Schlüssel und seinen Testserver.
 Systemdienste und persönliche SSH-Konfiguration werden nicht geändert.
-Die neun Zusatzprüfungen werden getrennt von den 278 Kerntests gezählt.
+Die neun Zusatzprüfungen werden getrennt von den 290 Kerntests gezählt.
 Externe SSH-Server, andere Algorithmen und weitere Anmeldevarianten brauchen
 zusätzliche Praxisprüfungen.
 

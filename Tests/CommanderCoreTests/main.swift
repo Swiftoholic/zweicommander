@@ -445,6 +445,18 @@ func XCTAssertThrowsError<T>(_ expression: @autoclosure () throws -> T, file: St
 }
 
 let tests: [(String, (CoreTests) throws -> Void)] = [
+    ("testTabGroupRoundTripPreservesBothPanesAndTabState", { try $0.testTabGroupRoundTripPreservesBothPanesAndTabState() }),
+    ("testTabGroupPutNormalizesNamesAndRejectsUnicodeDuplicates", { try $0.testTabGroupPutNormalizesNamesAndRejectsUnicodeDuplicates() }),
+    ("testTabGroupPutUpdatesInPlaceAndMovesSafely", { try $0.testTabGroupPutUpdatesInPlaceAndMovesSafely() }),
+    ("testTabGroupInvalidMutationsAreAtomic", { try $0.testTabGroupInvalidMutationsAreAtomic() }),
+    ("testTabGroupRejectsInvalidPanesAndSelections", { try $0.testTabGroupRejectsInvalidPanesAndSelections() }),
+    ("testTabGroupRejectsInvalidNamesAndTitles", { try $0.testTabGroupRejectsInvalidNamesAndTitles() }),
+    ("testTabGroupPathValidationIsLexicalAndPreservesCharacters", { try $0.testTabGroupPathValidationIsLexicalAndPreservesCharacters() }),
+    ("testTabGroupNameAndPathByteBoundaries", { try $0.testTabGroupNameAndPathByteBoundaries() }),
+    ("testTabGroupCountBoundaries", { try $0.testTabGroupCountBoundaries() }),
+    ("testTabGroupRejectsDamagedFutureAndWrongTypedDocuments", { try $0.testTabGroupRejectsDamagedFutureAndWrongTypedDocuments() }),
+    ("testTabGroupEncodedAndDecodedSizeLimits", { try $0.testTabGroupEncodedAndDecodedSizeLimits() }),
+    ("testTabGroupRejectsInvalidViews", { try $0.testTabGroupRejectsInvalidViews() }),
     ("testSelectionWildcardUnionAndCase", { try $0.testSelectionWildcardUnionAndCase() }),
     ("testSelectionWildcardsMatchCompleteNamesIncludingNewlines", { try $0.testSelectionWildcardsMatchCompleteNamesIncludingNewlines() }),
     ("testSelectionRegexKeepsSemicolonsLiteral", { try $0.testSelectionRegexKeepsSemicolonsLiteral() }),
