@@ -187,7 +187,16 @@ def fixtures(base):
     shutil.copytree(remote / "Links/Projekt", server_pane / "Rechts/Projekt")
     write(server_pane, "Server/Alpha.txt", "Alpha content\n")
     write(server_pane, "Server/Zulu.bin", "Z" * 128)
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane
+    selection = base / "selection"
+    for name in ("Links/Ordner", "Links/Plan.backup", "Rechts", "Server/Auswahl/Ordner", "Masse"):
+        (selection / name).mkdir(parents=True)
+    for name in ("Plan.txt", "Plan.md", "Other.TXT", "README", "Grüße.pdf", "it's $file.txt", "line\nbreak.txt"):
+        write(selection, "Links/" + name, "synthetic selection content\n")
+    for name in ("Plan.txt", "Plan.md", "Other.TXT"):
+        write(selection, "Server/Auswahl/" + name, "synthetic remote content\n")
+    for index in range(3000):
+        write(selection, f"Masse/Datei-{index:04d}.txt", "bulk\n")
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection
 
 
 def main():
@@ -250,9 +259,10 @@ def main():
             ("remote-save", "--remote-smoke", roots[16], str(prefix), "REMOTE UI PASS ", "REMOTE SMOKE PASS 31 checks", 31),
             ("remote-reload", "--remote-smoke", roots[16], str(prefix), "REMOTE UI PASS ", "REMOTE SMOKE PASS 14 checks", 14),
             ("server-pane", "--server-pane-smoke", roots[17], str(prefix), "SERVER PANE PASS ", "SERVER PANE SMOKE PASS 47 checks", 47),
+            ("selection", "--selection-smoke", roots[18], str(prefix), "SELECTION UI PASS ", "SELECTION SMOKE PASS 90 checks", 90),
         ]
         if args.skip_foreground:
-            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane"}
+            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection"}
             skipped = [case for case in cases if case[0] in foreground]
             cases = [case for case in cases if case[0] not in foreground]
             print("Ausgelassen: " + ", ".join(case[0] for case in skipped) + " · " + str(sum(case[-1] for case in skipped)) + " Vordergrundprüfungen offen", flush=True)
@@ -270,7 +280,7 @@ def main():
         try:
             for name, flag, root, image, pass_prefix, marker, expected in cases:
                 command = [str(binary), flag, str(root), image]
-                if name == "server-pane":
+                if name in {"server-pane", "selection"}:
                     fixture = Path(__file__).resolve().parents[1] / "Tests/fixtures/ftp_server.py"
                     pane_server = subprocess.Popen(["/usr/bin/python3", str(fixture), str(root / "Server"), "--delay", "0.001"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                     deadline = time.monotonic() + 5
@@ -330,13 +340,21 @@ def main():
                     command += ["--wait-for-foreground"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
-                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180 if name == "navigation" and args.interactive else 90 if name == "server-pane" else 45)
+                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180 if name == "navigation" and args.interactive else 90 if name in {"server-pane", "selection"} else 45)
                     except subprocess.TimeoutExpired:
                         raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
                 output = (args.results / (name + ".log")).read_text(encoding="utf-8")
                 count = sum(line.startswith(pass_prefix) for line in output.splitlines())
                 if result.returncode or marker not in output or count != expected or " FAIL " in output:
                     raise SystemExit(name + ": fehlgeschlagen; Protokoll in " + str(args.results / (name + ".log")))
+                if pane_server is not None:
+                    pane_server.terminate()
+                    try:
+                        pane_server.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        pane_server.kill()
+                        pane_server.wait()
+                    pane_server = None
                 print(name + ": " + str(count) + " native UI-Prüfungen bestanden", flush=True)
         finally:
             if pane_server is not None:

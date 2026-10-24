@@ -78,7 +78,7 @@ extension AppDelegate {
                 window.appearance = NSAppearance(named:.darkAqua);await capture(window,"-Wiederherstellung-Dunkel")
             } else {
                 let queueKey = require(menuItem("operations"),"queue menu"),recoveryKey = require(menuItem("recovery"),"recovery menu"),pauseKey = require(menuItem("pauseTransfers"),"pause menu"),stopKey = require(menuItem("stopTransfers"),"stop menu")
-                check(queueKey.keyEquivalent == "j" && queueKey.keyEquivalentModifierMask == [.command,.shift],"queue retains Command Shift J")
+                check(queueKey.keyEquivalent == "J" && queueKey.keyEquivalentModifierMask == [.command,.shift],"queue retains Command Shift J")
                 check(recoveryKey.keyEquivalent == "j" && recoveryKey.keyEquivalentModifierMask == [.command,.option],"recovery uses related Command Option J")
                 check(pauseKey.keyEquivalent == "p" && pauseKey.keyEquivalentModifierMask == [.command,.option] && stopKey.keyEquivalent == ".","pause and cancel have dedicated discoverable menu shortcuts")
                 main.left.select([source]);let originalSelection = main.left.selectedURLs

@@ -14,6 +14,7 @@ final class FolderTab {
     var view: FolderViewSettings?
     var remote: RemoteFolderSession?
     var remoteEntries: [RemoteEntry] = []
+    var selectionMemory: (scope:String,urls:Set<URL>)?
     init(_ url: URL) { self.url = url; history = [url] }
 }
 final class FileTable: CommanderTableView {
@@ -177,8 +178,15 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         }
         if !Preferences.testMode { table.autosaveName = "ZweiCommander.columns"; table.autosaveTableColumns = true }
         let menu = NSMenu()
-        for (title,command) in [("Öffnen","open"),("Vorschau","preview"),("Im Finder zeigen","reveal"),("Kopieren …","copy"),("Verschieben …","move"),("Umbenennen …","rename"),("Mehrfachumbenennen …","batchRename"),("In den Papierkorb …","trash"),("Pfad kopieren","copyPath"),("Eigenschaften …","properties")] {
+        for (title,command) in [("Öffnen","open"),("Vorschau","preview"),("Im Finder zeigen","reveal"),("Kopieren …","copy"),("Verschieben …","move"),("Umbenennen …","rename"),("Mehrfachumbenennen …","batchRename"),("In den Papierkorb …","trash"),("Eigenschaften …","properties")] {
             let item = NSMenuItem(title: title, action: #selector(contextCommand(_:)), keyEquivalent: ""); item.target = self; item.representedObject = command; menu.addItem(item)
+        }
+        for (title,commands) in [("Text kopieren",MainWindow.selectionCopyCommands.map { ($0.0,$0.1) }),("Auswahl",[("Nach Muster auswählen …","selectPattern"),("Gleiche Endung hinzufügen","sameExtension"),("Gleichen Stammnamen hinzufügen","sameStem"),("Auswahl merken","saveSelection"),("Auswahl wiederherstellen","restoreSelection")])] {
+            let parent = NSMenuItem(title:title,action:nil,keyEquivalent:""),submenu = NSMenu(title:title)
+            for (name,id) in commands {
+                let item = NSMenuItem(title:name,action:#selector(contextCommand(_:)),keyEquivalent:"");item.target = self;item.representedObject = id;item.toolTip = CommandHelp.menuHelp(id);submenu.addItem(item)
+            }
+            parent.submenu = submenu;menu.addItem(parent)
         }
         table.menu = menu
         configureIconView()
@@ -608,6 +616,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     @objc func contextCommand(_ sender: NSMenuItem) { if let command = sender.representedObject as? String { onCommand?(command) } }
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         guard let id = item.representedObject as? String else { return true }
+        item.toolTip = CommandHelp.menuHelp(id)
         if id == "trash" { item.title = remote == nil ? "In den Papierkorb …" : "Endgültig auf Server löschen …" }
         return onValidateCommand?(id) ?? true
     }

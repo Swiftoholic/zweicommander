@@ -197,7 +197,7 @@ public struct NameFilter {
             expression = try NSRegularExpression(pattern: text, options: [.caseInsensitive])
         } else if text.contains("*") || text.contains("?") {
             let escaped = NSRegularExpression.escapedPattern(for: text).replacingOccurrences(of: "\\*", with: ".*").replacingOccurrences(of: "\\?", with: ".")
-            expression = try NSRegularExpression(pattern: "^" + escaped + "$", options: [.caseInsensitive])
+            expression = try NSRegularExpression(pattern: "\\A" + escaped + "\\z", options: [.caseInsensitive,.dotMatchesLineSeparators])
         } else { expression = nil }
     }
     public func matches(_ name: String) -> Bool {

@@ -2,13 +2,15 @@
 
 ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Tabs und Tastaturbedienung. Er wird in Swift und AppKit entwickelt und verwendet Systembibliotheken für Dateivorgänge, Vorschau und Archive.
 
-**Version 0.19.0 ist eine frühe, ausführbare Version.** Serverordner öffnen als Tabs links oder rechts im Hauptfenster. Lokale Dateien und Serverdateien teilen Filter, Sortierung und Auswahl; F5/F6 übertragen mit Vorschau zwischen den beiden Seiten. F2 benennt Serverobjekte um, F7 erstellt Ordner und F8 öffnet eine ausdrückliche Vorschau zum endgültigen Löschen. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+**Version 0.20.0 ist eine frühe, ausführbare Version.** Das neue Auswahlmenü ergänzt Musterwahl mit Vorschau, gleiche Endungen und Stammnamen, einen Merkspeicher pro Tab sowie Auswahl in Dateien. Sechs Textformate machen markierte Namen und Pfade direkt weiterverwendbar. Lokale Dateilisten, Sammlungen, Archive und Server-Tabs teilen die Auswahlwerkzeuge. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 ## Funktionen
 
 - Zwei Dateifenster mit eigenen Ortsleisten, klickbaren Pfaden, Ordnerbaum, Tabs, Schnellfilter und Dateisammlungen.
 - Durchgängige Hell-/Dunkel-/Systemdarstellung, kompakte oder größere Zeilen und wählbare Listenschrift.
 - Details, Miniaturbilder und Symbolraster mit gemeinsamer Auswahl und Sortierung, sichtbarem Tastaturfokus und asynchron geladenen Dateisymbolen.
+- Muster-/RegEx-Auswahl mit Vorschau und vier Modi, Endungs-/Stammnamenswahl, Auswahl pro Tab merken und Auswahl in Dateien speichern/laden.
+- Namen, Stammnamen, Pfade, URLs, lokale Shell-Argumente und Tabellen in die Zwischenablage kopieren.
 - Direktes Umbenennen mit F2, Fehlerhinweisen an der Eingabe und Rückgängig in der Sitzung.
 - Ordner und Tabs als hervorgehobene Ablageziele; automatisches Öffnen beim Verweilen, Kopieren mit Vorschau.
 - Tabs umordnen und duplizieren, ausgewählten Tab und Ansicht wiederherstellen.
@@ -57,12 +59,29 @@ Das aktive Dateifenster ist blau markiert. Das andere Fenster dient als vorgesch
 | Cmd+L | Pfad bearbeiten |
 | Cmd+F / Cmd+Shift+F | Suche / Schnellfilter |
 | Cmd+C / X / V | Dateizwischenablage |
+| Cmd+Shift+S | Musterwahl mit Vorschau |
+| Cmd+Option+A / zusätzlich Shift | Dateien auswählen / alles abwählen |
+| Cmd+Option+E / N | Gleiche Endung / gleichen Stammnamen hinzufügen |
+| zusätzlich Shift | Gleiche Endung / gleichen Stammnamen abwählen |
+| Cmd+Option+S / R | Auswahl merken / wiederherstellen |
+| Cmd+Option+C / zusätzlich Shift | Namen / Namen ohne Endung kopieren |
+| Cmd+Shift+C | Vollständige Pfade kopieren |
 | Cmd+Z | Letzten unterstützten Vorgang zurücknehmen |
 | Cmd+Shift+M | Mehrfachumbenennen |
 | Cmd+Shift+. | Versteckte Dateien |
 | Cmd+Shift+J | Warteschlange |
 
 Auf manchen Tastaturen benötigen F-Tasten zusätzlich `fn`. Tastenkürzel können angepasst werden. F1 öffnet die Hilfe.
+
+## Auswahl und Textkopie
+
+„Auswahl → Nach Muster auswählen …“ zeigt Treffer und die resultierende Auswahl. `*` und `?` sind Platzhalter; mehrere Muster mit `;` verbinden. Ohne Platzhalter wird Teiltext gesucht. RegEx verwendet das gesamte Muster. Dateien und Ordner lassen sich getrennt einbeziehen. Ersetzen, Hinzufügen, Entfernen und Eingrenzen ändern erst nach Übernahme die Markierungen; der aktive Schnellfilter begrenzt alle Auswahlwerkzeuge auf sichtbare Einträge. Die Vorschau zeigt höchstens 500 Zeilen, die Übernahme berücksichtigt sämtliche Treffer. Ändern sich Liste oder Auswahl, muss das aktualisierte Ergebnis erneut übernommen werden.
+
+Im Auswahlfenster fokussiert Cmd+L das Muster, Cmd+1/2/3/4 wechselt den Modus, Cmd+R aktualisiert und Cmd+Enter übernimmt. Escape bricht ab. Ungültige Ausdrücke erscheinen direkt an der Vorschau. Ein anderer Tab oder Ordner sperrt eine alte Vorschau.
+
+Der Merkspeicher gilt pro Tab und Ordner für die laufende Sitzung. Wiederherstellen berücksichtigt noch sichtbare Adressen. Auswahldateien werden ausdrücklich als versioniertes JSON gespeichert und geladen, bis 10.000 Einträge und 2 MiB. Sie enthalten Pfade; nur bewusst weitergeben. Beim Laden ohne passende Einträge bleibt die bisherige Auswahl bestehen, eine ausdrücklich leere Datei wählt alles ab. Dateiinhalte werden dabei weder geöffnet noch verändert.
+
+„Bearbeiten“ und das Kontextmenü „Text kopieren“ bieten sechs Formate in sichtbarer Reihenfolge. Namen und Stammnamen sind zeilenweise, lokale Pfade und Datei-URLs getrennte Formate. Shell-Argumente quotieren lokale Pfade auch mit Leerzeichen, Apostrophen und Sonderzeichen; es wird nichts ausgeführt. Tabellen enthalten Name, Bytes, ISO-Änderungsdatum, Art und Pfad. Tabs, Zeilenumbrüche und Backslashes innerhalb der Zellen werden sichtbar maskiert. Serveradressen enthalten keine Anmeldung. Die normale Dateizwischenablage bleibt unter Cmd+C/X/V erreichbar.
 
 ## Direkte Dateibedienung
 
@@ -279,7 +298,7 @@ python3 scripts/ui-smoke.py --app ../ZweiCommander.app --results /tmp/ZweiComman
 python3 scripts/check-public.py
 ```
 
-Die 260 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die 34 nativen Oberflächendurchläufe mit 823 Prüfungen verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil. Sie verändern keine persönlichen Benutzereinstellungen; eigene Einstellungsbereiche werden anschließend entfernt.
+Die 278 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die 35 nativen Oberflächendurchläufe mit 913 Prüfungen verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil. Sie verändern keine persönlichen Benutzereinstellungen; eigene Einstellungsbereiche werden anschließend entfernt.
 
 Die Serie prüft Dateiaktionen und Vorschau, Ordner- und Tab-Ablageziele, Ordneradressen mit Maus/Tastatur, 3.000 Dateien, Hell-/Dunkelflächen und Darstellung nach Neustart, Suche, Vergleich, Umbenennen und deren Profile. Getrennte App-Prozesse prüfen gespeicherte Aufträge, relative Altersfilter, abruptes Prozessende, beschädigte oder extern geänderte Ablagen, Byte-Fortsetzung, Sicherungswiederherstellung und die neuen Tastaturabläufe. Ausgeführte Dateiaktionen werden anhand ihrer tatsächlichen Inhalte geprüft. Die Dateikerntests beenden außerdem echte Kindprozesse während einer Kopie und vor dem Entfernen einer gefiltert verschobenen Quelle. Weitere Prüfungen verwenden den echten System-SFTP-Server über lokale Pipes und einen lokalen FTP-/FTPS-Server mit temporären Testzertifikaten; verschachtelte Dateien, Pause, Abbruch, Zertifikats- und Profilfehler werden am tatsächlichen Ergebnis geprüft. Die Server-Tab-Prüfung verwendet einen eigenen FTP-Server und prüft tatsächliche Übertragungen und Mutationen über Menü- und Tastaturaktionen. Die nativen Profilprüfungen verwenden einen künstlichen Passwortspeicher; der echte Schlüsselbund wird getrennt mit einem anschließend entfernten künstlichen Eintrag geprüft.
 
@@ -291,11 +310,11 @@ Ein zusätzlicher vollständiger SSH/SFTP-Lauf verwendet den nativen `/usr/bin/s
 python3 scripts/ssh-smoke.py --python /Pfad/zur/Testumgebung/bin/python --tests /Pfad/CommanderCoreTests --results /Pfad/Pruefprotokolle
 ```
 
-Die neun zusätzlichen SSH-Prüfungen erzeugen eigene Anmelde- und Hostschlüssel, prüfen unbekannte/geänderte Hosts und falsche Schlüssel, rekursive Transfers, Mutationen und Abbruch innerhalb einer Datei. Der Testserver lauscht ausschließlich auf `127.0.0.1`; temporäre Schlüssel werden entfernt. Systemdienste, persönliche SSH-Konfiguration und bekannte Hosts bleiben unverändert. Diese Zusatzprüfungen werden getrennt von den 260 Kerntests gezählt; ohne Testabhängigkeit wird kein SSH-Erfolg behauptet.
+Die neun zusätzlichen SSH-Prüfungen erzeugen eigene Anmelde- und Hostschlüssel, prüfen unbekannte/geänderte Hosts und falsche Schlüssel, rekursive Transfers, Mutationen und Abbruch innerhalb einer Datei. Der Testserver lauscht ausschließlich auf `127.0.0.1`; temporäre Schlüssel werden entfernt. Systemdienste, persönliche SSH-Konfiguration und bekannte Hosts bleiben unverändert. Diese Zusatzprüfungen werden getrennt von den 278 Kerntests gezählt; ohne Testabhängigkeit wird kein SSH-Erfolg behauptet.
 
 `check-public.py` prüft die im Git-Index enthaltenen Dateien vor einer Veröffentlichung. Erlaubt sind die Projektdateien, Quellcode, Werkzeuge und künstlichen Testdaten. Lokale Protokolle, Buildprodukte und Arbeitsunterlagen gehören nicht ins Repository.
 
-Die vollständige Serie mit 34 Durchläufen und 823 Prüfungen benötigt eine entsperrte GUI-Sitzung. `--skip-foreground` lässt zehn Durchläufe mit 294 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-, Serverfenster und Server-Tabs ausdrücklich aus; die übrigen 24 Durchläufe umfassen 529 Prüfungen. Ausgelassene Fälle werden nicht als bestanden gezählt. Die Adressleistenprüfung benötigt ein aktives Prüffenster. Falls macOS die Aktivierung aus dem Hintergrund ablehnt, wartet `ui-smoke.py --interactive` bei Bedarf auf einen Klick in „ZweiCommander · Bedienungsprüfung“. Dieses Fenster für den kurzen Bedienungslauf vorne lassen; für diesen Prozess gilt ein Zeitlimit von 180 Sekunden. Vorschläge werden im normalen Betrieb weiterhin nur im aktiven Fenster eingeblendet.
+Die vollständige Serie mit 35 Durchläufen und 913 Prüfungen benötigt eine entsperrte GUI-Sitzung. `--skip-foreground` lässt elf Durchläufe mit 384 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-, Serverfenster, Server-Tabs und Auswahlvorschau ausdrücklich aus; die übrigen 24 Durchläufe umfassen 529 Prüfungen. Ausgelassene Fälle werden nicht als bestanden gezählt. Die Adressleistenprüfung benötigt ein aktives Prüffenster. Falls macOS die Aktivierung aus dem Hintergrund ablehnt, wartet `ui-smoke.py --interactive` bei Bedarf auf einen Klick in „ZweiCommander · Bedienungsprüfung“. Dieses Fenster für den kurzen Bedienungslauf vorne lassen; für diesen Prozess gilt ein Zeitlimit von 180 Sekunden. Vorschläge werden im normalen Betrieb weiterhin nur im aktiven Fenster eingeblendet.
 
 ## Projektstruktur
 

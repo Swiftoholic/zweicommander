@@ -1,8 +1,8 @@
-ZweiCommander 0.19.0 (Build 20) — Prüfung abgeschlossen am 23. Oktober 2026
+ZweiCommander 0.20.0 (Build 21) — Prüfung abgeschlossen am 24. Oktober 2026
 
 Ergebnis
-- 260/260 Dateikern- und Integrationstests bestanden.
-- 823/823 native UI-Prüfungen in 34 Durchläufen am finalen
+- 278/278 Dateikern- und Integrationstests bestanden.
+- 913/913 native UI-Prüfungen in 35 Durchläufen am finalen
   universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
   Darstellung nach erneutem App-Start 9, Mittelstreifen und Mausbedienung 26,
@@ -22,11 +22,13 @@ Ergebnis
   Ordnervergleich und Profile speichern 24, nach Neustart verwenden 30,
   Wiederherstellung/Tastaturabläufe speichern 40, nach Neustart verwenden 15,
   Serverprofile und rekursive Übertragungen 31, Profile nach Neustart 14,
-  Server-Tabs und Mutationen im Hauptfenster 47.
+  Server-Tabs und Mutationen im Hauptfenster 47,
+  Auswahl und Textzwischenablage 90.
 - Die Serie wurde in zwei Gruppen am identischen Release-Build ausgeführt:
-  24 Durchläufe mit 529 Prüfungen sowie zehn Durchläufe mit
-  294 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
-  und Serverfenster sowie Server-Tabs in einer entsperrten GUI-Sitzung.
+  24 Durchläufe mit 529 Prüfungen sowie elf Durchläufe mit
+  384 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
+  und Serverfenster sowie Server-Tabs und Auswahlvorschau in einer
+  entsperrten GUI-Sitzung.
   Alle Durchläufe sind vollständig bestanden;
   es stehen keine ausgelassenen Vordergrundprüfungen mehr aus.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
@@ -48,6 +50,45 @@ Bei einer früheren Entwicklungsprüfung blieb ein Start aus dem Entwicklungsord
 Anwendungsinitialisierung hängen. Derselbe unveränderte Build startete aus
 dem Benutzer-Programmeordner regulär. Die genaue Ursache des ersten Hängers
 ist nicht abschließend bestimmt; die Verwendung aus Programme wird empfohlen.
+
+Auswahl und Textzwischenablage
+18 neue Dateikerntests prüfen Musterunion, reguläre Ausdrücke mit Semikola,
+Datei-/Ordnerwahl, alle vier Mengenoperationen und sichtbare Grenzen,
+Unicode-Stammnamen, letzte Endungen und Dateien ohne Endung. Platzhalter
+berücksichtigen auch Zeilenumbrüche und den vollständigen Namen.
+Ein echter zsh-Prozess erhält Leerzeichen, Apostrophe, Dollarzeichen,
+Semikola, Zeilenumbrüche und eingebetteten Shell-Text unverändert als
+Argumente; kein eingebetteter Befehl wird ausgeführt. Weitere Fälle prüfen
+Adresskopien ohne Anmeldung, maskierte Tabellenzellen, fehlende Metadaten,
+versionierte Auswahldateien, ungültige Adressen, Zugangsdaten, NUL,
+Versions-/Anzahl-/Bytegrenzen und fehlende Dateien ohne Dateizugriff.
+
+90 native Bedienungsprüfungen verwenden echte Menüs und Feldeditoren.
+Cmd+Option+A, zusätzlich Shift, Cmd+Shift+A, Endungs-/Stammnamenswahl,
+Merken/Wiederherstellen und Namen-/Pfadkopie werden tatsächlich ausgelöst.
+Die Unterscheidung zwischen einfachen und mit Shift ergänzten Buchstaben
+ist über AppKit-Menüs geprüft und korrigiert. Die Vorschau prüft alle vier
+Modi per Cmd+1/2/3/4 und Übernahme mit Cmd+Enter, Cmd+L, Textauswahl,
+Escape, ungültige Ausdrücke, geänderte Auswahl und einen anderen Tab.
+Filter, Sortierung, Navigation, andere Tabs und entfernte Dateien prüfen
+die Wiederherstellung anhand sichtbarer Adressen. Dateiauswahl und
+versioniertes Speichern/Laden laufen über einen injizierten Dateiwähler;
+Abbruch, beschädigte Dokumente, leere Dokumente und fehlende Treffer
+verändern keine Dateiinhalte. Die sechs Textkopien verwenden eine eigene
+Testzwischenablage; die allgemeine Zwischenablage bleibt unangetastet.
+Symbolansicht, Sammlungen und schreibgeschützte Archivlisten teilen diese
+Auswahl. Ein echter lokaler FTP-Server prüft Serveradressen, Merkspeicher,
+Auswahldateien und Musterwahl; Shell-Kopie bleibt dort gesperrt.
+Eine 3.000-Dateien-Liste zeigt höchstens 500 Vorschauzeilen und übernimmt
+sämtliche 3.000 Markierungen. Helle und dunkle Ansichten werden nach dem
+tatsächlichen Themenwechsel als lokale Fensterbilder geprüft.
+
+Grenzen: Merkspeicher bleiben sitzungsbezogen. Auswahlwerkzeuge ändern
+nur sichtbare Markierungen; ausgefilterte Einträge bleiben unberücksichtigt.
+Auswahldateien enthalten ausdrücklich gespeicherte Pfade, keine Inhalte
+oder Zugangsdaten. Keine automatische Wiederherstellung nach Neustart.
+Shell-Kopie führt nichts aus. Sehr große Listen und aufwendige reguläre
+Ausdrücke benötigen weitere Praxisprüfungen.
 
 Byte-Fortsetzung, Sicherungen und gefiltertes Verschieben
 24 zusätzliche Dateikerntests prüfen fortgesetzte Einzeldateien und Ordner,
@@ -584,7 +625,7 @@ leere Ordner. Anlegen, Umbenennen, geprüfte rekursive Löschung und ein
 Abbruch innerhalb einer verschlüsselten Dateiübertragung sind geprüft.
 Der öffentliche Prüflauf entfernt erzeugte Schlüssel und seinen Testserver.
 Systemdienste und persönliche SSH-Konfiguration werden nicht geändert.
-Die neun Zusatzprüfungen werden getrennt von den 260 Kerntests gezählt.
+Die neun Zusatzprüfungen werden getrennt von den 278 Kerntests gezählt.
 Externe SSH-Server, andere Algorithmen und weitere Anmeldevarianten brauchen
 zusätzliche Praxisprüfungen.
 

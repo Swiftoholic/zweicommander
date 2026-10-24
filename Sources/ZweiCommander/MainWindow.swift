@@ -109,6 +109,8 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     var operationWindow: OperationQueueController?
     var recoveryWindow: RecoveryController?
     var programLauncher: ((ProgramLaunchRequest) -> Void)?
+    var selectionPasteboard = NSPasteboard.general
+    var selectionFileChooser: ((Bool,URL)->URL?)?
     var keyCompareController: CompareController? { secondaryWindows.compactMap { $0 as? CompareController }.first { $0.window === NSApp.keyWindow || (NSApp.keyWindow?.sheetParent != nil && $0.window === NSApp.keyWindow?.sheetParent) } }
     var keySearchController: SearchController? { secondaryWindows.compactMap { $0 as? SearchController }.first { $0.window === NSApp.keyWindow } }
     var pendingWork: Int {
@@ -156,7 +158,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             pane.onDrop = { [weak self] urls,dest in self?.transfer(urls,to:dest,kind:.copy) }
             pane.onCollectionDrop = { [weak pane] urls in pane?.addToCollection(urls) }
             pane.onCommand = { [weak self] cmd in self?.command(cmd) }
-            pane.onValidateCommand = { [weak self] cmd in self?.serverCommandEnabled(cmd) ?? true }
+            pane.onValidateCommand = { [weak self] cmd in self?.selectionCommandEnabled(cmd) ?? self?.serverCommandEnabled(cmd) ?? true }
             pane.onRename = { [weak self,weak pane] item,request in self?.renameInline(item,in:pane,request:request) }
             pane.onState = { [weak self] in self?.saveState();self?.updateChromeState() }
             pane.onSelection = { [weak self, weak pane] urls in

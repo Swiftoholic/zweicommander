@@ -13,6 +13,7 @@ extension MainWindow {
         if id == "closeTab",let key = NSApp.keyWindow,key !== window { key.performClose(nil); return }
         defer { updateChromeState();content.needsLayout = true }
         do {
+            if try handleSelectionCommand(id) { return }
             if serverCommandEnabled(id) == false { content.status.stringValue = "Für diesen Vorgang eine passende Auswahl und einen lokalen Ordner öffnen. Serverdateien können mit F5/F6 übertragen werden.";return }
             if try handleServerCommand(id) { return }
             switch id {
@@ -110,8 +111,6 @@ extension MainWindow {
             case "home": active.navigate(FileManager.default.homeDirectoryForCurrentUser)
             case "selectAll": if let editor = NSApp.keyWindow?.firstResponder as? NSTextView { editor.selectAll(nil) } else { active.selectionIndexes = IndexSet(active.visibleEntries.indices) }
             case "invertSelection": active.selectionIndexes = IndexSet(active.visibleEntries.indices).subtracting(active.selectionIndexes)
-            case "selectPattern":
-                if let pattern = prompt("Nach Muster auswählen",value:"*.pdf",message:"* steht für beliebig viele Zeichen, ? für ein Zeichen.") { let filter = try NameFilter(pattern); active.select(Set(active.visibleEntries.filter { filter.matches($0.name) }.map(\.url))) }
             case "clipboardCopy", "clipboardCut":
                 if let editor = NSApp.keyWindow?.firstResponder as? NSTextView { if id == "clipboardCopy" { editor.copy(nil) } else { editor.cut(nil) }; return }
                 guard let urls = requireSelection() else { return }; if id == "clipboardCut" && !ensureWritable(active) { return }
@@ -121,7 +120,6 @@ extension MainWindow {
                 guard ensureWritable(active),let urls = NSPasteboard.general.readObjects(forClasses:[NSURL.self],options:[.urlReadingFileURLsOnly:true]) as? [URL],!urls.isEmpty else { return }
                 let move = cutPasteboardChange == NSPasteboard.general.changeCount && cutURLs == urls
                 transfer(urls,to:active.currentURL,kind:move ? .move : .copy); cutURLs = []
-            case "copyPath": NSPasteboard.general.clearContents(); NSPasteboard.general.setString((active.selectedURLs.isEmpty ? [active.currentURL] : active.selectedURLs).map(\.path).joined(separator:"\n"),forType:.string)
             case "reveal": NSWorkspace.shared.activateFileViewerSelecting(active.selectedURLs.isEmpty ? [active.currentURL] : active.selectedURLs)
             case "favorite": try toggleFavorite()
             case "editFavorites": showFavorites()

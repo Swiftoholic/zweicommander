@@ -51,7 +51,6 @@ extension MainWindow {
             }
             secondaryWindows.append(controller);controller.showWindow(nil);return true
         case "sameFolder":_ = other.openRemote(remote.connection,path:active.currentURL.path);active.focus();return true
-        case "copyPath":NSPasteboard.general.clearContents();NSPasteboard.general.setString((active.selectedURLs.isEmpty ? [active.currentURL] : active.selectedURLs).map(\.absoluteString).joined(separator:"\n"),forType:.string);return true
         case "properties":showText("Servereigenschaften",active.selectedRemoteEntries.map { $0.name+"\n"+remote.connection.address(RemoteService.child(active.currentURL.path,$0.name)).absoluteString+"\n"+($0.isDirectory ? "Ordner" : bytes($0.size)) }.joined(separator:"\n\n"));return true
         default:return false
         }

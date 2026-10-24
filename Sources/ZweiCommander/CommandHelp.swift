@@ -36,8 +36,27 @@ enum CommandHelp {
         "recovery":"Sicherungen wiederherstellen und vorhandene Teilkopien vor dem Fortsetzen prüfen.",
         "pauseTransfers":"Laufende Dateiübertragung und nachfolgende Aufträge pausieren oder fortsetzen.",
         "stopTransfers":"Laufenden Auftrag abbrechen. Fertige Schritte bleiben erhalten.",
-        "customizeToolbar":"Sichtbare Befehle und ihre Reihenfolge in der Werkzeugleiste ändern."
+        "customizeToolbar":"Sichtbare Befehle und ihre Reihenfolge in der Werkzeugleiste ändern.",
+        "selectPattern":"Muster, RegEx und Datei-/Ordnerwahl mit unverbindlicher Vorschau. Ersetzen, hinzufügen, abwählen oder eingrenzen.",
+        "selectFiles":"Alle sichtbaren Dateien auswählen; Ordner bleiben unmarkiert.",
+        "deselectAll":"Nur die Markierungen aufheben. Dateien und Ordner bleiben unverändert.",
+        "invertFiles":"Nur Dateimarkierungen umkehren; markierte Ordner beibehalten.",
+        "sameExtension":"Dateien mit derselben letzten Endung wie das fokussierte Objekt hinzufügen.",
+        "deselectExtension":"Dateien mit derselben letzten Endung wie das fokussierte Objekt abwählen.",
+        "sameStem":"Sichtbare Dateien mit demselben Namen ohne letzte Endung hinzufügen. Bei Ordnern zählt der ganze Name.",
+        "deselectStem":"Sichtbare Einträge mit demselben Stammnamen abwählen.",
+        "saveSelection":"Die aktuellen Markierungen für diesen Tab und diesen Ordner in der Sitzung merken.",
+        "restoreSelection":"Noch sichtbare Markierungen des gemerkten Ordners wiederherstellen.",
+        "saveSelectionFile":"Markierte Adressen in eine lokale Auswahldatei schreiben; keine Dateiinhalte oder Zugangsdaten.",
+        "loadSelectionFile":"Passende sichtbare Adressen aus einer Auswahldatei markieren; keine Dateien öffnen.",
+        "copyNames":"Ausgewählte Namen in Listenreihenfolge als Text kopieren.",
+        "copyStems":"Namen ohne letzte Dateiendung kopieren. Ordnernamen bleiben vollständig.",
+        "copyPath":"Ausgewählte Pfade kopieren; ohne Auswahl die aktuelle Ordneradresse.",
+        "copyURLs":"Ausgewählte Datei-/Serveradressen als URLs ohne Zugangsdaten kopieren.",
+        "copyShellPaths":"Lokale Pfade als einzeln zitierte Argumente für zsh oder andere POSIX-Shells kopieren. Es wird nichts ausgeführt.",
+        "copySelectionTable":"Name, Bytes, Datum, Art und Pfad als TSV kopieren. Steuerzeichen werden sichtbar maskiert."
     ]
+    static func menuHelp(_ id:String) -> String? { details[id].map { $0+(shortcut(id).isEmpty ? "" : "\n"+shortcut(id)) } }
     static func shortcut(_ id:String) -> String {
         let fallback = AppDelegate.menuDefinitions.flatMap { $0.1 }.first { $0.1 == id }?.2 ?? ""
         var value = (Preferences.state.shortcuts[id] ?? fallback).lowercased()
