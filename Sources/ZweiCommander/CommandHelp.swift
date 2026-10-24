@@ -29,6 +29,11 @@ enum CommandHelp {
         "preview":"Die ausgewählte Datei mit Quick Look ansehen.",
         "edit":"Die ausgewählte Datei mit TextEdit öffnen.",
         "newFolder":"Im aktiven Ordner einen neuen Unterordner anlegen.",
+        "workspaces":"Vollständige lokale Arbeitsbereiche mit Tabs, Filtern, Sperren und Fensteranordnung speichern und wieder öffnen.",
+        "tabUnlock":"Die Tabsperre vollständig aufheben.",
+        "tabCloseLock":"Das Schließen dieses Tabs verhindern; Ordnerwechsel bleiben in diesem Tab möglich.",
+        "tabFixedLock":"Den Ordner dieses Tabs festhalten; neue Ziele über einen neuen Tab öffnen.",
+        "tabNewLock":"Den Tab erhalten und Ordnerwechsel in einem neuen Tab öffnen.",
         "tabGroups":"Ordner beider Seiten als lokale Gruppe speichern, verwalten und mit Vorschau öffnen.",
         "lastTab":"Zum zuletzt verwendeten anderen Tab dieser Seite wechseln. Wiederholtes Drücken wechselt zwischen zwei Tabs.",
         "reopenTab":"Den zuletzt geschlossenen verfügbaren lokalen Tab mit Verlauf, Namen und Ansicht wieder öffnen. Der Merkspeicher gilt für diese Sitzung.",
@@ -63,7 +68,7 @@ enum CommandHelp {
         "copyShellPaths":"Lokale Pfade als einzeln zitierte Argumente für zsh oder andere POSIX-Shells kopieren. Es wird nichts ausgeführt.",
         "copySelectionTable":"Name, Bytes, Datum, Art und Pfad als TSV kopieren. Steuerzeichen werden sichtbar maskiert."
     ]
-    static func menuHelp(_ id:String) -> String? { details[id].map { $0+(shortcut(id).isEmpty ? "" : "\n"+shortcut(id)) } }
+    static func menuHelp(_ id:String) -> String? { (details[id] ?? (id.hasPrefix("workspace") ? "Gespeicherten Arbeitsbereich dieses Listenplatzes öffnen. Die Belegung kann in den Einstellungen geändert werden." : nil)).map { $0+(shortcut(id).isEmpty ? "" : "\n"+shortcut(id)) } }
     static func shortcut(_ id:String) -> String {
         let fallback = AppDelegate.menuDefinitions.flatMap { $0.1 }.first { $0.1 == id }?.2 ?? ""
         var value = (Preferences.state.shortcuts[id] ?? fallback).lowercased()

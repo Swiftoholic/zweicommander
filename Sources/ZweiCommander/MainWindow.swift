@@ -16,6 +16,9 @@ final class MainContent: CommanderSurface, NSSplitViewDelegate {
     let queueButton = ActionButton("Aufträge",symbol:"list.bullet.rectangle",action:{})
     let quick = QLPreviewView(frame:.zero,style:.normal)!
     var firstLayout = true
+    var preferredSplitRatio:CGFloat = 0.5
+    var onLayoutChange:(()->Void)?
+    private var sizingSplit = false
     var quickVisible = false { didSet { quick.isHidden = !quickVisible;needsLayout = true } }
     override init(frame frameRect: NSRect) {
         super.init(frame:frameRect)
@@ -46,8 +49,14 @@ final class MainContent: CommanderSurface, NSSplitViewDelegate {
         utilityBar.frame = NSRect(x:w-212,y:h-toolbarHeight,width:207,height:toolbarHeight)
         layoutToolbar(width:toolbarScroll.bounds.width,height:toolbarHeight)
         let q: CGFloat = quickVisible ? min(330,w*0.28) : 0
+        sizingSplit = true
         split.frame = NSRect(x:0,y:78,width:max(1,w-q),height:max(1,h-toolbarHeight-78))
-        if firstLayout && w > 0 && h > 0 && split.arrangedSubviews.count == 2 { firstLayout = false;split.setPosition(((split.isVertical ? split.bounds.width : split.bounds.height)-split.dividerThickness)/2,ofDividerAt:0) }
+        if w > 0 && h > 0 && split.arrangedSubviews.count == 2 {
+            firstLayout = false
+            if !split.arrangedSubviews.contains(where: \.isHidden) { split.setPosition(((split.isVertical ? split.bounds.width : split.bounds.height)-split.dividerThickness)*preferredSplitRatio,ofDividerAt:0) }
+            else { split.adjustSubviews() }
+        }
+        sizingSplit = false
         quick.frame = NSRect(x:w-q,y:78,width:q,height:split.frame.height)
         functionBar.frame = NSRect(x:2,y:25,width:max(1,w-4),height:25)
         commandMode.frame = NSRect(x:5,y:52,width:84,height:23)
@@ -77,7 +86,13 @@ final class MainContent: CommanderSurface, NSSplitViewDelegate {
         guard !rail.isHidden else { return };rail.vertical = split.isVertical
         rail.frame = convert(split.actionStripFrame,from:split);rail.needsLayout = true
     }
-    func splitViewDidResizeSubviews(_ notification: Notification) { positionRail() }
+    func splitViewDidResizeSubviews(_ notification: Notification) {
+        positionRail()
+        guard !sizingSplit,split.arrangedSubviews.count == 2,!split.arrangedSubviews.contains(where: \.isHidden) else { return }
+        let available = (split.isVertical ? split.bounds.width : split.bounds.height)-split.dividerThickness
+        guard available > 0 else { return }
+        preferredSplitRatio = max(0.1,min(0.9,(split.isVertical ? split.arrangedSubviews[0].frame.width : split.arrangedSubviews[0].frame.height)/available));onLayoutChange?()
+    }
     func splitView(_ splitView:NSSplitView,canCollapseSubview subview:NSView)->Bool { false }
     func splitView(_ splitView:NSSplitView,effectiveRect proposedEffectiveRect:NSRect,forDrawnRect drawnRect:NSRect,ofDividerAt dividerIndex:Int)->NSRect {
         split.resizeGrip(in:drawnRect)
@@ -111,6 +126,9 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     var programLauncher: ((ProgramLaunchRequest) -> Void)?
     var selectionPasteboard = NSPasteboard.general
     var selectionFileChooser: ((Bool,URL)->URL?)?
+    var isApplyingWorkspace = false,layoutPersistenceReady = false
+    var layoutPersistenceError:String?
+    var pendingLayoutSave:DispatchWorkItem?
     var keyCompareController: CompareController? { secondaryWindows.compactMap { $0 as? CompareController }.first { $0.window === NSApp.keyWindow || (NSApp.keyWindow?.sheetParent != nil && $0.window === NSApp.keyWindow?.sheetParent) } }
     var keySearchController: SearchController? { secondaryWindows.compactMap { $0 as? SearchController }.first { $0.window === NSApp.keyWindow } }
     var pendingWork: Int {
@@ -153,15 +171,16 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             if let profile = Preferences.state.importedProfile { pane.configure(profile:profile,isLeft:pane === left) }
             pane.initializeView()
             pane.onActivate = { [weak self] p in self?.setActive(p) }
-            pane.onSwitch = { [weak self] in self?.other.focus() }
+            pane.onSwitch = { [weak self] in self?.focusOtherVisiblePane() }
             pane.onPreview = { [weak self] urls in self?.preview(urls) }
             pane.onOpenArchive = { [weak self] url,p in self?.openArchive(url,in:p) }
             pane.onDrop = { [weak self] urls,dest in self?.transfer(urls,to:dest,kind:.copy) }
             pane.onCollectionDrop = { [weak pane] urls in pane?.addToCollection(urls) }
             pane.onCommand = { [weak self] cmd in self?.command(cmd) }
-            pane.onValidateCommand = { [weak self] cmd in self?.selectionCommandEnabled(cmd) ?? self?.tabCommandEnabled(cmd) ?? self?.serverCommandEnabled(cmd) ?? true }
+            pane.onValidateCommand = { [weak self] cmd in self?.selectionCommandEnabled(cmd) ?? self?.workspaceCommandEnabled(cmd) ?? self?.tabCommandEnabled(cmd) ?? self?.serverCommandEnabled(cmd) ?? true }
             pane.onRename = { [weak self,weak pane] item,request in self?.renameInline(item,in:pane,request:request) }
             pane.onState = { [weak self] in self?.saveState();self?.updateChromeState() }
+            pane.onFilterChange = { [weak self] in self?.scheduleLayoutSave() }
             pane.onSelection = { [weak self, weak pane] urls in
                 guard let self else { return };self.updateChromeState()
                 if pane === self.active,self.content.quickVisible { self.content.quick.previewItem = urls.first.flatMap { $0.isFileURL ? $0 as NSURL : nil } }
@@ -201,6 +220,9 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         NSWorkspace.shared.notificationCenter.addObserver(self,selector:#selector(volumesChanged),name:NSWorkspace.didMountNotification,object:nil)
         NSWorkspace.shared.notificationCenter.addObserver(self,selector:#selector(volumesChanged),name:NSWorkspace.didUnmountNotification,object:nil)
         applyTheme()
+        content.onLayoutChange = { [weak self] in self?.scheduleLayoutSave() }
+        if startLeft == nil && startRight == nil { restoreLastLayout() }
+        layoutPersistenceReady = true
     }
     required init?(coder:NSCoder) { fatalError() }
     func buildToolbar() {
@@ -320,7 +342,13 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         else if let id = UUID(uuidString:value) { do { try openFavorite(id) } catch { showFailure(error) } }
     }
     func setActive(_ pane:PaneView) { active = pane; left.isActive = pane === left; right.isActive = pane === right; window?.subtitle = (pane === left ? "Links" : "Rechts")+" · "+pane.locationText;updateChromeState() }
-    func saveState() { Preferences.state.left = left.savedTabs; Preferences.state.right = right.savedTabs; Preferences.state.vertical = content.split.isVertical; Preferences.save() }
+    func saveState() {
+        guard !isApplyingWorkspace else { return }
+        Preferences.state.left = left.savedTabs;Preferences.state.right = right.savedTabs;Preferences.state.vertical = content.split.isVertical;Preferences.save()
+        if layoutPersistenceReady {
+            do { try Preferences.saveLastLayout(layoutState);layoutPersistenceError = nil } catch { layoutPersistenceError = error.localizedDescription;content.status.stringValue = error.localizedDescription }
+        }
+    }
     func applyTheme() {
         NSApp.appearance = Preferences.state.theme == 1 ? NSAppearance(named:.aqua) : Preferences.state.theme == 2 ? NSAppearance(named:.darkAqua) : nil
         themeMenu.selectItem(at:max(0,min(2,Preferences.state.theme)))

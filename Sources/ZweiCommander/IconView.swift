@@ -3,6 +3,20 @@ import CommanderCore
 
 final class FileGrid: NSCollectionView {
     weak var pane: PaneView?
+    override func setFrameSize(_ newSize:NSSize) {
+        let width = max(2,newSize.width),shrinking = width < bounds.width
+        func fitItems() {
+            guard let layout = collectionViewLayout as? NSCollectionViewFlowLayout else { return }
+            let inset = min(8,max(0,(width-2)/2)),itemWidth = max(1,min(126,width-2*inset-1))
+            if layout.itemSize.width != itemWidth || layout.sectionInset.left != inset {
+                layout.sectionInset = NSEdgeInsets(top:8,left:inset,bottom:8,right:inset)
+                layout.itemSize = NSSize(width:itemWidth,height:112)
+            }
+        }
+        if shrinking { fitItems() }
+        super.setFrameSize(NSSize(width:width,height:newSize.height))
+        if !shrinking { fitItems() }
+    }
     override func becomeFirstResponder() -> Bool { pane?.activate();let result = super.becomeFirstResponder();DispatchQueue.main.async { [weak self] in self?.pane?.redrawFileFocus() };return result }
     override func resignFirstResponder() -> Bool { let result = super.resignFirstResponder();DispatchQueue.main.async { [weak self] in self?.pane?.redrawFileFocus() };return result }
     override func mouseDown(with event: NSEvent) {

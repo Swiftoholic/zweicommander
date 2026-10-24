@@ -20,14 +20,14 @@ extension Preferences {
 
 extension FolderTab {
     func copyForSession() -> FolderTab {
-        let copy = FolderTab(url);copy.title = title;copy.locked = locked;copy.history = history;copy.position = position;copy.view = view;copy.sessionViewPinned = true
+        let copy = FolderTab(url);copy.title = title;copy.lockMode = lockMode;copy.history = history;copy.position = position;copy.view = view;copy.sessionViewPinned = true;copy.filter = filter;copy.filterRegex = filterRegex
         copy.collection = collection;copy.archiveRoot = archiveRoot;copy.archiveOrigin = archiveOrigin
         if let remote { copy.remote = RemoteFolderSession(remote.connection) };return copy
     }
 }
 
 extension PaneView {
-    var tabGroupContext:[TabSessionState] { tabs.map { TabSessionState(id:$0.id,path:$0.url.absoluteString,title:$0.title,locked:$0.locked,view:$0.id == tab.id ? viewSettings : $0.view,kind:$0.remote != nil ? "remote" : $0.archiveRoot != nil || isSessionTemporary($0.url) ? "archive" : $0.collection != nil ? "collection" : "folder") } }
+    var tabGroupContext:[TabSessionState] { tabs.map { TabSessionState(id:$0.id,path:$0.url.absoluteString,title:$0.title,locked:$0.locked,view:$0.id == tab.id ? viewSettings : $0.view,kind:$0.remote != nil ? "remote" : $0.archiveRoot != nil || isSessionTemporary($0.url) ? "archive" : $0.collection != nil ? "collection" : "folder",lockMode:$0.lockMode,filter:$0.id == tab.id ? filterField.stringValue : $0.filter,filterRegex:$0.id == tab.id ? filterRegex.state == .on : $0.filterRegex) } }
     func isSessionTemporary(_ url:URL) -> Bool { sessionCacheRoot.map { FileSystem.isInside(url,$0) } ?? false }
     func noteTabActivation() {
         guard tabs.indices.contains(tabIndex) else { return }
@@ -57,14 +57,14 @@ extension PaneView {
             if !item.sessionViewPinned,let rule = workspace?.view(for:item.url) { return rule.settings }
             return item.view ?? defaultView ?? FolderViewSettings()
         }
-        let value = TabGroupPane(folders:local.map { TabGroupFolder(path:$0.url.standardizedFileURL.path,title:$0.title,locked:$0.locked,view:snapshot($0)) },selected:selected)
+        let value = TabGroupPane(folders:local.map { TabGroupFolder(path:$0.url.standardizedFileURL.path,title:$0.title,locked:$0.locked,view:snapshot($0),lockMode:$0.lockMode == .closeOnly || $0.lockMode == .fixed ? $0.lockMode : nil) },selected:selected)
         return value
     }
     func addGroupPane(_ group:TabGroupPane,replacing:Bool) {
         // The group window has already checked and filtered both panes off the main thread.
         let incoming = group.folders.enumerated().map { index,value -> (Int,FolderTab) in
             let url = URL(fileURLWithPath:value.path)
-            let item = FolderTab(url);item.title = value.title;item.locked = value.locked;item.view = value.view;item.sessionViewPinned = value.view != nil;return (index,item)
+            let item = FolderTab(url);item.title = value.title;item.lockMode = value.effectiveLockMode;item.view = value.view;item.sessionViewPinned = value.view != nil;return (index,item)
         }
         guard !incoming.isEmpty else { return }
         endPathEditing(restoreFocus:false)

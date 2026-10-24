@@ -11,9 +11,10 @@ extension MainWindow {
         if let compare = keyCompareController,!global.contains(id) { compare.command(id);return }
         if let search = keySearchController,!global.contains(id) { search.command(id);return }
         if id == "closeTab",let key = NSApp.keyWindow,key !== window { key.performClose(nil); return }
-        defer { updateChromeState();content.needsLayout = true }
+        defer { updateChromeState();content.needsLayout = true;scheduleLayoutSave() }
         do {
             if try handleSelectionCommand(id) { return }
+            if try handleWorkspaceCommand(id) { return }
             if try handleTabCommand(id) { return }
             if serverCommandEnabled(id) == false { content.status.stringValue = "Für diesen Vorgang eine passende Auswahl und einen lokalen Ordner öffnen. Serverdateien können mit F5/F6 übertragen werden.";return }
             if try handleServerCommand(id) { return }
@@ -75,7 +76,7 @@ extension MainWindow {
             case "rememberView": try rememberFolderView()
             case "folderViews": showFolderViews()
             case "orientation": content.split.isVertical.toggle(); content.firstLayout = true; content.needsLayout = true; saveState()
-            case "onePane": right.isHidden.toggle(); content.split.adjustSubviews(); left.focus()
+            case "onePane": toggleSinglePane()
             case "linked": linked.toggle(); content.status.stringValue = linked ? "Verknüpftes Navigieren aktiv" : "Verknüpftes Navigieren aus"
             case "swap":
                 let tabs = left.tabs,index = left.tabIndex; left.tabs = right.tabs; left.tabIndex = right.tabIndex; right.tabs = tabs; right.tabIndex = index
@@ -93,7 +94,9 @@ extension MainWindow {
             case "previousTab": active.stepTab(-1)
             case "moveTabLeft": active.moveTab(active.tab.id,to:active.tabIndex-1)
             case "moveTabRight": active.moveTab(active.tab.id,to:active.tabIndex+1)
-            case "closeTab": if active.tabs.count > 1 { active.closeTab() } else { window?.performClose(nil) }
+            case "closeTab":
+                if active.tab.locked { active.status.stringValue = "Dieser Tab ist gegen Schließen gesperrt." }
+                else if active.tabs.count > 1 { active.closeTab() } else { window?.performClose(nil) }
             case "lockTab": active.tab.locked.toggle(); active.rebuildTabs()
             case "nameTab": if let name = prompt("Tab benennen",value:active.tab.title ?? active.currentURL.lastPathComponent) { active.tab.title = name.isEmpty ? nil : name; active.rebuildTabs() }
             case "collection": if let urls = requireSelection() { active.showCollection(urls,title:"Dateisammlung") }

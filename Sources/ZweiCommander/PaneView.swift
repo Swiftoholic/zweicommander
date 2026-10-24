@@ -5,7 +5,9 @@ final class FolderTab {
     let id = UUID()
     var url: URL
     var title: String?
-    var locked = false
+    var lockMode:TabLockMode = .none
+    var locked:Bool { get { lockMode.preventsClosing } set { lockMode = newValue ? .newTab : .none } }
+    var filter = "",filterRegex = false
     var history: [URL]
     var position = 0
     var collection: [URL]?
@@ -140,6 +142,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     var onValidateCommand: ((String)->Bool)?
     var onRename: ((RenameItem,UUID)->Void)?
     var onState: (() -> Void)?
+    var onFilterChange:(()->Void)?
     var selectionIndexes: IndexSet {
         get { displayMode == .icons ? IndexSet(grid.selectionIndexPaths.map(\.item)) : table.selectedRowIndexes }
         set {
@@ -159,8 +162,8 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         var restoredActive: UUID?
         tabs = savedTabs.compactMap { item in
             let u = URL(fileURLWithPath: item.path)
-            guard FileSystem.isDirectory(u) else { return nil }
-            let t = FolderTab(u); t.title = item.title; t.locked = item.locked
+            guard (try? LayoutTab.validatePath(item.path)) != nil else { return nil }
+            let t = FolderTab(u); t.title = item.title;t.lockMode = item.lockMode ?? (item.locked ? .newTab : .none);t.filter = item.filter ?? "";t.filterRegex = item.filterRegex ?? false
             if let view = item.view,(try? view.validate()) != nil { t.view = view }
             if item.selected == true { restoredActive = t.id };return t
         }
@@ -281,6 +284,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         let sort = isLeft ? profile.leftSort : profile.rightSort
         sortKey = sort.key; ascending = sort.ascending
         treeVisible = isLeft ? profile.leftTree : profile.rightTree
+        filterField.stringValue = tab.filter;filterRegex.state = tab.filterRegex ? .on : .off
         rebuildColumnMenu()
         applyImportedAppearance(); applyFilter()
     }
@@ -401,18 +405,18 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         let u = url.standardizedFileURL
         guard FileSystem.isDirectory(u) else { showFailure(CommanderError.message("Ordner nicht gefunden: \(u.path)")); return }
         let old = currentURL
-        if tab.locked && u != old { newTab(url: u); return }
+        if routeLockedNavigation(u) { return }
         if let root = tab.archiveRoot, !FileSystem.isInside(u, root) { tab.archiveRoot = nil; tab.archiveOrigin = nil }
-        tab.url = u; tab.collection = nil;tab.sessionViewPinned = false; filterField.stringValue = ""
+        tab.url = u; tab.collection = nil;tab.sessionViewPinned = false;tab.filter = "";tab.filterRegex = false
         tab.history = Array(tab.history.prefix(tab.position+1)); tab.history.append(u); tab.position = tab.history.count-1
         restoreTabView();rebuildTabs(); refresh(); focus()
         if !linked { onNavigate?(self,old,u) }
     }
     func history(_ offset: Int) {
         let i = tab.position+offset; guard i >= 0 && i < tab.history.count else { return }
-        if remote != nil { let value = tab.history[i];tab.position = i;navigateRemote(value,history:false);return }
-        if tab.locked && tab.history[i] != currentURL { newTab(url:tab.history[i]);return }
-        tab.position = i; tab.url = tab.history[i]; tab.collection = nil;tab.sessionViewPinned = false
+        if remote != nil { let value = tab.history[i];if routeLockedNavigation(value) { return };tab.position = i;navigateRemote(value,history:false);return }
+        if routeLockedNavigation(tab.history[i]) { return }
+        tab.position = i; tab.url = tab.history[i]; tab.collection = nil;tab.sessionViewPinned = false;tab.filter = "";tab.filterRegex = false
         if let root = tab.archiveRoot, !FileSystem.isInside(tab.url, root) { tab.archiveRoot = nil; tab.archiveOrigin = nil }
         restoreTabView();rebuildTabs(); refresh(); focus()
     }
@@ -525,6 +529,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     }
     var rawSelectedURLs: Set<URL> { Set(selectionIndexes.compactMap { visibleEntries.indices.contains($0) ? visibleEntries[$0].url : nil }) }
     func applyFilter(preserving chosen:Set<URL>? = nil) {
+        tab.filter = filterField.stringValue;tab.filterRegex = filterRegex.state == .on
         sortVersion += 1;let version = sortVersion
         sortToken.cancel();sortingQueue.cancelAllOperations();let token = CancellationToken();sortToken = token
         do {
@@ -557,8 +562,8 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         }
         updatePanePresentation()
     }
-    func clearFilter() { filterField.stringValue = "";filterRegex.state = .off;applyFilter() }
-    @objc func filterChanged() { activate(); applyFilter() }
+    func clearFilter() { filterField.stringValue = "";filterRegex.state = .off;applyFilter();onFilterChange?() }
+    @objc func filterChanged() { activate();applyFilter();onFilterChange?() }
     func controlTextDidChange(_ obj: Notification) { if obj.object as? NSSearchField === filterField { filterChanged() };if obj.object as? PathEditor === pathField { pathField.edited() } }
     func controlTextDidEndEditing(_ obj:Notification) {
         guard obj.object as? PathEditor === pathField else { return }
@@ -678,9 +683,9 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         acceptFiles(info.draggingPasteboard,into:operation == .on ? dropFolder(at:row) : nil)
     }
     var savedTabs: [SavedTab] {
-        let local = tabs.filter { $0.remote == nil && $0.archiveRoot == nil && $0.collection == nil }
+        let local = tabs.filter { $0.remote == nil && $0.archiveRoot == nil && $0.collection == nil && !isSessionTemporary($0.url) }
         let selected = remote == nil ? tab.id : local.first(where:{ $0.id == lastLocalTabID })?.id ?? local.first?.id
-        return local.map { SavedTab(path:$0.url.path,title:$0.title,locked:$0.locked,view:$0.view,selected:$0.id == selected && $0.id != local.first?.id ? true : nil) }
+        return local.map { SavedTab(path:$0.url.path,title:$0.title,locked:$0.locked,view:$0.view,selected:$0.id == selected && $0.id != local.first?.id ? true : nil,lockMode:$0.lockMode == .closeOnly || $0.lockMode == .fixed ? $0.lockMode : nil,filter:$0.filter.isEmpty ? nil : $0.filter,filterRegex:$0.filterRegex ? true : nil) }
     }
 }
 

@@ -1,4 +1,5 @@
 import AppKit
+import CommanderCore
 
 final class FolderTabButton: NSButton, NSDraggingSource {
     private var hoverTracking: NSTrackingArea?
@@ -20,6 +21,8 @@ final class FolderTabButton: NSButton, NSDraggingSource {
         for (title,command) in [("Tab duplizieren","duplicateTab"),("Auf andere Seite kopieren","copyTabToOther"),("Geschlossenen Tab wieder öffnen","reopenTab"),("Tabgruppen …","tabGroups"),("Tab schließen","closeTab"),("Andere Tabs schließen","closeOtherTabs"),("Tab sperren/entsperren","lockTab"),("Tab benennen …","nameTab"),("Nach links verschieben","moveTabLeft"),("Nach rechts verschieben","moveTabRight")] {
             let item = NSMenuItem(title:title,action:#selector(run(_:)),keyEquivalent:"");item.target = self;item.representedObject = command;menu.addItem(item)
         }
+        let locks = NSMenu(title:"Tabsperre"),parent = NSMenuItem(title:"Tabsperre",action:nil,keyEquivalent:"")
+        for (title,id) in [("Keine Sperre","tabUnlock"),("Nur Schließen verhindern","tabCloseLock"),("Ordner festhalten","tabFixedLock"),("Ordnerwechsel in neuem Tab","tabNewLock")] { let item = NSMenuItem(title:title,action:#selector(run(_:)),keyEquivalent:"");item.target = self;item.representedObject = id;locks.addItem(item) };parent.submenu = locks;menu.addItem(parent)
         self.menu = menu
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -27,6 +30,8 @@ final class FolderTabButton: NSButton, NSDraggingSource {
         self.title = title;state = active ? .on : .off;font = .systemFont(ofSize:12,weight:active ? .semibold : .regular)
         closeButton.isHidden = tab.locked || pane?.tabs.count == 1;closeButton.setAccessibilityLabel("Tab schließen: "+title)
         toolTip = tab.remote == nil ? tab.url.path+"\nDateien hier ablegen; kurzes Verweilen öffnet den Tab." : tab.url.absoluteString+"\nServer-Tab für diese Sitzung. F5/F6 übertragen zwischen den beiden Seiten."
+        toolTip = (toolTip ?? "")+"\n"+tab.lockMode.title
+        for item in menu?.items.flatMap({ $0.submenu?.items ?? [] }) ?? [] { let mode = ["tabUnlock":TabLockMode.none,"tabCloseLock":.closeOnly,"tabFixedLock":.fixed,"tabNewLock":.newTab][item.representedObject as? String ?? ""];item.state = mode == tab.lockMode ? .on : .off }
         invalidateIntrinsicContentSize();needsDisplay = true
     }
     override func updateTrackingAreas() {
@@ -108,7 +113,7 @@ extension PaneView {
     func selectTab(_ id: UUID) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
         endPathEditing(restoreFocus:false)
-        tabIndex = index;filterField.stringValue = "";restoreTabView();rebuildTabs();refresh();focus()
+        tabIndex = index;restoreTabView();rebuildTabs();refresh();focus()
         if remote == nil,tab.archiveRoot == nil,tab.collection == nil { lastLocalTabID = tab.id }
     }
     func stepTab(_ offset: Int) { selectTab(tabs[(tabIndex+offset+tabs.count)%tabs.count].id) }
@@ -121,6 +126,7 @@ extension PaneView {
         let original = tab,t = FolderTab(original.url)
         t.title = original.title;t.history = original.history;t.position = original.position;t.view = original.view
         t.collection = original.collection;t.archiveRoot = original.archiveRoot;t.archiveOrigin = original.archiveOrigin
+        t.filter = original.filter;t.filterRegex = original.filterRegex
         if let remote = original.remote { t.remote = RemoteFolderSession(remote.connection) }
         tabs.insert(t,at:tabIndex+1);tabIndex += 1;restoreTabView();rebuildTabs();refresh();focus()
     }

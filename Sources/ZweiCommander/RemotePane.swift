@@ -50,8 +50,8 @@ extension PaneView {
         guard let remote else { return }
         do {
             let value = try remote.resolve(url.absoluteString,relativeTo:currentURL)
-            if tab.locked && value != currentURL { _ = openRemote(remote.connection,path:value.path);return }
-            tab.url = value;tab.remoteEntries = [];filterField.stringValue = ""
+            if routeLockedNavigation(value) { return }
+            tab.url = value;tab.remoteEntries = [];tab.filter = "";tab.filterRegex = false;filterField.stringValue = "";filterRegex.state = .off
             if history { tab.history = Array(tab.history.prefix(tab.position+1));tab.history.append(value);tab.position = tab.history.count-1 }
             rebuildTabs();refresh();focus()
         } catch { status.stringValue = error.localizedDescription;status.toolTip = error.localizedDescription }

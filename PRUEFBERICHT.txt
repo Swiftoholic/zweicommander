@@ -1,8 +1,8 @@
-ZweiCommander 0.21.0 (Build 22) — Prüfung abgeschlossen am 24. Oktober 2026
+ZweiCommander 0.22.0 (Build 23) — Prüfung abgeschlossen am 24. Oktober 2026
 
 Ergebnis
-- 290/290 Dateikern- und Integrationstests bestanden.
-- 978/978 native UI-Prüfungen in 37 Durchläufen am finalen
+- 306/306 Dateikern- und Integrationstests bestanden.
+- 1055/1055 native UI-Prüfungen in 39 Durchläufen am finalen
   universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
   Darstellung nach erneutem App-Start 9, Mittelstreifen und Mausbedienung 26,
@@ -24,12 +24,13 @@ Ergebnis
   Serverprofile und rekursive Übertragungen 31, Profile nach Neustart 14,
   Server-Tabs und Mutationen im Hauptfenster 47,
   Auswahl und Textzwischenablage 90, Tabgruppen und Sitzungsabläufe 56,
-  Tabgruppen nach erneutem App-Start 9.
+  Tabgruppen nach erneutem App-Start 9, Arbeitsbereiche und Layouts 62,
+  Arbeitsbereiche nach erneutem App-Start 15.
 - Die Serie wurde in zwei Gruppen am identischen Release-Build ausgeführt:
-  24 Durchläufe mit 529 Prüfungen sowie 13 Durchläufe mit
-  449 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
-  und Serverfenster sowie Server-Tabs, Auswahlvorschau und Tabgruppen in einer
-  entsperrten GUI-Sitzung.
+  24 Durchläufe mit 529 Prüfungen sowie 15 Durchläufe mit
+  526 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
+  und Serverfenster sowie Server-Tabs, Auswahlvorschau, Tabgruppen und
+  Arbeitsbereiche in einer entsperrten GUI-Sitzung.
   Alle Durchläufe sind vollständig bestanden;
   es stehen keine ausgelassenen Vordergrundprüfungen mehr aus.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
@@ -90,6 +91,49 @@ Auswahldateien enthalten ausdrücklich gespeicherte Pfade, keine Inhalte
 oder Zugangsdaten. Keine automatische Wiederherstellung nach Neustart.
 Shell-Kopie führt nichts aus. Sehr große Listen und aufwendige reguläre
 Ausdrücke benötigen weitere Praxisprüfungen.
+
+Arbeitsbereiche, Layouts und detaillierte Tabsperren
+16 neue Kernprüfungen prüfen vollständige Profile mit beiden Seiten,
+Filtern, Ansichten, Spalten und Sperrarten, Dokumentgrenzen und unveränderte
+Daten bei ungültigen Mutationen. Pfade werden ohne Dateizugriff geprüft;
+nicht verbundene Datenträger bleiben gültige Ziele. Weitere Fälle prüfen
+Schema- und Typfehler, Namensnormalisierung, ungültige RegEx-Filter,
+Fenstergeometrie, abgesteckte Bildschirme und die Übernahme alter Tabsperren.
+
+77 neue native Prüfungen laufen in zwei getrennten App-Prozessen mit
+künstlichem Importprofil und eigenen lokalen Einstellungsbereichen. Sie
+prüfen alle Sperrarten, Navigation und Verlauf, Schließen des letzten
+geschützten Tabs, Filter je Tab sowie deren Kopie und Wiederherstellung.
+Native Teilerverschiebung und Fenstervergrößerung prüfen Verhältnis und
+automatische Speicherung. Einzelansicht rechts, aktive Seite, Schnellansicht,
+verknüpftes Navigieren, Symbole und Ordnerbaum überstehen einen neuen Prozess.
+Das Symbolraster bleibt bei schmalen und ausgeblendeten Seiten gültig.
+Der anfängliche Fensteraufbau darf gespeicherte ausgeblendete Seiten nicht
+wieder einblenden. Bestehende Importprofile dürfen Tabfilter nicht löschen.
+
+Cmd+Option+L öffnet die tatsächliche Verwaltung; Cmd+Ctrl+1 öffnet den ersten
+Arbeitsbereich über das AppKit-Menü. Cmd+L fokussiert das Namensfeld. Erstellen,
+Aktualisieren, Umbenennen, Umordnen und Entfernen werden ausgeführt. Die
+Vorschau zeigt beide Seiten; Hell-/Dunkelaufnahmen prüfen gerenderte
+Spaltentitel. Geänderte Tabs, Filter und externe Profile sperren alte
+Vorschauen. Offene Adressentwürfe verhindern den Wechsel. Vorhandene
+Sperrtabs werden wiederverwendet; erneute Anwendung erzeugt keine weiteren
+geschützten Duplikate. Server, Archive und Sammlungen bleiben offen, und
+ersetzte normale Tabs bleiben im Sitzungsverlauf wiederöffnbar.
+
+Ein nicht verfügbarer ausgewählter Ordner bleibt nach Neustart samt
+Sperrart, Filter und Ansicht erhalten. Fenster von einem fehlenden Bildschirm
+landen auf einem aktuellen Bildschirm. Beschädigte und zukünftige Profil-
+oder Anordnungsdaten bleiben bytegleich erhalten. Die automatische Sitzung
+enthält keine Serverzugangsdaten; die allgemeine Zwischenablage bleibt gleich.
+
+Grenzen: Profile enthalten lokale Ordnertabs, keine Server-/Archivsitzungen,
+Sammlungen oder Dateimarkierungen. Bis zu 50 Profile mit je 100 Tabs pro Seite
+und insgesamt 4 MiB; die letzte Anordnung liegt getrennt von der Sitzung.
+Normales Beenden speichert beide. Es gibt keine transaktionale Zusage für
+einen Stromausfall zwischen diesen Schreibvorgängen. Physisches Abstecken
+realer Datenträger und Bildschirmwechsel sind nicht Ende zu Ende geprüft;
+getrennte Bildschirme werden zusätzlich mit künstlicher Geometrie geprüft.
 
 Tabgruppen, Tabverlauf und Ordnerkürzel
 12 zusätzliche Kernprüfungen prüfen beide Seiten, Reihenfolge, Auswahl,
@@ -657,7 +701,7 @@ leere Ordner. Anlegen, Umbenennen, geprüfte rekursive Löschung und ein
 Abbruch innerhalb einer verschlüsselten Dateiübertragung sind geprüft.
 Der öffentliche Prüflauf entfernt erzeugte Schlüssel und seinen Testserver.
 Systemdienste und persönliche SSH-Konfiguration werden nicht geändert.
-Die neun Zusatzprüfungen werden getrennt von den 290 Kerntests gezählt.
+Die neun Zusatzprüfungen werden getrennt von den 306 Kerntests gezählt.
 Externe SSH-Server, andere Algorithmen und weitere Anmeldevarianten brauchen
 zusätzliche Praxisprüfungen.
 

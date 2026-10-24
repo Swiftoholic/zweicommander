@@ -134,7 +134,7 @@ extension AppDelegate {
                 SavedTab(path:folder.path,title:"Gleich",locked:false,view:.init(display:.icons),selected:nil),
                 SavedTab(path:folder.path,title:"Gleich",locked:true,view:.init(display:.thumbnails),selected:true)])
             sameURL.initializeView()
-            check(sameURL.tabs.count == 2 && sameURL.tabIndex == 1 && sameURL.tab.locked && sameURL.displayMode == .thumbnails,"duplicate URLs and missing earlier tabs restore the exact selected tab")
+            check(sameURL.tabs.count == 3 && sameURL.tabIndex == 2 && sameURL.tab.locked && sameURL.displayMode == .thumbnails,"unavailable earlier tabs remain while duplicate URLs restore the exact selected tab")
             let legacy: [String:Any] = ["left":[["path":folder.path,"locked":false]],"right":[],"favorites":[],"showHidden":false,"vertical":true,"theme":0,"shortcuts":[:]]
             let legacyState = Preferences.decode(try! JSONSerialization.data(withJSONObject:legacy))
             check(legacyState?.left.count == 1 && legacyState?.left.first?.view == nil,"previous session format remains readable")

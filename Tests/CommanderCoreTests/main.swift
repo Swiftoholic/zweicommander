@@ -445,6 +445,22 @@ func XCTAssertThrowsError<T>(_ expression: @autoclosure () throws -> T, file: St
 }
 
 let tests: [(String, (CoreTests) throws -> Void)] = [
+    ("testLayoutProfileRoundTripPreservesCompleteWorkspace", { try $0.testLayoutProfileRoundTripPreservesCompleteWorkspace() }),
+    ("testLayoutProfileNamesNormalizeAndRejectUnicodeDuplicates", { try $0.testLayoutProfileNamesNormalizeAndRejectUnicodeDuplicates() }),
+    ("testLayoutProfileMutationsAreAtomicAndReorderSafely", { try $0.testLayoutProfileMutationsAreAtomicAndReorderSafely() }),
+    ("testLayoutProfileCountsAndSelectionsAreBounded", { try $0.testLayoutProfileCountsAndSelectionsAreBounded() }),
+    ("testLayoutPathsAreValidatedWithoutRequiringMountedVolumes", { try $0.testLayoutPathsAreValidatedWithoutRequiringMountedVolumes() }),
+    ("testLayoutNamePathAndFilterByteBoundaries", { try $0.testLayoutNamePathAndFilterByteBoundaries() }),
+    ("testLayoutFilterValidationRejectsInvalidRegexAndNulls", { try $0.testLayoutFilterValidationRejectsInvalidRegexAndNulls() }),
+    ("testLayoutRejectsInvalidViewSnapshots", { try $0.testLayoutRejectsInvalidViewSnapshots() }),
+    ("testLayoutLibraryRejectsCorruptFutureAndWrongTypes", { try $0.testLayoutLibraryRejectsCorruptFutureAndWrongTypes() }),
+    ("testLayoutLibraryRejectsOversizedDocumentsBeforeDecode", { try $0.testLayoutLibraryRejectsOversizedDocumentsBeforeDecode() }),
+    ("testWorkspaceLayoutVersionRatioAndVisibility", { try $0.testWorkspaceLayoutVersionRatioAndVisibility() }),
+    ("testWorkspaceFrameRejectsNonfiniteAndExcessiveCoordinates", { try $0.testWorkspaceFrameRejectsNonfiniteAndExcessiveCoordinates() }),
+    ("testWorkspaceFrameFitsWhenSavedDisplayIsDisconnected", { try $0.testWorkspaceFrameFitsWhenSavedDisplayIsDisconnected() }),
+    ("testWorkspaceFrameChoosesLargestVisibleScreenIntersection", { try $0.testWorkspaceFrameChoosesLargestVisibleScreenIntersection() }),
+    ("testLegacyTabGroupLocksMigrateAndCustomModesRoundTrip", { try $0.testLegacyTabGroupLocksMigrateAndCustomModesRoundTrip() }),
+    ("testTabLockModesDecodeStrictlyAndProtectClosing", { try $0.testTabLockModesDecodeStrictlyAndProtectClosing() }),
     ("testTabGroupRoundTripPreservesBothPanesAndTabState", { try $0.testTabGroupRoundTripPreservesBothPanesAndTabState() }),
     ("testTabGroupPutNormalizesNamesAndRejectsUnicodeDuplicates", { try $0.testTabGroupPutNormalizesNamesAndRejectsUnicodeDuplicates() }),
     ("testTabGroupPutUpdatesInPlaceAndMovesSafely", { try $0.testTabGroupPutUpdatesInPlaceAndMovesSafely() }),

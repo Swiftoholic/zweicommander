@@ -3,6 +3,7 @@ import CommanderCore
 
 struct TabSessionState: Equatable {
     let id:UUID,path:String,title:String?,locked:Bool,view:FolderViewSettings?,kind:String
+    let lockMode:TabLockMode,filter:String,filterRegex:Bool
 }
 struct TabGroupContext: Equatable {
     let left:[TabSessionState],right:[TabSessionState]

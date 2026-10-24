@@ -5,9 +5,11 @@ public struct TabGroupFolder: Codable, Equatable {
     public var title: String?
     public var locked: Bool
     public var view: FolderViewSettings?
+    public var lockMode: TabLockMode?
+    public var effectiveLockMode:TabLockMode { lockMode ?? (locked ? .newTab : .none) }
 
-    public init(path: String, title: String? = nil, locked: Bool = false, view: FolderViewSettings? = nil) {
-        self.path = path;self.title = title;self.locked = locked;self.view = view
+    public init(path: String, title: String? = nil, locked: Bool = false, view: FolderViewSettings? = nil,lockMode:TabLockMode? = nil) {
+        self.path = path;self.title = title;self.locked = locked;self.view = view;self.lockMode = lockMode
     }
 }
 
@@ -104,6 +106,7 @@ public struct TabGroupLibrary: Codable, Equatable {
             throw CommanderError.message("Jede Seite benötigt 1 bis 100 Ordner und einen gültigen ausgewählten Tab.")
         }
         for folder in pane.folders {
+            guard folder.lockMode == nil || folder.locked == folder.effectiveLockMode.preventsClosing else { throw CommanderError.message("Tabsperre und Sperrart widersprechen sich.") }
             let path = folder.path
             guard path.hasPrefix("/"),path.utf8.count <= maximumPathBytes,!path.contains("\0") else {
                 throw CommanderError.message("Ein vollständiger lokaler Ordnerpfad bis 16.384 UTF-8-Bytes wird benötigt.")

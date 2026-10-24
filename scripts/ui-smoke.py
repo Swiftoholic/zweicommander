@@ -200,7 +200,12 @@ def fixtures(base):
     for name in ("Links/A", "Links/B", "Rechts"):
         (tabs / name).mkdir(parents=True)
     write(tabs, "Links/notiz.txt", "synthetic tab fixture\n")
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs
+    layout = base / "layout"
+    for name in ("Links/A", "Links/B", "Rechts"):
+        (layout / name).mkdir(parents=True)
+    for name, contents in [("Links/A/Plan.txt", "text\n"), ("Links/A/Plan.md", "markdown\n"), ("Links/B/Notes.md", "note\n"), ("Links/B/skip.bin", "skip\n"), ("Rechts/Lesen.txt", "right\n")]:
+        write(layout, name, contents)
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout
 
 
 def main():
@@ -266,9 +271,11 @@ def main():
             ("selection", "--selection-smoke", roots[18], str(prefix), "SELECTION UI PASS ", "SELECTION SMOKE PASS 90 checks", 90),
             ("tabs-save", "--tabs-smoke", roots[19], str(prefix), "TABS UI PASS ", "TABS SMOKE PASS 56 checks", 56),
             ("tabs-reload", "--tabs-smoke", roots[19], str(prefix), "TABS UI PASS ", "TABS SMOKE PASS 9 checks", 9),
+            ("layout-save", "--layout-smoke", roots[20], str(prefix), "LAYOUT UI PASS ", "LAYOUT SMOKE PASS 62 checks", 62),
+            ("layout-reload", "--layout-smoke", roots[20], str(prefix), "LAYOUT UI PASS ", "LAYOUT SMOKE PASS 15 checks", 15),
         ]
         if args.skip_foreground:
-            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload"}
+            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload"}
             skipped = [case for case in cases if case[0] in foreground]
             cases = [case for case in cases if case[0] not in foreground]
             print("Ausgelassen: " + ", ".join(case[0] for case in skipped) + " · " + str(sum(case[-1] for case in skipped)) + " Vordergrundprüfungen offen", flush=True)
@@ -282,6 +289,7 @@ def main():
         ux_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         remote_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         tabs_suite = "local.zweicommander.tests." + str(uuid.uuid4())
+        layout_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         remote_server = None
         pane_server = None
         try:
@@ -305,6 +313,10 @@ def main():
                         if not (root / "Server/port.txt").is_file():
                             raise SystemExit("Lokaler Remote-Testserver konnte nicht gestartet werden")
                     command += [name.removeprefix("remote-"), "--remote-test-suite", remote_suite]
+                if name.startswith("layout-"):
+                    command += ["--layout-test-suite", layout_suite]
+                    if name == "layout-reload":
+                        command += ["--reload-layout"]
                 if name.startswith("tabs-"):
                     command += ["--tabs-test-suite", tabs_suite]
                     if name == "tabs-reload":
@@ -351,7 +363,7 @@ def main():
                     command += ["--wait-for-foreground"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
-                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180 if name == "navigation" and args.interactive else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
+                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180 if name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
                     except subprocess.TimeoutExpired:
                         raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
                 output = (args.results / (name + ".log")).read_text(encoding="utf-8")
@@ -382,6 +394,7 @@ def main():
                 except subprocess.TimeoutExpired:
                     remote_server.kill()
                     remote_server.wait()
+            subprocess.run(["defaults", "delete", layout_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", tabs_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", remote_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

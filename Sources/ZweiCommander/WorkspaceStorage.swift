@@ -45,6 +45,7 @@ extension PaneView {
     }
     func initializeView() { defaultView = viewSettings;restoreTabView() }
     func restoreTabView() {
+        filterField.stringValue = tab.filter;filterRegex.state = tab.filterRegex ? .on : .off
         var settings = tab.view ?? defaultView ?? FolderViewSettings()
         if !tab.sessionViewPinned,remote == nil && tab.collection == nil && tab.archiveRoot == nil,
            let rule = (try? Preferences.workspaceLibrary())?.view(for:currentURL) { settings = rule.settings }

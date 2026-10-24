@@ -136,7 +136,8 @@ final class TextWindow: NSWindowController, NSWindowDelegate {
 
 struct SavedTab: Codable {
     var path: String;var title: String?;var locked: Bool;var view: FolderViewSettings?;var selected: Bool?
-    enum CodingKeys: String,CodingKey { case path,title,locked,view,selected }
+    var lockMode:TabLockMode? = nil;var filter:String? = nil;var filterRegex:Bool? = nil
+    enum CodingKeys: String,CodingKey { case path,title,locked,view,selected,lockMode,filter,filterRegex }
 }
 extension SavedTab {
     init(from decoder: Decoder) throws {
@@ -145,6 +146,10 @@ extension SavedTab {
         view = try? values.decode(FolderViewSettings.self,forKey:.view)
         if let value = view,(try? value.validate()) == nil { view = nil }
         selected = try? values.decode(Bool.self,forKey:.selected)
+        lockMode = try? values.decode(TabLockMode.self,forKey:.lockMode)
+        filter = try? values.decode(String.self,forKey:.filter)
+        if let value = filter,value.utf8.count > 4096 || value.contains("\0") { filter = nil }
+        filterRegex = try? values.decode(Bool.self,forKey:.filterRegex)
     }
 }
 struct SavedState: Codable {

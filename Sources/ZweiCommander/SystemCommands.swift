@@ -57,7 +57,7 @@ extension MainWindow {
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.21.0
+        ZWEICOMMANDER · Version 0.22.0
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -82,6 +82,11 @@ extension MainWindow {
         Cmd+Option+A wählt Dateien, Cmd+Option+Shift+A wählt alles ab. Cmd+Option+E beziehungsweise N ergänzt gleiche Endungen beziehungsweise Stammnamen; zusätzlich Shift entfernt diese Treffer. Cmd+Option+S merkt die Auswahl für den aktuellen Tab und Ordner, Cmd+Option+R stellt noch sichtbare Markierungen wieder her. Der Merkspeicher gilt bis zum Schließen des Tabs oder Beenden der App.
         „Auswahl in Datei speichern …“ schreibt ausdrücklich markierte Adressen als JSON. „Auswahl aus Datei laden …“ markiert passende sichtbare Einträge. Eine Datei ohne passende Adressen erhält die bestehende Auswahl; eine ausdrücklich leere Auswahldatei hebt die Markierung auf. Grenzen: 10.000 Einträge und 2 MiB. Die Datei enthält Pfade; daher nur bewusst weitergeben.
         Unter „Bearbeiten“ und im Kontextmenü „Text kopieren“ stehen Namen, Namen ohne Endung, vollständige Pfade, Datei-URLs, Shell-Argumente und eine Tabelle bereit. Cmd+Option+C kopiert Namen, zusätzlich Shift Namen ohne Endung. Cmd+Shift+C kopiert Pfade oder ohne Auswahl die Ordneradresse. Shell-Argumente sind für lokale Dateien einfach quotiert; die Kopie führt nichts aus. Tabellen verwenden Tabulatoren, Byte-Größen und ISO-Datum; Tabulatoren, Zeilenumbrüche und Backslashes in Namen werden sichtbar maskiert. Serveradressen enthalten keine Zugangsdaten. Das normale Cmd+C/X/V bleibt die Dateizwischenablage.
+
+        ARBEITSBEREICHE UND SPERRARTEN
+        Cmd+Option+L verwaltet vollständige Arbeitsbereiche. Lokale Ordnertabs, Namen, Reihenfolge, aktive Tabs, Ansichten, Spalten, Sortierung, Filter und Sperren werden mit Fensteranordnung, Teilungsverhältnis, Einzelansicht, aktiver Seite, Schnellansicht, verknüpftem Navigieren und Fensterposition gespeichert. Die ersten neun Listenplätze öffnen sich mit Cmd+Ctrl+1 bis 9; deren Befehle workspace1 bis workspace9 sind frei belegbar. Bis zu 50 Profile, je 100 Ordner pro Seite und 4 MiB. Server, Archive, Sammlungen und Datei-Markierungen werden nicht gespeichert.
+        Beim Ersetzen bleiben gesperrte Tabs und Spezialansichten offen. Passende gesperrte Tabs werden wiederverwendet und behalten ihre Sperrart. Nicht verfügbare Ordner bleiben als Tabs erhalten. Fenster von getrennten Monitoren werden auf einen verfügbaren Bildschirm zurückgeholt. Im Verwaltungsfenster: Cmd+L Name, Cmd+R neu prüfen, Cmd+Enter öffnen und Escape schließen. Änderungen an Tabs oder Layout erfordern eine neue Vorschau. Beschädigte oder neuere Daten werden nicht überschrieben.
+        Im Tabmenü: Nur Schließen verhindern erlaubt Ordnerwechsel; Ordner festhalten blockiert sie; Ordnerwechsel in neuem Tab erhält den alten Tab und öffnet Ziele daneben. Ein expliziter neuer Tab bleibt möglich. Alte Sperren entsprechen Ordnerwechsel in neuem Tab. Filter werden je Tab gemerkt, beim Ordnerwechsel aufgehoben und mit normalen lokalen Tabs nach Neustart wiederhergestellt. Die letzte Anordnung wird ebenfalls lokal gemerkt.
 
         TABGRUPPEN UND ORDNER
         Cmd+Option+G öffnet Tabgruppen. Beide Seiten werden mit Ordnern, Reihenfolge, gewähltem Tab, Namen, Sperren und Ansichten gespeichert. Server-, Archiv- und Sammlungstabs bleiben sitzungsbezogen. Standardmäßig werden neue Tabs ergänzt. „Ungesperrte Ordnertabs ersetzen“ lässt gesperrte Tabs und Spezialansichten offen. Nicht verfügbare Ordner stehen in der Vorschau; mindestens ein verfügbarer Ordner je Seite ist nötig. Geänderte Gruppen oder Tabs erfordern eine erneute Prüfung. Im Gruppenfenster: Cmd+L Name, Cmd+R neu prüfen, Cmd+Enter öffnen, Escape schließen.
