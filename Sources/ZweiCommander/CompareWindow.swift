@@ -60,7 +60,7 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
         reviewButton.frame = NSRect(x:973,y:60,width:185,height:30);reviewButton.autoresizingMask = [.minXMargin];root.addSubview(reviewButton)
         reportButton.frame = NSRect(x:1033,y:18,width:125,height:28);reportButton.autoresizingMask = [.minXMargin];root.addSubview(reportButton)
         fileCompare.frame = NSRect(x:804,y:17,width:215,height:30);fileCompare.autoresizingMask = [.minXMargin];root.addSubview(fileCompare)
-        fileCompare.perform = { [weak self] in self?.compareSelectedFiles() };fileCompare.setHelp("Dateien vergleichen","Die beiden regulären Dateien der ausgewählten Zeile schreibgeschützt gegenüberstellen.",shortcut:"⌘⌥V")
+        fileCompare.perform = { [weak self] in self?.compareSelectedFiles() };refreshFileCompareHelp()
         progress.frame = NSRect(x:22,y:25,width:760,height:12);progress.autoresizingMask = [.width];progress.style = .bar;progress.isIndeterminate = true;progress.isHidden = true;root.addSubview(progress)
         leftPath.stringValue = left.path;rightPath.stringValue = right.path
         chooseLeft.perform = { [weak self] in self?.pickRoot(true) };chooseRight.perform = { [weak self] in self?.pickRoot(false) }
@@ -78,6 +78,7 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
         refreshProfiles();updateActions();cancelButton.isEnabled = false;reportButton.isEnabled = false;w.center()
     }
     required init?(coder: NSCoder) { fatalError() }
+    func refreshFileCompareHelp() { CommandHelp.apply(fileCompare,id:"fileCompare",title:"Dateien vergleichen",context:"Die beiden regulären Dateien der ausgewählten Zeile schreibgeschützt gegenüberstellen.") }
     deinit { token.cancel();delayed?.cancel();if let observer { NotificationCenter.default.removeObserver(observer) } }
     func options() throws -> CompareOptions {
         var value = CompareOptions();value.mode = ComparisonMode.allCases[mode.indexOfSelectedItem];value.strategy = SyncStrategy.allCases[strategy.indexOfSelectedItem]

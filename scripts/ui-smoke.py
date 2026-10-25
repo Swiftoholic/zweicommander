@@ -226,7 +226,11 @@ def fixtures(base):
         name = f"item-{number:04d}.txt"
         write(archive_merge, "Many/Incoming/" + name, "new\n")
         write(archive_merge, "BulkTarget/" + name, "old\n")
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive, archive_merge
+    file_diff, advanced_search, viewer, tools_integration = (base / name for name in ("file-diff", "advanced-search", "viewer", "tools-integration"))
+    for target in (file_diff, advanced_search, viewer, tools_integration):
+        for side in ("Links", "Rechts"):
+            (target / side).mkdir(parents=True)
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive, archive_merge, file_diff, advanced_search, viewer, tools_integration
 
 
 def main():
@@ -308,6 +312,7 @@ def main():
         rename_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         search_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         compare_suite = "local.zweicommander.tests." + str(uuid.uuid4())
+        advanced_search_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         appearance_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         ux_suite = "local.zweicommander.tests." + str(uuid.uuid4())
         remote_suite = "local.zweicommander.tests." + str(uuid.uuid4())
@@ -378,6 +383,8 @@ def main():
                     command += ["--search-test-suite", search_suite]
                     if name == "search-reload":
                         command += ["--reload-search"]
+                if name == "advanced-search":
+                    command += ["--search-test-suite", advanced_search_suite]
                 if name.startswith("compare-"):
                     command += ["--compare-test-suite", compare_suite]
                     if name == "compare-reload":
@@ -425,6 +432,7 @@ def main():
             subprocess.run(["defaults", "delete", workspace_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", rename_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", search_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["defaults", "delete", advanced_search_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", compare_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", appearance_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["defaults", "delete", ux_suite], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

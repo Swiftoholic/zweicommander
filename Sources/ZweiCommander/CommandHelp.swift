@@ -18,6 +18,7 @@ enum CommandHelp {
         "icons":"Dateien als Symbolraster anzeigen.",
         "search":"Dateinamen und Inhalte suchen; Suchort und Regeln im Suchfenster festlegen.",
         "compare":"Beide Ordner gegenüberstellen und gewählte Unterschiede vor dem Kopieren prüfen.",
+        "fileCompare":"Zwei lokale Dateien als Text oder Binärdaten mit sichtbaren Unterschieden vergleichen. Zwei Dateien auf einer Seite oder je eine pro Seite auswählen.",
         "rename":"Den ausgewählten Namen direkt bearbeiten. Enter übernimmt, Escape verwirft.",
         "batchRename":"Mehrere Dateien mit einer Livevorschau der neuen Namen umbenennen.",
         "quickView":"Die Vorschau neben den Dateifenstern ein- oder ausblenden.",
@@ -72,8 +73,7 @@ enum CommandHelp {
     ]
     static func menuHelp(_ id:String) -> String? { (details[id] ?? (id.hasPrefix("workspace") ? "Gespeicherten Arbeitsbereich dieses Listenplatzes öffnen. Die Belegung kann in den Einstellungen geändert werden." : nil)).map { $0+(shortcut(id).isEmpty ? "" : "\n"+shortcut(id)) } }
     static func shortcut(_ id:String) -> String {
-        let fallback = AppDelegate.menuDefinitions.flatMap { $0.1 }.first { $0.1 == id }?.2 ?? ""
-        var value = (Preferences.state.shortcuts[id] ?? fallback).lowercased()
+        var value = AppDelegate.resolvedShortcut(id).lowercased()
         if value == "space" { return "Leertaste" }
         for (word,symbol) in [("cmd+","⌘"),("shift+","⇧"),("option+","⌥"),("alt+","⌥"),("control+","⌃"),("ctrl+","⌃"),("left","←"),("right","→"),("up","↑"),("down","↓"),("return","↩"),("tab","⇥")] { value = value.replacingOccurrences(of:word,with:symbol) }
         return value.uppercased()

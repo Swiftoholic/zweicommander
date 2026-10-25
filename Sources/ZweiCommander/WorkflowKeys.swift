@@ -41,7 +41,10 @@ final class WorkflowWindow: NSWindow {
 }
 
 extension MainWindow {
-    var keyWorkflowWindow: WorkflowWindow? { (NSApp.keyWindow?.sheetParent ?? NSApp.keyWindow) as? WorkflowWindow }
+    var keyWorkflowWindow: WorkflowWindow? {
+        if let workflow = NSApp.keyWindow as? WorkflowWindow { return workflow }
+        return NSApp.keyWindow?.sheetParent as? WorkflowWindow
+    }
 }
 
 extension TransferSetupController {

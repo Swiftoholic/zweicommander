@@ -415,7 +415,14 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     }
     func refresh() { left.refresh(); right.refresh(); refreshLocations() }
     func showText(_ title:String,_ text:String) { let w = TextWindow(title:title,text:text); secondaryWindows.append(w); w.showWindow(nil) }
-    func preview(_ urls:[URL]) { guard let url = urls.first else { NSSound.beep(); return };if archiveSession(for:url) != nil { openArchiveMember(url,preview:true);return };guard url.isFileURL else { content.status.stringValue = "Serverdatei zuerst in einen lokalen Ordner herunterladen.";return };let w = PreviewController(url); secondaryWindows.append(w); w.showWindow(nil) }
+    func preview(_ urls:[URL],navigation:[URL]? = nil) {
+        guard let url = urls.first else { NSSound.beep();return }
+        if archiveSession(for:url) != nil { openArchiveMember(url,preview:true);return }
+        guard url.isFileURL else { content.status.stringValue = "Serverdatei zuerst in einen lokalen Ordner herunterladen.";return }
+        let listed = active.archive == nil && active.remote == nil ? active.visibleEntries.filter { $0.isRegularFile && !$0.isSymbolicLink }.map(\.url) : []
+        let candidates = navigation ?? (listed.contains(url) ? listed : [])
+        let controller = PreviewController(url,files:candidates);secondaryWindows.append(controller);controller.showWindow(nil)
+    }
     func requireSelection() -> [URL]? { let urls = active.selectedURLs; if urls.isEmpty { NSSound.beep(); return nil }; return urls }
     func ensureWritable(_ pane:PaneView) -> Bool {
         guard pane.remote == nil else { content.status.stringValue = "Diese Funktion benötigt einen lokalen Ordner.";return false }

@@ -117,7 +117,7 @@ extension AppDelegate {
                 if let row = comparison.visibleRows.firstIndex(where:{$0.relativePath == "OnlyLeft.txt"}) { comparison.table.selectRowIndexes(IndexSet(integer:row),byExtendingSelection:false);check(!comparison.fileCompare.isEnabled,"one-sided folder results cannot start a two-file diff") } else { check(false,"one-sided folder result") }
                 comparison.close();await activate(window)
                 main.left.showCollection([alphaLeft,betaLeft],title:"Diff-Sammlung");await wait("collection") { !main.left.isLoading && main.left.visibleEntries.count == 2 };select(main.left,["Alpha.txt","Beta.txt"])
-                check(!self.validateMenuItem(menu),"collection tabs do not masquerade as a local pane comparison source");main.left.closeTab()
+                check(self.validateMenuItem(menu),"local collection references can be compared without changing their files");main.left.closeTab()
                 check(try Data(contentsOf:alphaLeft) == alphaA && Data(contentsOf:alphaRight) == alphaB,"all comparison actions preserve source contents")
                 check(NSPasteboard.general.changeCount == clipboard,"file comparison checks leave the user's clipboard untouched")
             } catch { check(false,"unexpected error: "+error.localizedDescription) }

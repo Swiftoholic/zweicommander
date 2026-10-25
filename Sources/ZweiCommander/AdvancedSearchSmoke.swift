@@ -54,7 +54,7 @@ extension AppDelegate {
                 check(Set(controller.allHits.map(\.name)) == ["A.txt","C.txt"],"depth zero searches direct entries in each root")
                 controller.table.selectAll(nil);var compared:(URL,URL)?;controller.onFileCompare = { compared = ($0,$1) }
                 check(controller.compareButton.isEnabled && controller.canPerformCommand("fileCompare"),"two regular local results enable file comparison")
-                await activate(window);check(window.performKeyEquivalent(with:key(window,"d",[.command,.option])) && compared != nil,"comparison keyboard action uses the two selected results")
+                await activate(window);check(window.performKeyEquivalent(with:key(window,"v",[.command,.option])) && compared != nil,"comparison keyboard action uses the two selected results")
                 controller.content.stringValue = "[";controller.beginSearch()
                 check(!controller.isSearching && controller.info.textColor == .systemRed && controller.allHits.count == 2,"invalid regex preserves earlier results with inline error")
                 check(window.performKeyEquivalent(with:key(window,"3",.command)) && !controller.encoding.isEnabled && controller.office.state == .off,"Command 3 selects raw hex and excludes text conversion")

@@ -11,7 +11,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         ("Gehe zu",[("Pfad eingeben","path","cmd+l"),("Übergeordneter Ordner","parent","cmd+up"),("Zurück","back","cmd+["),("Vorwärts","forward","cmd+]"),("Benutzerordner","home","cmd+shift+h"),("Im Finder zeigen","reveal","cmd+shift+r"),("Favorit hinzufügen/entfernen","favorite","cmd+d"),("Favoriten bearbeiten …","editFavorites",""),("Terminal öffnen","terminal","cmd+shift+p"),("Mit Netzwerkvolume verbinden …","connect","cmd+k"),("Serververbindungen …","remote","cmd+shift+k"),("SFTP im Terminal …","sftp","")]),
         ("Tabs",[("Neuer Tab","newTab","cmd+t"),("Tab duplizieren","duplicateTab",""),("Tab auf andere Seite kopieren","copyTabToOther","cmd+option+u"),("Geschlossenen Tab wieder öffnen","reopenTab","cmd+option+z"),("Zuletzt verwendeter Tab","lastTab","ctrl+tab"),("Tabgruppen …","tabGroups","cmd+option+g"),("Tab schließen","closeTab","cmd+w"),("Andere Tabs schließen","closeOtherTabs",""),("Nächster Tab","nextTab","cmd+option+right"),("Vorheriger Tab","previousTab","cmd+option+left"),("Nach links verschieben","moveTabLeft",""),("Nach rechts verschieben","moveTabRight",""),("Tab sperren/entsperren","lockTab",""),("Tabsperre aufheben","tabUnlock",""),("Nur Schließen verhindern","tabCloseLock",""),("Ordner festhalten","tabFixedLock",""),("Ordnerwechsel in neuem Tab","tabNewLock",""),("Tab benennen …","nameTab",""),("Leere Dateisammlung","newCollection",""),("Aus Sammlung entfernen","removeCollectionItem",""),("Auswahl als Dateisammlung","collection",""),("Dateisammlung speichern …","saveCollection",""),("Dateisammlung öffnen …","loadCollection","")]),
         ("Arbeitsbereiche",[("Arbeitsbereiche verwalten …","workspaces","cmd+option+l")]+(1...9).map { ("Arbeitsbereich \($0)","workspace\($0)","cmd+ctrl+\($0)") }),
-        ("Werkzeuge",[("Dateien suchen …","search","cmd+f"),("Duplikate suchen …","duplicates",""),("Ordner vergleichen / synchronisieren …","compare","cmd+shift+d"),("Ordnergröße berechnen","folderSize",""),("Prüfsummen berechnen …","hash",""),("Prüfsummenliste prüfen …","verifyHash",""),("Datei teilen …","split",""),("Teileliste zusammenfügen …","join",""),("Dateiliste exportieren …","export",""),("Shell-Befehl …","shell",""),("Vorgangsprotokoll","log","")]),
+        ("Werkzeuge",[("Dateien suchen …","search","cmd+f"),("Duplikate suchen …","duplicates",""),("Ordner vergleichen / synchronisieren …","compare","cmd+shift+d"),("Dateien vergleichen …","fileCompare","cmd+option+v"),("Ordnergröße berechnen","folderSize",""),("Prüfsummen berechnen …","hash",""),("Prüfsummenliste prüfen …","verifyHash",""),("Datei teilen …","split",""),("Teileliste zusammenfügen …","join",""),("Dateiliste exportieren …","export",""),("Shell-Befehl …","shell",""),("Vorgangsprotokoll","log","")]),
         ("Aufträge",[("Warteschlange anzeigen","operations","cmd+shift+j"),("Sicherungen und Teilkopien …","recovery","cmd+option+j"),("—","",""),("Pause / Fortsetzen","pauseTransfers","cmd+option+p"),("Laufenden Auftrag abbrechen","stopTransfers","cmd+option+.")]),
         ("Hilfe",[("Bedienung und Funktionsstand","help","F1"),("INI-Einstellungen importieren …","importSettings",""),("Importierte Einstellungen anzeigen","importReport",""),("Einstellungen vor dem Import wiederherstellen","restoreImport","")])
     ]
@@ -40,8 +40,12 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let layoutSmoke = args.firstIndex(of:"--layout-smoke")
         let archiveSmoke = args.firstIndex(of:"--archive-smoke")
         let archiveMergeSmoke = args.firstIndex(of:"--archive-merge-smoke")
+        let fileDiffSmoke = args.firstIndex(of:"--file-diff-smoke")
+        let advancedSearchSmoke = args.firstIndex(of:"--advanced-search-smoke")
+        let viewerSmoke = args.firstIndex(of:"--viewer-smoke")
+        let toolsIntegrationSmoke = args.firstIndex(of:"--tools-integration-smoke")
         let compareSmoke = args.firstIndex(of:"--compare-smoke")
-        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke,serverPaneSmoke,selectionSmoke,tabsSmoke,layoutSmoke,archiveSmoke,archiveMergeSmoke].compactMap { $0 }.first
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke,serverPaneSmoke,selectionSmoke,tabsSmoke,layoutSmoke,archiveSmoke,archiveMergeSmoke,fileDiffSmoke,advancedSearchSmoke,viewerSmoke,toolsIntegrationSmoke].compactMap { $0 }.first
         Preferences.testMode = testIndex != nil
         if Preferences.testMode { setvbuf(stdout,nil,_IOLBF,0) }
         if Preferences.testMode { Preferences.state = SavedState() }
@@ -61,7 +65,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if renameSmoke != nil,let index = args.firstIndex(of:"--rename-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
             Preferences.renameTestDefaults = UserDefaults(suiteName:args[index+1])
         }
-        if searchSmoke != nil,let index = args.firstIndex(of:"--search-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
+        if searchSmoke != nil || advancedSearchSmoke != nil,let index = args.firstIndex(of:"--search-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
             Preferences.searchTestDefaults = UserDefaults(suiteName:args[index+1])
         }
         if compareSmoke != nil,let index = args.firstIndex(of:"--compare-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
@@ -92,6 +96,18 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         main.onRebuildMenus = { [weak self] in self?.buildMenus(); self?.main.updateFunctionLabels() }
         buildMenus(); main.showWindow(nil); main.active.focus()
         NSApp.activate(ignoringOtherApps:true)
+        if let toolsIntegrationSmoke,args.indices.contains(toolsIntegrationSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runToolsIntegrationSmoke(root:root,prefix:args[toolsIntegrationSmoke+2]) }
+        }
+        if let fileDiffSmoke,args.indices.contains(fileDiffSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runFileDiffSmoke(root:root,prefix:args[fileDiffSmoke+2]) }
+        }
+        if let advancedSearchSmoke,args.indices.contains(advancedSearchSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runAdvancedSearchSmoke(root:root,prefix:args[advancedSearchSmoke+2]) }
+        }
+        if let viewerSmoke,args.indices.contains(viewerSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runViewerSmoke(root:root,prefix:args[viewerSmoke+2]) }
+        }
         if let archiveMergeSmoke,args.indices.contains(archiveMergeSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runArchiveMergeSmoke(root:root,prefix:args[archiveMergeSmoke+2]) }
         }
@@ -214,13 +230,24 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         func signature(_ text:String) -> String? { parseShortcut(text).map { $0.0+":"+String($0.1.rawValue) } }
         var assigned = Set(["cmd+q","cmd+h","cmd+m","cmd+,"].compactMap(signature))
         for (_,commands) in menuDefinitions {
-            for (title,id,fallback) in commands where !id.isEmpty {
-                let key = keys[id] ?? fallback
+            for (title,id,_) in commands where !id.isEmpty {
+                let key = resolvedShortcut(id,overrides:keys)
                 if key.isEmpty { continue }
                 guard let normalized = signature(key),assigned.insert(normalized).inserted else { throw CommanderError.message("Tastenkürzel doppelt belegt: \(key) bei „\(title)“.") }
             }
         }
         return keys
+    }
+    static func resolvedShortcut(_ id:String,overrides:[String:String]? = nil) -> String {
+        let values = overrides ?? Preferences.state.shortcuts
+        if let explicit = values[id] { return explicit }
+        let fallback = menuDefinitions.flatMap { $0.1 }.first { $0.1 == id }?.2 ?? ""
+        // New defaults must not displace a previously configured command.
+        if id == "fileCompare",let proposed = parseShortcut(fallback),values.contains(where:{ key,value in
+            guard key != id,!value.isEmpty,let occupied = parseShortcut(value) else { return false }
+            return proposed.0 == occupied.0 && proposed.1 == occupied.1
+        }) { return "" }
+        return fallback
     }
     func buildMenus() {
         let profiles = (try? Preferences.layouts().profiles) ?? []
@@ -233,9 +260,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         appMenu.addItem(withTitle:"ZweiCommander beenden",action:#selector(NSApplication.terminate(_:)),keyEquivalent:"q")
         for (title,commands) in Self.menuDefinitions {
             let menu = NSMenu(title:title), top = NSMenuItem(title:title,action:nil,keyEquivalent:""); top.submenu = menu; bar.addItem(top)
-            for (label,id,defaultKey) in commands {
+            for (label,id,_) in commands {
                 if id.isEmpty { menu.addItem(.separator()); continue }
-                let key = Preferences.state.shortcuts[id] ?? defaultKey, parsed = Self.parseShortcut(key) ?? ("",[])
+                let key = Self.resolvedShortcut(id), parsed = Self.parseShortcut(key) ?? ("",[])
                 // AppKit compares shifted letters using their uppercase key equivalent.
                 let shifted = parsed.0.uppercased(),menuKey = parsed.1.contains(.shift) && shifted.count == 1 ? shifted : parsed.0
                 let slot = id.hasPrefix("workspace") ? Int(id.dropFirst(9)) : nil
@@ -247,6 +274,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         windowMenu.addItem(withTitle:"Minimieren",action:#selector(NSWindow.performMiniaturize(_:)),keyEquivalent:"m")
         windowMenu.addItem(withTitle:"Zoom",action:#selector(NSWindow.performZoom(_:)),keyEquivalent:"")
         NSApp.windowsMenu = windowMenu
+        for controller in main?.secondaryWindows ?? [] {
+            (controller as? CompareController)?.refreshFileCompareHelp();(controller as? SearchController)?.refreshFileCompareHelp()
+        }
     }
     @objc func dispatch(_ sender:NSMenuItem) { if let id = sender.representedObject as? String { main.command(id) } }
     func validateMenuItem(_ item:NSMenuItem)->Bool {
@@ -256,6 +286,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if ["operations","recovery"].contains(id) { return true }
         if let compare = main?.keyCompareController { return compare.canPerformCommand(id) }
         if let search = main?.keySearchController { return search.canPerformCommand(id) }
+        if id == "fileCompare" { return NSApp.keyWindow === main?.window && main?.fileComparisonURLs != nil }
         if let enabled = main?.archiveCommandEnabled(id) { return enabled }
         if let enabled = main?.selectionCommandEnabled(id) { return enabled }
         if let mode = ["tabUnlock":TabLockMode.none,"tabCloseLock":.closeOnly,"tabFixedLock":.fixed,"tabNewLock":.newTab][id] { item.state = main?.active.tab.lockMode == mode ? .on : .off }

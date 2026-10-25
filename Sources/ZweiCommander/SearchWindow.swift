@@ -91,14 +91,14 @@ final class SearchController: NSWindowController,NSWindowDelegate,NSTableViewDat
         maximumDepth.setAccessibilityLabel("Maximale Unterordnertiefe");maximumDepth.toolTip = "Leer: unbegrenzt. 0: nur direkte Einträge; 1: zusätzlich eine Unterordnerebene. Gilt jeweils pro Suchort und für interne Archivordner."
         rootsButton.setHelp("Suchorte","Mehrere Suchordner als getrennte Einträge verwalten. Profile enthalten ausschließlich Regeln.",shortcut:"⌘⇧L")
         start.setHelp("Suchen","Die gewählten Suchorte mit einer gemeinsamen Treffergrenze durchsuchen.",shortcut:"⌘↩")
-        compareButton.setHelp("Dateien vergleichen","Genau zwei ausgewählte reguläre lokale Treffer vergleichen.",shortcut:"⌘⌥D")
+        refreshFileCompareHelp()
         w.searchKeys = { [weak self,weak w] event in
             guard let self else { return false }
             if WorkflowKeys.matches(event,"\r",.command) { self.beginSearch();return true }
             if WorkflowKeys.matches(event,"l",.command) { w?.makeFirstResponder(self.rootPath);self.rootPath.selectText(nil);return true }
             if WorkflowKeys.matches(event,"l",[.command,.shift]) { self.editRoots();return true }
             if WorkflowKeys.matches(event,"f",[.command,.option]) { w?.makeFirstResponder(self.content);self.content.selectText(nil);return true }
-            if WorkflowKeys.matches(event,"d",[.command,.option]) { self.compareSelected();return true }
+            if let shortcut = AppDelegate.parseShortcut(AppDelegate.resolvedShortcut("fileCompare")),!shortcut.0.isEmpty,WorkflowKeys.matches(event,shortcut.0,shortcut.1),self.canPerformCommand("fileCompare") { self.compareSelected();return true }
             for index in SearchContentMode.allCases.indices where WorkflowKeys.matches(event,String(index+1),.command) { if !self.isSearching { self.contentMode.selectItem(at:index);self.edited() };return true }
             if WorkflowKeys.matches(event,"\u{1b}") { if self.isSearching { self.cancelSearch() } else { self.close() };return true }
             return false
@@ -106,6 +106,7 @@ final class SearchController: NSWindowController,NSWindowDelegate,NSTableViewDat
         refreshProfiles();updateActions();updateAdvancedControls();stop.isEnabled = false;reportButton.isEnabled = false;w.center()
     }
     required init?(coder: NSCoder) { fatalError() }
+    func refreshFileCompareHelp() { CommandHelp.apply(compareButton,id:"fileCompare",title:"Dateien vergleichen",context:"Genau zwei ausgewählte reguläre lokale Treffer vergleichen.") }
     deinit { token.cancel();if let observer { NotificationCenter.default.removeObserver(observer) } }
     func options() throws -> SearchOptions {
         var value = SearchOptions();value.name = name.stringValue;value.regex = regex.state == .on
@@ -271,7 +272,7 @@ final class SearchController: NSWindowController,NSWindowDelegate,NSTableViewDat
         let hits = selectedHits,files = !hits.isEmpty && hits.allSatisfy { $0.member == nil }
         let editing = NSApp.keyWindow?.firstResponder is NSTextView
         switch id {
-        case "fileCompare": return compareURLs != nil
+        case "fileCompare": return !editing && compareURLs != nil
         case "open","reveal": return hits.count == 1
         case "preview": return files && hits.count == 1
         case "copy","collection": return files

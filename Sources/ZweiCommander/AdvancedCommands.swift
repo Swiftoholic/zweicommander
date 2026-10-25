@@ -11,7 +11,11 @@ extension MainWindow {
             else if FileSystem.isDirectory(hit.url) { pane.navigate(hit.url);self.window?.makeKeyAndOrderFront(nil) }
             else { NSWorkspace.shared.open(hit.url) }
         }
-        controller.onPreview = { [weak self] url in self?.preview([url]) }
+        controller.onPreview = { [weak self,weak controller] url in
+            let files = controller?.visibleHits.filter { $0.member == nil && !$0.isDirectory }.map(\.url)
+            self?.preview([url],navigation:files)
+        }
+        controller.onFileCompare = { [weak self] in self?.showFileComparison($0,$1) }
         controller.onReveal = { [weak self,weak pane] url in
             guard let self,let pane else { return }
             guard FileSystem.exists(url) else { showFailure(CommanderError.message("Der Suchtreffer ist nicht mehr vorhanden."));return }
@@ -41,6 +45,7 @@ extension MainWindow {
         let controller = CompareController(left:left.currentURL,right:right.currentURL),cache = self.cache
         controller.validatePaths = { l,r in guard !FileSystem.isInside(l,cache),!FileSystem.isInside(r,cache) else { throw CommanderError.message("Temporäre Archivordner sind schreibgeschützt.") } }
         controller.onPreview = { [weak self] in self?.preview([$0]) }
+        controller.onFileCompare = { [weak self] in self?.showFileComparison($0,$1) }
         controller.onReveal = { [weak self] url,isLeft in guard let self else { return };(isLeft ? self.left : self.right).reveal(url);self.window?.makeKeyAndOrderFront(nil) }
         controller.onReport = { [weak self] in self?.showText("Synchronisation · Bericht",$0) }
         controller.onCancel = { [weak self] id in self?.jobs.scheduler.cancel(id) }

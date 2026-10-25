@@ -50,6 +50,7 @@ extension MainWindow {
             case "search": search()
             case "duplicates": duplicates()
             case "compare": compare()
+            case "fileCompare": compareSelectedFiles()
             case "pack": pack()
             case "extract": extract()
             case "hash": hashes()
