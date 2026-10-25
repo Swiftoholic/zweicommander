@@ -2,11 +2,14 @@ import Foundation
 
 public enum BinaryInspector {
     public static func describe(_ url: URL) throws -> String? {
-        guard try FileEntry(url: url).isRegularFile else { return nil }
-        let file = try FileHandle(forReadingFrom: url); defer { try? file.close() }
-        let header = BinaryBytes(try file.read(upToCount: 256*1024) ?? Data())
+        let reader = try ViewerFile(url),result = try describe(reader)
+        try reader.validate();return result
+    }
+    private static func describe(_ reader:ViewerFile) throws -> String? {
+        let file = try reader.duplicatedHandle();defer { try? file.close() }
+        let header = BinaryBytes(try reader.read(offset:0,length:256*1024).data)
         guard header.count >= 4 else { return nil }
-        if header.bytes.prefix(2) == [0x4d,0x5a] { return try portableExecutable(header, file: file, fileSize: try FileEntry(url: url).size) }
+        if header.bytes.prefix(2) == [0x4d,0x5a] { return try portableExecutable(header, file: file, fileSize:reader.size) }
         let magic = try header.number(0, count: 4, bigEndian: true)
         if [0xcafebabe,0xcafebabf,0xbebafeca,0xbfbafeca].contains(magic) {
             let big = magic == 0xcafebabe || magic == 0xcafebabf
