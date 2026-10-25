@@ -1,15 +1,25 @@
 import Foundation
 
 public enum BinaryInspector {
-    public static func describe(_ url: URL) throws -> String? {
-        let reader = try ViewerFile(url),result = try describe(reader)
-        try reader.validate();return result
+    public static func describe(_ url:URL,token:CancellationToken = .init(),progress:(Int64)->Void = { _ in }) throws -> String? {
+        try token.check();let reader = try ViewerFile(url),result = try describe(reader,token:token,progress:progress)
+        try token.check();try reader.validate();return result
     }
-    private static func describe(_ reader:ViewerFile) throws -> String? {
-        let file = try reader.duplicatedHandle();defer { try? file.close() }
-        let header = BinaryBytes(try reader.read(offset:0,length:256*1024).data)
+    private static func describe(_ reader:ViewerFile,token:CancellationToken,progress:(Int64)->Void) throws -> String? {
+        var readBytes:Int64 = 0
+        func read(_ offset:Int,_ length:Int) throws -> Data {
+            try token.check();guard offset >= 0,Int64(offset) <= reader.size,length >= 0,length <= 16*1024*1024 else { throw CommanderError.message("Ungültiger Binär-Lesebereich.") }
+            let length = min(length,Int(clamping:reader.size-Int64(offset)));var result = Data();result.reserveCapacity(length)
+            while result.count < length {
+                try token.check();let value = try reader.read(offset:Int64(offset)+Int64(result.count),length:min(64*1024,length-result.count),token:token)
+                guard !value.data.isEmpty else { throw CommanderError.message("Abgeschnittener Binär-Lesebereich.") }
+                result.append(value.data);readBytes += Int64(value.data.count);progress(readBytes);try token.check()
+            }
+            return result
+        }
+        let header = BinaryBytes(try read(0,256*1024));try token.check()
         guard header.count >= 4 else { return nil }
-        if header.bytes.prefix(2) == [0x4d,0x5a] { return try portableExecutable(header, file: file, fileSize:reader.size) }
+        if header.bytes.prefix(2) == [0x4d,0x5a] { return try portableExecutable(header,fileSize:reader.size,token:token,read:read) }
         let magic = try header.number(0, count: 4, bigEndian: true)
         if [0xcafebabe,0xcafebabf,0xbebafeca,0xbfbafeca].contains(magic) {
             let big = magic == 0xcafebabe || magic == 0xcafebabf
@@ -17,7 +27,7 @@ public enum BinaryInspector {
             let count = Int(try header.number(4, count: 4, bigEndian: big))
             guard (1...64).contains(count) else { throw CommanderError.message("Ungültiger Mach-O-Architekturkopf.") }
             var names: [String] = []
-            for i in 0..<count { names.append(cpu(try header.number(8+i*(wide ? 32 : 20), count: 4, bigEndian: big))) }
+            for i in 0..<count { try token.check();names.append(cpu(try header.number(8+i*(wide ? 32 : 20), count: 4, bigEndian: big))) }
             return "Format: Mach-O Universal\nArchitekturen: "+names.joined(separator: ", ")
         }
         if [0xfeedface,0xfeedfacf,0xcefaedfe,0xcffaedfe].contains(magic) {
@@ -33,7 +43,7 @@ public enum BinaryInspector {
         [7: "x86", 12: "ARM", 0x01000007: "x86_64", 0x0100000c: "arm64", 18: "PowerPC", 0x01000012: "PowerPC 64"][type] ?? String(format: "CPU 0x%08llX", type)
     }
     private struct Section { let name: String; let rva: Int; let virtualSize: Int; let offset: Int; let size: Int }
-    private static func portableExecutable(_ h: BinaryBytes, file: FileHandle, fileSize: Int64) throws -> String {
+    private static func portableExecutable(_ h:BinaryBytes,fileSize:Int64,token:CancellationToken,read:(Int,Int)throws->Data) throws -> String {
         let pe = Int(try h.number(0x3c, count: 4))
         guard pe >= 0x40, pe+24 <= h.count else { throw CommanderError.message("PE-Kopf liegt außerhalb des sicheren Lesebereichs.") }
         guard try h.number(pe, count: 4) == 0x4550 else { return "Format: MZ/DOS (kein PE-Kopf)" }
@@ -45,6 +55,7 @@ public enum BinaryInspector {
         var lines = ["Format: Windows PE", "Architektur: \(architecture)", "Art: \(flags & 0x2000 != 0 ? "DLL/Plug-in" : "Programm")"]
         var sections: [Section] = []
         for i in 0..<count {
+            try token.check()
             let offset = pe+24+optionalSize+i*40
             let name = String(bytes: h.bytes[offset..<offset+8].prefix(while: { $0 != 0 }), encoding: .ascii) ?? "?"
             sections.append(Section(name: name, rva: Int(try h.number(offset+12, count: 4)), virtualSize: Int(try h.number(offset+8, count: 4)), offset: Int(try h.number(offset+20, count: 4)), size: Int(try h.number(offset+16, count: 4))))
@@ -61,38 +72,41 @@ public enum BinaryInspector {
             guard optionalSize >= directoryStart-(pe+24)+24 else { return lines.joined(separator: "\n") }
             let resourceRVA = Int(try h.number(directoryStart+16, count: 4)), resourceSize = Int(try h.number(directoryStart+20, count: 4))
             guard resourceRVA != 0, resourceSize >= 16, resourceSize <= 16*1024*1024, let start = diskOffset(resourceRVA, length: resourceSize) else { return lines.joined(separator: "\n") }
-            try file.seek(toOffset: UInt64(start))
-            let resource = BinaryBytes(try file.read(upToCount: resourceSize) ?? Data())
+            let resource = BinaryBytes(try read(start,resourceSize));try token.check()
             func entries(_ offset: Int) throws -> [(UInt64,UInt64)] {
                 let n = Int(try resource.number(offset+12, count: 2) + resource.number(offset+14, count: 2))
                 guard n <= 4096 else { throw CommanderError.message("Zu viele PE-Ressourceneinträge.") }
-                return try (0..<n).map { i in (try resource.number(offset+16+i*8, count: 4), try resource.number(offset+20+i*8, count: 4)) }
+                return try (0..<n).map { i in try token.check();return (try resource.number(offset+16+i*8, count: 4),try resource.number(offset+20+i*8, count: 4)) }
             }
             guard let versionType = try entries(0).first(where: { $0.0 == 16 }), versionType.1 & 0x80000000 != 0 else { return lines.joined(separator: "\n") }
             let versionNames = try entries(Int(versionType.1 & 0x7fffffff))
             var metadata: [String:String] = [:]
             for (_, nameValue) in versionNames.prefix(16) where nameValue & 0x80000000 != 0 {
+                try token.check()
                 for (_, leafValue) in try entries(Int(nameValue & 0x7fffffff)).prefix(16) where leafValue & 0x80000000 == 0 {
+                    try token.check()
                     let leaf = Int(leafValue)
                     let dataRVA = Int(try resource.number(leaf, count: 4)), length = Int(try resource.number(leaf+4, count: 4))
                     guard length > 0, length <= 1024*1024, let position = diskOffset(dataRVA, length: length) else { continue }
-                    try file.seek(toOffset: UInt64(position))
-                    let values = try versionStrings(try file.read(upToCount: length) ?? Data())
+                    let values = try versionStrings(read(position,length),token:token)
                     metadata.merge(values, uniquingKeysWith: { first,_ in first })
                 }
             }
             for (key,title) in [("ProductName","Produkt"),("FileDescription","Beschreibung"),("FileVersion","Dateiversion"),("ProductVersion","Produktversion"),("CompanyName","Hersteller"),("OriginalFilename","Originalname") ] {
                 if let value = metadata[key], !value.isEmpty { lines.append(title+": "+value) }
             }
-        } catch { lines.append("Versionsressource konnte nicht vollständig gelesen werden.") }
+        } catch CommanderError.cancelled { throw CommanderError.cancelled }
+        catch { lines.append("Versionsressource konnte nicht vollständig gelesen werden.") }
+        try token.check()
         return lines.joined(separator: "\n")
     }
-    public static func versionStrings(_ data: Data) throws -> [String:String] {
-        let b = BinaryBytes(data)
+    public static func versionStrings(_ data:Data,token:CancellationToken = .init()) throws -> [String:String] {
+        try token.check();let b = BinaryBytes(data)
         var result: [String:String] = [:], visited = 0
         let wanted: Set<String> = ["ProductName","FileDescription","FileVersion","ProductVersion","CompanyName","OriginalFilename"]
         func aligned(_ value: Int) -> Int { (value+3) & ~3 }
         func block(_ offset: Int, limit: Int, depth: Int) throws {
+            try token.check()
             visited += 1
             guard depth <= 8, visited <= 2000 else { throw CommanderError.message("Ungültige Versionsressource.") }
             let length = Int(try b.number(offset, count: 2)), valueLength = Int(try b.number(offset+2, count: 2)), type = try b.number(offset+4, count: 2)
@@ -100,6 +114,7 @@ public enum BinaryInspector {
             let end = offset+length
             var cursor = offset+6, keyBytes: [UInt8] = []
             while cursor+2 <= end {
+                try token.check()
                 let character = try b.number(cursor, count: 2); cursor += 2
                 if character == 0 { break }
                 guard keyBytes.count <= 512 else { throw CommanderError.message("Zu langer Metadatenschlüssel.") }
@@ -111,10 +126,16 @@ public enum BinaryInspector {
             guard cursor+valueBytes <= end || valueBytes == 0 else { throw CommanderError.message("Ungültige Metadatenlänge.") }
             if wanted.contains(key), type == 1, cursor+valueBytes <= end {
                 let value = String(bytes: b.bytes[cursor..<cursor+valueBytes], encoding: .utf16LittleEndian) ?? ""
-                result[key] = String(value.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }.prefix(1024))
+                var scalars:[UnicodeScalar] = []
+                for (index,scalar) in value.unicodeScalars.enumerated() {
+                    if index%1024 == 0 { try token.check() }
+                    if !CharacterSet.controlCharacters.contains(scalar) { scalars.append(scalar);if scalars.count == 1024 { break } }
+                }
+                result[key] = String(String.UnicodeScalarView(scalars))
             }
             cursor = aligned(cursor+valueBytes)
             while cursor+6 <= end {
+                try token.check()
                 let childLength = Int(try b.number(cursor, count: 2))
                 guard childLength >= 6 else { break }
                 try block(cursor, limit: end, depth: depth+1)
@@ -122,6 +143,7 @@ public enum BinaryInspector {
             }
         }
         try block(0, limit: data.count, depth: 0)
+        try token.check()
         return result
     }
 }
