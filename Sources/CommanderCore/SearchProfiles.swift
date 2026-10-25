@@ -12,11 +12,12 @@ public struct SearchProfileLibrary: Equatable {
     public init(data: Data) throws {
         guard data.count <= 1_048_576 else { throw CommanderError.message("Die Suchprofile sind größer als 1 MiB.") }
         let document = try JSONDecoder().decode(Document.self,from:data)
-        guard document.version == 1 else { throw CommanderError.message("Diese Version der Suchprofile wird nicht unterstützt.") }
+        guard [1,2].contains(document.version) else { throw CommanderError.message("Diese Version der Suchprofile wird nicht unterstützt.") }
+        guard document.version != 1 || !document.profiles.contains(where: { $0.options.usesAdvancedRules }) else { throw CommanderError.message("Erweiterte Suchregeln benötigen Suchprofilversion 2.") }
         try Self.validate(document.profiles);profiles = document.profiles
     }
     public func encoded() throws -> Data {
-        try Self.validate(profiles);let data = try JSONEncoder().encode(Document(version:1,profiles:profiles))
+        try Self.validate(profiles);let data = try JSONEncoder().encode(Document(version:profiles.contains(where: { $0.options.usesAdvancedRules }) ? 2 : 1,profiles:profiles))
         guard data.count <= 1_048_576 else { throw CommanderError.message("Die Suchprofile sind größer als 1 MiB.") };return data
     }
     public func profile(_ id: UUID) -> SearchProfile? { profiles.first { $0.id == id } }

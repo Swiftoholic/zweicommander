@@ -2,6 +2,7 @@ import Foundation
 import Darwin
 
 public enum SearchKind: String, Codable, CaseIterable { case all, files, folders }
+public enum SearchContentMode: String, Codable, CaseIterable { case literal, regularExpression, hex }
 public enum SearchEncoding: String, Codable, CaseIterable { case automatic, utf8, utf16LE, utf16BE, windows1252 }
 public struct SearchOptions: Codable, Equatable {
     public var name = ""
@@ -10,6 +11,10 @@ public struct SearchOptions: Codable, Equatable {
     public var excludedFolders = ""
     public var recursive = true
     public var content = ""
+    public var contentMode: SearchContentMode = .literal
+    public var contentNegated = false
+    /// Folder levels below each selected root; zero includes only direct entries.
+    public var maximumDepth: Int?
     public var caseSensitive = false
     public var wholeWords = false
     public var encoding: SearchEncoding = .automatic
@@ -25,6 +30,24 @@ public struct SearchOptions: Codable, Equatable {
     public var searchOfficeDocuments = false
     public var resultLimit = 10_000
     public init() {}
+    public var usesAdvancedRules: Bool { contentMode != .literal || contentNegated || maximumDepth != nil }
+    private enum CodingKeys: String,CodingKey {
+        case name,regex,excludedNames,excludedFolders,recursive,content,contentMode,contentNegated,maximumDepth,caseSensitive,wholeWords,encoding,showHidden,kind,minimumSize,maximumSize,modifiedAfter,modifiedBefore,modifiedAge,searchArchives,searchOfficeDocuments,resultLimit
+    }
+    public init(from decoder:Decoder) throws {
+        self.init();let c = try decoder.container(keyedBy:CodingKeys.self)
+        name = try c.decodeIfPresent(String.self,forKey:.name) ?? name;regex = try c.decodeIfPresent(Bool.self,forKey:.regex) ?? regex
+        excludedNames = try c.decodeIfPresent(String.self,forKey:.excludedNames) ?? excludedNames;excludedFolders = try c.decodeIfPresent(String.self,forKey:.excludedFolders) ?? excludedFolders
+        recursive = try c.decodeIfPresent(Bool.self,forKey:.recursive) ?? recursive;content = try c.decodeIfPresent(String.self,forKey:.content) ?? content
+        contentMode = try c.decodeIfPresent(SearchContentMode.self,forKey:.contentMode) ?? contentMode;contentNegated = try c.decodeIfPresent(Bool.self,forKey:.contentNegated) ?? contentNegated
+        maximumDepth = try c.decodeIfPresent(Int.self,forKey:.maximumDepth)
+        caseSensitive = try c.decodeIfPresent(Bool.self,forKey:.caseSensitive) ?? caseSensitive;wholeWords = try c.decodeIfPresent(Bool.self,forKey:.wholeWords) ?? wholeWords
+        encoding = try c.decodeIfPresent(SearchEncoding.self,forKey:.encoding) ?? encoding;showHidden = try c.decodeIfPresent(Bool.self,forKey:.showHidden) ?? showHidden
+        kind = try c.decodeIfPresent(SearchKind.self,forKey:.kind) ?? kind;minimumSize = try c.decodeIfPresent(Int64.self,forKey:.minimumSize) ?? minimumSize;maximumSize = try c.decodeIfPresent(Int64.self,forKey:.maximumSize) ?? maximumSize
+        modifiedAfter = try c.decodeIfPresent(Date.self,forKey:.modifiedAfter);modifiedBefore = try c.decodeIfPresent(Date.self,forKey:.modifiedBefore);modifiedAge = try c.decodeIfPresent(TransferAgeRange.self,forKey:.modifiedAge)
+        searchArchives = try c.decodeIfPresent(Bool.self,forKey:.searchArchives) ?? searchArchives;searchOfficeDocuments = try c.decodeIfPresent(Bool.self,forKey:.searchOfficeDocuments) ?? searchOfficeDocuments
+        resultLimit = try c.decodeIfPresent(Int.self,forKey:.resultLimit) ?? resultLimit
+    }
     public func validate() throws { _ = try CompiledSearch(self) }
 }
 
@@ -55,6 +78,7 @@ public struct SearchReport {
     public internal(set) var scanned = 0
     public internal(set) var cancelled = false
     public internal(set) var limitReached = false
+    public internal(set) var scanLimitReached = false
 }
 
 private struct SearchNames {
@@ -68,10 +92,12 @@ private struct SearchNames {
     func matches(_ name: String) -> Bool { filters.contains { $0.matches(name) } }
 }
 private struct CompiledSearch {
-    let options: SearchOptions,names: SearchNames,excluded: TransferPatterns,folders: TransferPatterns,metadata: CompiledTransferFilter
+    let options: SearchOptions,names: SearchNames,excluded: TransferPatterns,folders: TransferPatterns,metadata: CompiledTransferFilter,content: CompiledSearchContent
     init(_ options: SearchOptions,referenceDate: Date = Date()) throws {
+        if let depth = options.maximumDepth { guard (0...1000).contains(depth) else { throw CommanderError.message("Unterordnertiefe: 0 bis 1000 oder unbegrenzt.") } }
         guard (1...50_000).contains(options.resultLimit) else { throw CommanderError.message("Treffergrenze: 1 bis 50.000.") }
         guard options.content.utf8.count <= 4096,!options.content.contains("\0") else { throw CommanderError.message("Suchtext: höchstens 4096 UTF-8-Bytes ohne Nullzeichen.") }
+        content = try CompiledSearchContent(options)
         guard options.content.isEmpty || options.kind != .folders else { throw CommanderError.message("Inhaltssuche ist nur für Dateien möglich.") }
         guard options.kind != .folders || (options.minimumSize == 0 && options.maximumSize == .max) else {
             throw CommanderError.message("Größenfilter gelten für Dateien. Für reine Ordnersuche die Größengrenzen entfernen.")
@@ -96,18 +122,7 @@ private struct CompiledSearch {
         if restricted && !metadata.includesMetadata(size:size,modified:modified,isLink:isLink) { return false }
         return true
     }
-    func range(in text: String) -> Range<String.Index>? {
-        let searchOptions: String.CompareOptions = options.caseSensitive ? [.literal] : [.caseInsensitive,.literal]
-        var start = text.startIndex
-        let word = CharacterSet.alphanumerics.union(.nonBaseCharacters).union(CharacterSet(charactersIn:"_"))
-        func isWord(_ ch: Character) -> Bool { ch.unicodeScalars.contains { word.contains($0) } }
-        while start < text.endIndex,let range = text.range(of:options.content,options:searchOptions,range:start..<text.endIndex) {
-            if !options.wholeWords || ((range.lowerBound == text.startIndex || !isWord(text[text.index(before:range.lowerBound)])) &&
-                (range.upperBound == text.endIndex || !isWord(text[range.upperBound]))) { return range }
-            start = text.index(after:range.lowerBound)
-        }
-        return nil
-    }
+
 }
 
 /// Holds a regular file open without following its final symbolic link. Reads are bounded and
@@ -135,16 +150,30 @@ private final class SearchReader {
             a.st_mtimespec.tv_sec == b.st_mtimespec.tv_sec && a.st_mtimespec.tv_nsec == b.st_mtimespec.tv_nsec &&
             a.st_ctimespec.tv_sec == b.st_ctimespec.tv_sec && a.st_ctimespec.tv_nsec == b.st_ctimespec.tv_nsec
     }
-    func text(encoding: SearchEncoding,token: CancellationToken) throws -> String? {
-        let limit = 32*1024*1024
-        guard before.st_size <= limit else { throw CommanderError.message("Inhaltssuche übersprungen (>32 MiB): \(url.path)") }
+    func hex(_ needle:Data,token:CancellationToken) throws -> Int64? {
+        guard before.st_size <= 32*1024*1024 else { throw CommanderError.message("Hex-Inhaltssuche übersprungen (>32 MiB): \(url.path)") }
+        var buffer = [UInt8](repeating:0,count:64*1024),tail = Data(),offset:Int64 = 0,total = 0
+        while true {
+            try token.check();let count = Darwin.read(fd,&buffer,buffer.count)
+            if count < 0 && errno == EINTR { continue }
+            guard count >= 0 else { throw CommanderError.message("Datei konnte nicht gelesen werden: "+url.path) }
+            if count == 0 { break };total += count
+            guard total <= 32*1024*1024 else { throw CommanderError.message("Datei ist während der Hexsuche über 32 MiB gewachsen.") }
+            var data = tail;data.append(contentsOf:buffer.prefix(count))
+            if let range = data.range(of:needle) { try verify();try token.check();return offset-Int64(tail.count)+Int64(range.lowerBound) }
+            tail = Data(data.suffix(max(0,needle.count-1)));offset += Int64(count)
+        }
+        try verify();try token.check();return nil
+    }
+    func text(encoding: SearchEncoding,token: CancellationToken,limit:Int = 32*1024*1024) throws -> String? {
+        guard before.st_size <= limit else { throw CommanderError.message("Inhaltssuche übersprungen (>\(limit / 1024 / 1024) MiB): \(url.path)") }
         var data = Data(),buffer = [UInt8](repeating:0,count:64*1024)
         while true {
             try token.check();let count = Darwin.read(fd,&buffer,buffer.count)
             if count < 0 && errno == EINTR { continue }
             guard count >= 0 else { throw CommanderError.message("Datei konnte nicht gelesen werden: \(url.path)") }
             if count == 0 { break }
-            guard data.count + count <= limit else { throw CommanderError.message("Datei ist während der Suche über 32 MiB gewachsen.") }
+            guard data.count + count <= limit else { throw CommanderError.message("Datei ist während der Suche über das Moduslimit gewachsen.") }
             data.append(contentsOf:buffer.prefix(count))
         }
         try verify();try token.check()
@@ -167,9 +196,10 @@ private final class SearchReader {
 
 extension SearchService {
     public static func search(_ root: URL,options: SearchOptions,token: CancellationToken = .init(),progress: (Int)->Void = { _ in },onUpdate: (SearchUpdate)->Void = { _ in }) throws -> SearchReport {
-        guard root.isFileURL else { throw CommanderError.message("Suchordner muss lokal sein.") }
-        let compiled = try CompiledSearch(options),root = FileSystem.canonical(root)
-        guard root.isFileURL,FileSystem.isDirectory(root) else { throw CommanderError.message("Bitte einen vorhandenen lokalen Suchordner wählen.") }
+        try search([root],options:options,token:token,progress:progress,onUpdate:onUpdate)
+    }
+    public static func search(_ roots:[URL],options:SearchOptions,token:CancellationToken = .init(),progress:(Int)->Void = { _ in },onUpdate:(SearchUpdate)->Void = { _ in }) throws -> SearchReport {
+        let compiled = try CompiledSearch(options),roots = try searchRoots(roots,options:options)
         var result = SearchReport(),batch: [SearchHit] = [],lastUpdate = Date.distantPast
         func warn(_ message: String) {
             result.warningCount += 1
@@ -185,12 +215,28 @@ extension SearchService {
             if result.hits.count >= options.resultLimit { result.limitReached = true }
         }
         let enumeration: FileManager.DirectoryEnumerationOptions = options.showHidden ? [] : [.skipsHiddenFiles]
-        guard let iterator = FileManager.default.enumerator(at:root,includingPropertiesForKeys:nil,options:enumeration,errorHandler:{ url,error in
-            warn("\(url.path): \(error.localizedDescription)");return !token.isCancelled
-        }) else { throw CommanderError.message("Suchordner kann nicht gelesen werden.") }
+        // Only overlapping explicit subtrees need a visited-path set. A single large
+        // root and disjoint roots stream without retaining every nonmatching path.
+        let duplicateSubtrees = roots.enumerated().compactMap { index,value -> String? in
+            roots.enumerated().contains(where: { $0.offset != index && FileSystem.isInside(value,$0.element) }) ? value.path : nil
+        }
+        var seen = Set<String>()
+        let depthLimit = options.recursive ? options.maximumDepth : 0
         do {
+          rootsLoop: for root in roots {
+            try token.check();if result.limitReached { break }
+            guard let iterator = FileManager.default.enumerator(at:root,includingPropertiesForKeys:nil,options:enumeration,errorHandler:{ url,error in
+                warn("\(url.path): \(error.localizedDescription)");return !token.isCancelled
+            }) else { warn("Suchordner kann nicht gelesen werden: "+root.path);continue }
             for case let url as URL in iterator {
-                try token.check();if result.limitReached { break };result.scanned += 1
+                try token.check();if result.limitReached { break rootsLoop }
+                let depth = max(0,iterator.level-1)
+                if let limit = depthLimit,depth >= limit { iterator.skipDescendants() }
+                if let limit = depthLimit,depth > limit { continue }
+                let path = url.standardizedFileURL.path
+                if duplicateSubtrees.contains(where: { path == $0 || path.hasPrefix($0+"/") }),!seen.insert(path).inserted { continue }
+                guard result.scanned < 1_000_000 else { result.scanLimitReached = true;warn("Prüfgrenze von 1.000.000 eindeutigen Einträgen erreicht. Teilergebnisse bleiben erhalten.");break rootsLoop }
+                result.scanned += 1
                 do {
                     var info = stat();guard lstat(url.path,&info) == 0 else { throw CommanderError.message("Eintrag nicht lesbar: \(url.path)") }
                     let directory = info.st_mode & S_IFMT == S_IFDIR,link = info.st_mode & S_IFMT == S_IFLNK,regular = info.st_mode & S_IFMT == S_IFREG
@@ -208,6 +254,7 @@ extension SearchService {
                                 let folderParts = member.isDirectory ? parts : Array(parts.dropLast())
                                 if folderParts.contains(where: { compiled.folders.matches($0) }) { return true }
                                 if !options.recursive && parts.count > 1 { return true }
+                                if let limit = depthLimit,depth+max(0,parts.count-1) > limit { return true }
                                 let name = parts.last ?? ""
                                 if compiled.accepts(name,size:member.size,directory:member.isDirectory,modified:modified) {
                                     members.append(SearchHit(url:url,member:member.path,size:member.size,isDirectory:member.isDirectory,modified:modified,snippet:"Archivname · Inhalt nicht geprüft"))
@@ -223,16 +270,21 @@ extension SearchService {
                     guard compiled.accepts(url.lastPathComponent,size:info.st_size,directory:directory,modified:modified,isLink:link) else { publish();continue }
                     var snippet = ""
                     if !options.content.isEmpty {
-                        guard regular else { publish();continue }
-                        let reader = try SearchReader(url,expected:info),text: String?
-                        if options.searchOfficeDocuments && DocumentText.supports(url) {
-                            text = try DocumentText.extract(reader.descriptorURL,token:token,fileExtension:url.pathExtension);try reader.verify()
-                        } else { text = try reader.text(encoding:options.encoding,token:token) }
-                        try token.check()
-                        guard let text,let match = compiled.range(in:text) else { publish();continue }
-                        let lower = text.index(match.lowerBound,offsetBy:-60,limitedBy:text.startIndex) ?? text.startIndex
-                        let upper = text.index(lower,offsetBy:240,limitedBy:text.endIndex) ?? text.endIndex
-                        snippet = String(text[lower..<upper]).replacingOccurrences(of:"\r",with:" ").replacingOccurrences(of:"\n",with:" ")
+                        guard regular else { publish();continue };publish()
+                        let reader = try SearchReader(url,expected:info)
+                        if options.contentMode == .hex {
+                            let offset = try reader.hex(compiled.content.needle,token:token)
+                            guard options.contentNegated ? offset == nil : offset != nil else { publish();continue }
+                            snippet = offset.map { "Hex · Byteoffset \($0)" } ?? "Hexfolge nicht enthalten · Datei geprüft"
+                        } else {
+                            let text: String?
+                            if options.searchOfficeDocuments && DocumentText.supports(url) {
+                                text = try DocumentText.extract(reader.descriptorURL,token:token,fileExtension:url.pathExtension);try reader.verify()
+                            } else { text = try reader.text(encoding:options.encoding,token:token,limit:options.contentMode == .regularExpression ? CompiledSearchContent.regexByteLimit : 32*1024*1024) }
+                            try token.check()
+                            guard let text,let match = try compiled.content.snippet(in:text,token:token) else { publish();continue }
+                            snippet = match
+                        }
                         // The path must still refer to the same file after matching.
                         try reader.verify()
                     }
@@ -240,8 +292,43 @@ extension SearchService {
                 } catch CommanderError.cancelled { throw CommanderError.cancelled }
                 catch { warn(error.localizedDescription) }
             }
+          }
             try token.check()
         } catch CommanderError.cancelled { result.cancelled = true }
         publish(force:true);return result
+    }
+}
+
+extension SearchService {
+    /// Paths are individual URL values, never a delimiter-separated expression.
+    public static func searchRoots(_ roots:[URL],options:SearchOptions) throws -> [URL] {
+        guard !roots.isEmpty,roots.count <= 100 else { throw CommanderError.message("1 bis 100 Suchordner wählen.") }
+        var unique = Set<String>(),values:[URL] = []
+        for root in roots {
+            guard root.isFileURL,!root.path.contains("\0") else { throw CommanderError.message("Suchordner müssen lokal sein.") }
+            let value = FileSystem.canonical(root)
+            guard FileSystem.isDirectory(value) else { throw CommanderError.message("Suchordner nicht gefunden: "+root.path) }
+            if unique.insert(value.path).inserted { values.append(value) }
+        }
+        values.sort { $0.path < $1.path }
+        if options.recursive && options.maximumDepth == nil {
+            let excluded = try TransferPatterns(options.excludedFolders,regex:false,emptyMatchesAll:false)
+            func covers(_ child:URL,_ parent:URL) -> Bool {
+                guard FileSystem.isInside(child,parent) else { return false }
+                let parts = Array(child.pathComponents.dropFirst(parent.pathComponents.count));var current = parent
+                for part in parts {
+                    if excluded.matches(part) { return false }
+                    current.appendPathComponent(part)
+                    if !options.showHidden {
+                        guard let hidden = try? current.resourceValues(forKeys:[.isHiddenKey]).isHidden,hidden == false else { return false }
+                    }
+                }
+                return true
+            }
+            var result:[URL] = []
+            for value in values where !result.contains(where: { covers(value,$0) }) { result.append(value) }
+            return result
+        }
+        return values
     }
 }

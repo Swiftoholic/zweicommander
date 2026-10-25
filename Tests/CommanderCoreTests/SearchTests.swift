@@ -155,7 +155,7 @@ extension CoreTests {
         for index in 1..<50 { try library.save(name:"Profil \(index)",options:SearchOptions()) }
         XCTAssertThrowsError(try library.save(name:"Zu viel",options:SearchOptions()))
         XCTAssertThrowsError(try SearchProfileLibrary(data:Data("{broken".utf8)))
-        XCTAssertThrowsError(try SearchProfileLibrary(data:Data("{\"version\":2,\"profiles\":[]}".utf8)))
+        XCTAssertThrowsError(try SearchProfileLibrary(data:Data("{\"version\":3,\"profiles\":[]}".utf8)))
         XCTAssertThrowsError(try SearchProfileLibrary(data:Data(repeating:0,count:1_048_577)))
         XCTAssertThrowsError(try library.save(name:"Missing",options:SearchOptions(),replacing:UUID()))
     }
