@@ -4,7 +4,7 @@ import CommanderCore
 final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
     var main:MainWindow!
     static let menuDefinitions:[(String,[(String,String,String)])] = [
-        ("Datei",[("Öffnen","open","cmd+o"),("Ordner in neuem Tab öffnen","openInNewTab","cmd+return"),("Ordner auf anderer Seite öffnen","openInOther","cmd+option+return"),("Ordner in neuem Tab auf anderer Seite","openInOtherTab","cmd+option+o"),("Vorschau","preview","F3"),("Mit TextEdit bearbeiten","edit","F4"),("Neuer Ordner …","newFolder","F7"),("Neue Datei …","newFile","shift+F4"),("—","",""),("Kopieren …","copy","F5"),("Verschieben …","move","F6"),("Umbenennen …","rename","F2"),("Mehrfachumbenennen …","batchRename","cmd+shift+m"),("In den Papierkorb …","trash","F8"),("—","",""),("Archiv erstellen …","pack","option+F5"),("Archiv entpacken …","extract","option+F6"),("Symbolische Verknüpfung …","symlink",""),("Eigenschaften","properties","cmd+i"),("Rechte und Datum …","attributes","")]),
+        ("Datei",[("Öffnen","open","cmd+o"),("Ordner in neuem Tab öffnen","openInNewTab","cmd+return"),("Ordner auf anderer Seite öffnen","openInOther","cmd+option+return"),("Ordner in neuem Tab auf anderer Seite","openInOtherTab","cmd+option+o"),("Vorschau","preview","F3"),("Mit TextEdit bearbeiten","edit","F4"),("Neuer Ordner …","newFolder","F7"),("Neue Datei …","newFile","shift+F4"),("—","",""),("Kopieren …","copy","F5"),("Verschieben …","move","F6"),("Umbenennen …","rename","F2"),("Mehrfachumbenennen …","batchRename","cmd+shift+m"),("In den Papierkorb …","trash","F8"),("—","",""),("Archiv erstellen …","pack","option+F5"),("Archiv entpacken …","extract","option+F6"),("Zum Archivcontainer","archiveContainer","cmd+option+up"),("Archivpasswort …","archivePassword",""),("Symbolische Verknüpfung …","symlink",""),("Eigenschaften","properties","cmd+i"),("Rechte und Datum …","attributes","")]),
         ("Bearbeiten",[("Rückgängig","undo","cmd+z"),("Ausschneiden","clipboardCut","cmd+x"),("Kopieren","clipboardCopy","cmd+c"),("Einfügen …","clipboardPaste","cmd+v"),("—","",""),("Namen kopieren","copyNames","cmd+option+c"),("Namen ohne Endung kopieren","copyStems","cmd+option+shift+c"),("Vollständige Pfade kopieren","copyPath","cmd+shift+c"),("Datei-URLs kopieren","copyURLs",""),("Als Shell-Argumente kopieren","copyShellPaths",""),("Als Tabelle kopieren","copySelectionTable",""),("—","",""),("Alles auswählen","selectAll","cmd+a")]),
         ("Auswahl",[("Alle Dateien auswählen","selectFiles","cmd+option+a"),("Alles abwählen","deselectAll","cmd+option+shift+a"),("Auswahl umkehren","invertSelection","cmd+shift+a"),("Nur Dateien umkehren","invertFiles",""),("Nach Muster auswählen …","selectPattern","cmd+shift+s"),("—","",""),("Gleiche Endung hinzufügen","sameExtension","cmd+option+e"),("Gleiche Endung abwählen","deselectExtension","cmd+option+shift+e"),("Gleichen Stammnamen hinzufügen","sameStem","cmd+option+n"),("Gleichen Stammnamen abwählen","deselectStem","cmd+option+shift+n"),("—","",""),("Auswahl merken","saveSelection","cmd+option+s"),("Auswahl wiederherstellen","restoreSelection","cmd+option+r"),("Auswahl in Datei speichern …","saveSelectionFile",""),("Auswahl aus Datei laden …","loadSelectionFile","")]),
         ("Ansicht",[("Aktualisieren","refresh","cmd+r"),("Versteckte Dateien","hidden","cmd+shift+."),("Ordnerbaum","tree","cmd+shift+t"),("Details","details","cmd+1"),("Miniaturbilder","thumbnails","cmd+2"),("Symbole","icons","cmd+3"),("Ordneransicht merken …","rememberView",""),("Gespeicherte Ordneransichten …","folderViews",""),("Schnellansicht","quickView","cmd+y"),("Anordnung wechseln","orientation","cmd+option+h"),("Ein-/Zweifensteransicht","onePane","cmd+shift+1"),("Fensterinhalte tauschen","swap","cmd+u"),("Gleicher Ordner im anderen Fenster","sameFolder","cmd+shift+u"),("Verknüpftes Navigieren","linked",""),("Flache Ansicht","flat","cmd+b"),("Schnellfilter","filter","cmd+shift+f"),("Werkzeugleiste anpassen …","customizeToolbar","")]),
@@ -38,8 +38,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let selectionSmoke = args.firstIndex(of:"--selection-smoke")
         let tabsSmoke = args.firstIndex(of:"--tabs-smoke")
         let layoutSmoke = args.firstIndex(of:"--layout-smoke")
+        let archiveSmoke = args.firstIndex(of:"--archive-smoke")
         let compareSmoke = args.firstIndex(of:"--compare-smoke")
-        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke,serverPaneSmoke,selectionSmoke,tabsSmoke,layoutSmoke].compactMap { $0 }.first
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke,serverPaneSmoke,selectionSmoke,tabsSmoke,layoutSmoke,archiveSmoke].compactMap { $0 }.first
         Preferences.testMode = testIndex != nil
         if Preferences.testMode { setvbuf(stdout,nil,_IOLBF,0) }
         if Preferences.testMode { Preferences.state = SavedState() }
@@ -90,6 +91,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         main.onRebuildMenus = { [weak self] in self?.buildMenus(); self?.main.updateFunctionLabels() }
         buildMenus(); main.showWindow(nil); main.active.focus()
         NSApp.activate(ignoringOtherApps:true)
+        if let archiveSmoke,args.indices.contains(archiveSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runArchiveSmoke(root:root,prefix:args[archiveSmoke+2]) }
+        }
         if let layoutSmoke,args.indices.contains(layoutSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runLayoutSmoke(root:root,prefix:args[layoutSmoke+2],reload:args.contains("--reload-layout")) }
         }
@@ -232,7 +236,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
                 let shifted = parsed.0.uppercased(),menuKey = parsed.1.contains(.shift) && shifted.count == 1 ? shifted : parsed.0
                 let slot = id.hasPrefix("workspace") ? Int(id.dropFirst(9)) : nil
                 let title = slot.flatMap { profiles.indices.contains($0-1) ? "\($0) · "+profiles[$0-1].name : nil } ?? label
-                let item = NSMenuItem(title:title,action:#selector(dispatch(_:)),keyEquivalent:menuKey); item.keyEquivalentModifierMask = parsed.1; item.target = self; item.representedObject = id;item.toolTip = CommandHelp.menuHelp(id);menu.addItem(item)
+                let item = NSMenuItem(title:title,action:#selector(dispatch(_:)),keyEquivalent:menuKey); item.keyEquivalentModifierMask = parsed.1;item.allowsAutomaticKeyEquivalentLocalization = Preferences.state.shortcuts[id] == nil; item.target = self; item.representedObject = id;item.toolTip = CommandHelp.menuHelp(id);menu.addItem(item)
             }
         }
         let windowMenu = NSMenu(title:"Fenster"), top = NSMenuItem(title:"Fenster",action:nil,keyEquivalent:""); top.submenu = windowMenu; bar.insertItem(top,at:bar.items.count-1)
@@ -248,6 +252,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if ["operations","recovery"].contains(id) { return true }
         if let compare = main?.keyCompareController { return compare.canPerformCommand(id) }
         if let search = main?.keySearchController { return search.canPerformCommand(id) }
+        if let enabled = main?.archiveCommandEnabled(id) { return enabled }
         if let enabled = main?.selectionCommandEnabled(id) { return enabled }
         if let mode = ["tabUnlock":TabLockMode.none,"tabCloseLock":.closeOnly,"tabFixedLock":.fixed,"tabNewLock":.newTab][id] { item.state = main?.active.tab.lockMode == mode ? .on : .off }
         if let enabled = main?.workspaceCommandEnabled(id) { return enabled }
@@ -262,7 +267,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if item.keyEquivalentModifierMask.isEmpty, item.keyEquivalent == " ", NSApp.keyWindow?.firstResponder is NSTextView { return false }
         return true
     }
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "0.22.0",.version:Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "23",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "0.23.0",.version:Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "24",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
     func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply {
         if main?.canTerminate == false { _ = dialog("Dateivorgänge laufen",message:"Laufende Vorgänge einschließlich Suchen, vorgemerkte Synchronisationen und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return .terminateCancel }
         main?.saveState(); return .terminateNow

@@ -109,6 +109,8 @@ final class LocationStrip: NSScrollView {
 }
 
 final class BreadcrumbBar: NSView {
+    var rootTitle:String? { didSet { if oldValue != rootTitle { rebuild() } } }
+    var addressDescription:((URL)->String)?
     var folderProvider: PathEditor.FolderProvider?
     private var folderToken = CancellationToken()
     var active = false { didSet { updateColors() } }
@@ -136,13 +138,13 @@ final class BreadcrumbBar: NSView {
         folderToken.cancel();folderToken = CancellationToken()
         request += 1;dropdown.close();openAnchor = nil
         (components+childButtons).forEach { $0.1.removeFromSuperview() };components = [];childButtons = []
-        toolTip = (url?.path ?? "")+"\nLeeren Bereich anklicken oder ⌘L drücken, um die Adresse zu bearbeiten."
+        toolTip = (url.map { addressDescription?($0) ?? $0.path } ?? "")+"\nLeeren Bereich anklicken oder ⌘L drücken, um die Adresse zu bearbeiten."
         menu = contextMenu(for:url)
         if var current = url {
             var urls = [current]
             while current.path != "/" { let parent = current.deletingLastPathComponent();if parent == current { break };urls.insert(parent,at:0);current = parent }
             for url in urls {
-                let title = url.path == "/" ? (url.isFileURL ? "/" : url.host ?? "/") : url.lastPathComponent
+                let title = url.path == "/" ? rootTitle ?? (url.isFileURL ? "/" : url.host ?? "/") : url.lastPathComponent
                 let button = ActionButton(title,action:{ [weak self] in self?.onChoose?(url) });button.flat = true;button.font = .systemFont(ofSize:11)
                 button.setHelp(title,"Diesen Ordner öffnen.\n"+url.path);button.menu = contextMenu(for:url)
                 addSubview(button);components.append((url,button))
@@ -190,7 +192,7 @@ final class BreadcrumbBar: NSView {
     @objc private func editAddress(_ item:NSMenuItem) { dropdown.close();onEdit?() }
     @objc private func copyAddress(_ item:NSMenuItem) {
         guard let folder = item.representedObject as? URL else { return }
-        NSPasteboard.general.clearContents();NSPasteboard.general.setString(folder.isFileURL ? folder.path : folder.absoluteString,forType:.string)
+        NSPasteboard.general.clearContents();NSPasteboard.general.setString(addressDescription?(folder) ?? (folder.isFileURL ? folder.path : folder.absoluteString),forType:.string)
     }
     @objc private func openInFinder(_ item:NSMenuItem) { if let folder = item.representedObject as? URL { NSWorkspace.shared.open(folder) } }
     override func layout() {

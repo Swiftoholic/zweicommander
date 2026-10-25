@@ -13,6 +13,7 @@ extension MainWindow {
         if id == "closeTab",let key = NSApp.keyWindow,key !== window { key.performClose(nil); return }
         defer { updateChromeState();content.needsLayout = true;scheduleLayoutSave() }
         do {
+            if try handleArchiveCommand(id) { return }
             if try handleSelectionCommand(id) { return }
             if try handleWorkspaceCommand(id) { return }
             if try handleTabCommand(id) { return }

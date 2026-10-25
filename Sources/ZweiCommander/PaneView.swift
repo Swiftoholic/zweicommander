@@ -13,6 +13,7 @@ final class FolderTab {
     var collection: [URL]?
     var archiveRoot: URL?
     var archiveOrigin: URL?
+    var archive:ArchiveFolderSession?
     var view: FolderViewSettings?
     var sessionViewPinned = false
     var remote: RemoteFolderSession?
@@ -135,6 +136,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     var onSwitch: (() -> Void)?
     var onPreview: (([URL]) -> Void)?
     var onOpenArchive: ((URL, PaneView) -> Void)?
+    var onArchiveFile:((URL)->Void)?
     var onDrop: (([URL], URL) -> Void)?
     var onCollectionDrop: (([URL]) -> Void)?
     var onSelection: (([URL]) -> Void)?
@@ -384,6 +386,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         onState?()
     }
     func newTab(url: URL? = nil) {
+        if let archive,url.map(archive.contains) ?? true { openArchiveSession(archive,at:url ?? currentURL);return }
         if let remote,url == nil || url?.isFileURL == false { _ = openRemote(remote.connection,path:url?.path ?? currentURL.path);return }
         let t = FolderTab(url ?? currentURL);t.view = tab.view
         if let root = tab.archiveRoot, FileSystem.isInside(t.url,root) { t.archiveRoot = root; t.archiveOrigin = tab.archiveOrigin }
@@ -397,6 +400,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         restoreTabView();rebuildTabs();refresh();focus()
     }
     func navigate(_ url: URL, linked: Bool = false) {
+        if archive != nil { navigateArchive(url);return }
         if remote != nil {
             if !url.isFileURL { navigateRemote(url);return }
             newTab(url:url);return
@@ -414,6 +418,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     }
     func history(_ offset: Int) {
         let i = tab.position+offset; guard i >= 0 && i < tab.history.count else { return }
+        if let archive,archive.contains(tab.history[i]) { if routeLockedNavigation(tab.history[i]) { return };tab.position = i;navigateArchive(tab.history[i],history:false);return }
         if remote != nil { let value = tab.history[i];if routeLockedNavigation(value) { return };tab.position = i;navigateRemote(value,history:false);return }
         if routeLockedNavigation(tab.history[i]) { return }
         tab.position = i; tab.url = tab.history[i]; tab.collection = nil;tab.sessionViewPinned = false;tab.filter = "";tab.filterRegex = false
@@ -421,6 +426,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         restoreTabView();rebuildTabs(); refresh(); focus()
     }
     func goParent() {
+        if let archive,currentURL == archive.root { leaveArchive();return }
         if tab.archiveRoot == currentURL, let origin = tab.archiveOrigin { navigate(origin.deletingLastPathComponent()); return }
         navigate(currentURL.deletingLastPathComponent())
     }
@@ -447,7 +453,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     func requestSelection(_ urls:Set<URL>) { selectionRequest = (FileSystem.canonical(currentURL),urls) }
     func refresh() {
         loadToken.cancel();sortToken.cancel();listingQueue.cancelAllOperations();sortingQueue.cancelAllOperations();sortVersion += 1;isSorting = false
-        generation += 1;let g = generation,url = currentURL,hidden = showHidden,collection = tab.collection,tabID = tab.id,remote = self.remote
+        generation += 1;let g = generation,url = currentURL,hidden = showHidden,collection = tab.collection,tabID = tab.id,remote = self.remote,archive = self.archive,catalog = archive?.catalog
         let directory = FileSystem.canonical(url)
         if let request = selectionRequest,request.directory != directory { selectionRequest = nil }
         replacesContents = displayedDirectory != directory || displayedTabID != tabID || displayedCollection != collection || loadError != nil
@@ -465,6 +471,10 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
             var received: [FileEntry] = []
             var remoteEntries: [RemoteEntry] = []
             let result = Result { () -> [FileEntry] in
+                if let archive,let catalog {
+                    try token.check();try catalog.validateSource()
+                    return try catalog.contents(of:archive.path(url),showHidden:hidden).map { FileEntry(archive:$0,address:archive.address($0.path)) }
+                }
                 if let remote {
                     remoteEntries = try RemoteService.list(remote.connection,path:url.path,token:token)
                     return remoteEntries.filter { hidden || !$0.name.hasPrefix(".") }.map { FileEntry(remote:$0,address:remote.connection.address(RemoteService.child(url.path,$0.name))) }
@@ -502,7 +512,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     }
     func watch(_ url: URL) {
         watcher?.cancel(); watcher = nil
-        guard tab.collection == nil,url.isFileURL else { return }
+        guard tab.collection == nil,archive == nil,url.isFileURL else { return }
         let fd = open(url.path, O_EVTONLY)
         guard fd >= 0 else { return }
         let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write,.delete,.rename,.attrib], queue: .main)
@@ -612,6 +622,12 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     }
     @objc func doubleClick() { guard table.clickedRow >= 0 else { return }; openSelection() }
     func openSelection() {
+        if archive != nil,let entry = selectionSeed {
+            guard !entry.isSymbolicLink else { status.stringValue = "Archivverknüpfungen werden nicht geöffnet.";return }
+            if entry.isDirectory { navigateArchive(entry.url) }
+            else if ArchiveService.isArchive(entry.url) { onOpenArchive?(entry.url,self) }
+            else { onArchiveFile?(entry.url) };return
+        }
         if remote != nil {
             guard let entry = selectedRemoteEntries.first else { return }
             if entry.isDirectory && !entry.isLink { navigate(currentURL.appendingPathComponent(entry.name)) }
@@ -673,7 +689,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         cell.updateColors();return cell
     }
     func tableView(_ tableView:NSTableView,rowViewForRow row:Int) -> NSTableRowView? { let view = FileRowView();view.pane = self;view.entryURL = visibleEntries.indices.contains(row) ? visibleEntries[row].url : nil;return view }
-    func tableView(_ tableView:NSTableView,pasteboardWriterForRow row:Int) -> NSPasteboardWriting? { guard remote == nil,canUseDisplayedEntries,visibleEntries.indices.contains(row) else { return nil };return visibleEntries[row].url as NSURL }
+    func tableView(_ tableView:NSTableView,pasteboardWriterForRow row:Int) -> NSPasteboardWriting? { guard remote == nil,archive == nil,canUseDisplayedEntries,visibleEntries.indices.contains(row) else { return nil };return visibleEntries[row].url as NSURL }
     func tableView(_ tableView:NSTableView,validateDrop info:NSDraggingInfo,proposedRow row:Int,proposedDropOperation operation:NSTableView.DropOperation) -> NSDragOperation {
         let hit = tableView.row(at:tableView.convert(info.draggingLocation,from:nil)),index = hit >= 0 ? hit : operation == .on ? row : -1
         let folder = dropFolder(at:index),result = updateFileDrop(info.draggingPasteboard,folder:folder)

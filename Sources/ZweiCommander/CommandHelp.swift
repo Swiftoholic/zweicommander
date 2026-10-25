@@ -9,6 +9,8 @@ enum CommandHelp {
         "path":"Adresse bearbeiten. Ordner werden beim Tippen vorgeschlagen; Tab ergänzt, Enter öffnet.",
         "pack":"Ausgewählte Dateien und Ordner in ein neues Archiv packen.",
         "extract":"Das ausgewählte Archiv mit einer Vorschau des Ziels entpacken.",
+        "archiveContainer":"Zurück zum Ordner mit dem geöffneten Archiv wechseln. Bei verschachtelten Archiven zum äußeren Archiv zurückkehren.",
+        "archivePassword":"Ein Passwort nur für diese geöffnete Archivsitzung eingeben und den Inhalt neu lesen.",
         "filter":"Die Dateiliste nach Namen oder Dateimuster eingrenzen, zum Beispiel *.pdf.",
         "tree":"Den Ordnerbaum für die aktive Seite ein- oder ausblenden.",
         "details":"Dateien als Tabelle mit Größe, Datum und weiteren Spalten anzeigen.",

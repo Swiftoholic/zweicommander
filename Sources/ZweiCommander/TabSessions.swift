@@ -21,7 +21,7 @@ extension Preferences {
 extension FolderTab {
     func copyForSession() -> FolderTab {
         let copy = FolderTab(url);copy.title = title;copy.lockMode = lockMode;copy.history = history;copy.position = position;copy.view = view;copy.sessionViewPinned = true;copy.filter = filter;copy.filterRegex = filterRegex
-        copy.collection = collection;copy.archiveRoot = archiveRoot;copy.archiveOrigin = archiveOrigin
+        copy.collection = collection;copy.archiveRoot = archiveRoot;copy.archiveOrigin = archiveOrigin;copy.archive = archive
         if let remote { copy.remote = RemoteFolderSession(remote.connection) };return copy
     }
 }
@@ -116,7 +116,7 @@ extension MainWindow {
                 let value = target.openRemote(remote.connection,path:entry.url.path);value.view = view;value.sessionViewPinned = true;target.restoreTabView()
             }
             else if let archive = source.tab.archiveRoot {
-                let item = FolderTab(entry.url);item.archiveRoot = archive;item.archiveOrigin = source.tab.archiveOrigin;item.view = source.viewSettings;item.sessionViewPinned = true
+                let item = FolderTab(entry.url);item.archiveRoot = archive;item.archiveOrigin = source.tab.archiveOrigin;item.archive = source.archive;item.view = source.viewSettings;item.sessionViewPinned = true
                 target.tabs.append(item);target.selectTab(item.id)
             }
             else if id == "openInOther" { target.navigate(entry.url) } else { target.newTab(url:entry.url) }

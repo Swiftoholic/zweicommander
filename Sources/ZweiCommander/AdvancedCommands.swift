@@ -60,21 +60,11 @@ extension MainWindow {
         secondaryWindows.append(controller);controller.showWindow(nil)
     }
     func pack() {
-        guard let urls = requireSelection(),ensureWritable(other) else { return }
-        let panel = NSSavePanel(); panel.directoryURL = other.currentURL; panel.nameFieldStringValue = (urls.count == 1 ? urls[0].deletingPathExtension().lastPathComponent : "Archiv")+"."+(Preferences.state.importedProfile?.defaultArchiveExtension ?? "zip")
-        panel.message = "Endung .zip, .7z oder .tar.gz auswählen. Verknüpfungen werden nicht übernommen."
-        guard panel.runModal() == .OK,let dest = panel.url else { return }
-        guard !FileSystem.exists(dest) else { showFailure(CommanderError.message("Bitte einen neuen Archivnamen verwenden.")); return }
-        let sevenZip = dest.pathExtension.lowercased() == "7z"
-        let level = sevenZip ? Preferences.state.importedProfile?.sevenZipCompressionLevel ?? 6 : Preferences.state.importedProfile?.zipCompressionLevel ?? 6
-        jobs.submit("Archiv erstellen",work:{ token,progress in try ArchiveService.pack(urls,to:dest,tarGzip:dest.lastPathComponent.hasSuffix(".tar.gz"),sevenZip:sevenZip,compressionLevel:level,token:token,progress:progress) },completion:{ [weak self] result in if case .failure(let e) = result { showFailure(e) }; self?.refresh() })
+        guard let urls = requireSelection(),ensureWritable(other) else { return };showArchivePack(urls)
     }
     func extract() {
         guard let url = requireSelection()?.first,ensureWritable(other) else { return }
-        let target = input(other.currentURL.appendingPathComponent(url.deletingPathExtension().lastPathComponent).path), password = NSSecureTextField(string:"")
-        guard dialog("Archiv entpacken",message:"Es wird ein neuer Zielordner angelegt. ZIP, TAR sowie von macOS unterstützte 7z-/RAR-Varianten. Maximal 100 GB entpackte Daten je Vorgang.",accessory:form([("Zielordner",target),("Passwort (optional)",password)]),buttons:["Entpacken","Abbrechen"]) == 0 else { return }
-        let dest = URL(fileURLWithPath:(target.stringValue as NSString).expandingTildeInPath), secret = password.stringValue
-        jobs.submit("Archiv entpacken",work:{ token,progress in try ArchiveService.extract(url,to:dest,password:secret,token:token,progress:progress) },completion:{ [weak self] result in if case .failure(let e) = result { showFailure(e) }; self?.refresh() })
+        showArchiveSetup(mode:.extract(url,nil,nil,""),destination:other.currentURL.appendingPathComponent(ArchiveCatalog.folderName(for:url)))
     }
     func hashes() {
         guard let urls = requireSelection() else { return }

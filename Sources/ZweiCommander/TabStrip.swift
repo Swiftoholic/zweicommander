@@ -125,7 +125,7 @@ extension PaneView {
     func duplicateTab() {
         let original = tab,t = FolderTab(original.url)
         t.title = original.title;t.history = original.history;t.position = original.position;t.view = original.view
-        t.collection = original.collection;t.archiveRoot = original.archiveRoot;t.archiveOrigin = original.archiveOrigin
+        t.collection = original.collection;t.archiveRoot = original.archiveRoot;t.archiveOrigin = original.archiveOrigin;t.archive = original.archive
         t.filter = original.filter;t.filterRegex = original.filterRegex
         if let remote = original.remote { t.remote = RemoteFolderSession(remote.connection) }
         tabs.insert(t,at:tabIndex+1);tabIndex += 1;restoreTabView();rebuildTabs();refresh();focus()

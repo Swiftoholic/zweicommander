@@ -126,6 +126,8 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     var programLauncher: ((ProgramLaunchRequest) -> Void)?
     var selectionPasteboard = NSPasteboard.general
     var selectionFileChooser: ((Bool,URL)->URL?)?
+    var archiveFileHandler:((URL,Bool)->Void)?
+    var archiveQuickURL:URL?
     var isApplyingWorkspace = false,layoutPersistenceReady = false
     var layoutPersistenceError:String?
     var pendingLayoutSave:DispatchWorkItem?
@@ -174,16 +176,20 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             pane.onSwitch = { [weak self] in self?.focusOtherVisiblePane() }
             pane.onPreview = { [weak self] urls in self?.preview(urls) }
             pane.onOpenArchive = { [weak self] url,p in self?.openArchive(url,in:p) }
+            pane.onArchiveFile = { [weak self] url in self?.openArchiveMember(url,preview:false) }
             pane.onDrop = { [weak self] urls,dest in self?.transfer(urls,to:dest,kind:.copy) }
             pane.onCollectionDrop = { [weak pane] urls in pane?.addToCollection(urls) }
             pane.onCommand = { [weak self] cmd in self?.command(cmd) }
-            pane.onValidateCommand = { [weak self] cmd in self?.selectionCommandEnabled(cmd) ?? self?.workspaceCommandEnabled(cmd) ?? self?.tabCommandEnabled(cmd) ?? self?.serverCommandEnabled(cmd) ?? true }
+            pane.onValidateCommand = { [weak self] cmd in self?.archiveCommandEnabled(cmd) ?? self?.selectionCommandEnabled(cmd) ?? self?.workspaceCommandEnabled(cmd) ?? self?.tabCommandEnabled(cmd) ?? self?.serverCommandEnabled(cmd) ?? true }
             pane.onRename = { [weak self,weak pane] item,request in self?.renameInline(item,in:pane,request:request) }
             pane.onState = { [weak self] in self?.saveState();self?.updateChromeState() }
             pane.onFilterChange = { [weak self] in self?.scheduleLayoutSave() }
             pane.onSelection = { [weak self, weak pane] urls in
                 guard let self else { return };self.updateChromeState()
-                if pane === self.active,self.content.quickVisible { self.content.quick.previewItem = urls.first.flatMap { $0.isFileURL ? $0 as NSURL : nil } }
+                if pane === self.active,self.content.quickVisible {
+                    if let url = urls.first,pane?.archive != nil { self.openArchiveMember(url,preview:true,quick:true) }
+                    else { self.archiveQuickURL = nil;self.content.quick.previewItem = urls.first.flatMap { $0.isFileURL ? $0 as NSURL : nil } }
+                }
             }
             pane.onNavigate = { [weak self] p,old,new in self?.followNavigation(p,from:old,to:new) }
             pane.refresh()
@@ -262,6 +268,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         let text = content.commandField.stringValue
         guard !text.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty else { return }
         if content.commandMode.indexOfSelectedItem == 0 {
+            if let archive = active.archive { do { active.navigate(try archive.resolve(text,relativeTo:active.currentURL)) } catch { content.status.stringValue = error.localizedDescription };return }
             if let remote = active.remote { do { active.navigate(try remote.resolve(text,relativeTo:active.currentURL)) } catch { content.status.stringValue = error.localizedDescription };return }
             let path = (text as NSString).expandingTildeInPath
             active.navigate(path.hasPrefix("/") ? URL(fileURLWithPath:path) : active.currentURL.appendingPathComponent(path))
@@ -273,13 +280,13 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         if content.commandMode.indexOfSelectedItem == 0,!(content.commandField.currentEditor() is NSTextView) { content.commandField.stringValue = active.currentURL.path }
         for case let button as NSButton in content.toolbar.arrangedSubviews {
             let id = button.identifier?.rawValue
-            if let id { button.isEnabled = serverCommandEnabled(id) ?? true }
+            if let id { button.isEnabled = archiveCommandEnabled(id) ?? serverCommandEnabled(id) ?? true }
             if let button = button as? ActionButton,let id { CommandHelp.apply(button,id:id,title:ToolbarCommand.all.first { $0.id == id }?.title) }
             if let id,["back","forward"].contains(id),let navigation = active.navigationButtons[id] { button.isEnabled = navigation.isEnabled;button.toolTip = navigation.toolTip }
             button.state = (id == "details" && active.displayMode == .details) || (id == "thumbnails" && active.displayMode == .thumbnails) || (id == "icons" && active.displayMode == .icons) || (id == "tree" && active.treeVisible) || (id == "quickView" && content.quickVisible) ? .on : .off
         }
-        for button in content.rail.buttons { let id = button.identifier?.rawValue ?? "";button.state = id == "linked" && linked ? .on : .off;CommandHelp.apply(button,id:id) }
-        content.terminal.isEnabled = active.remote == nil
+        for button in content.rail.buttons { let id = button.identifier?.rawValue ?? "";button.state = id == "linked" && linked ? .on : .off;button.isEnabled = archiveCommandEnabled(id) ?? serverCommandEnabled(id) ?? true;CommandHelp.apply(button,id:id) }
+        content.terminal.isEnabled = active.remote == nil && active.archive == nil
         updateFunctionLabels()
     }
     func updateFunctionLabels() {
@@ -291,6 +298,11 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             if key == "space" { key = "Leertaste" }
             for (word,symbol) in [("cmd+","⌘"),("shift+","⇧"),("option+","⌥"),("alt+","⌥"),("control+","⌃"),("ctrl+","⌃")] { key = key.replacingOccurrences(of:word,with:symbol) }
             if id == "copy" || id == "move" {
+                if active.archive != nil || other.archive != nil {
+                    let arrow = content.split.isVertical ? (active === left ? "→ Rechts" : "← Links") : (active === left ? "↓ Unten" : "↑ Oben")
+                    button.title = key.uppercased()+" "+arrow+" "+(id == "copy" && active.archive != nil ? "Entpacken" : value.1)
+                    button.isEnabled = archiveCommandEnabled(id) == true;button.toolTip = "Quelle: "+active.locationText+"\nZiel: "+other.locationText+"\nArchivdateien werden mit Vorschau in einen neuen Ordner entpackt.";button.setAccessibilityLabel(button.title+" · "+(button.toolTip ?? ""));continue
+                }
                 if let title = serverTransferTitle(id) {
                     let source = id == "copy" ? active : other,target = id == "copy" ? other : active
                     let arrow = content.split.isVertical ? (source === left ? "→ Rechts" : "← Links") : (source === left ? "↓ Unten" : "↑ Oben")
@@ -307,7 +319,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
                 button.isEnabled = !active.selectedURLs.isEmpty && (id == "copy" ? !other.readOnly : !active.readOnly && !other.readOnly && other.tab.collection == nil)
                 if !button.isEnabled { button.toolTip = (button.toolTip ?? "")+"\n"+(active.selectedURLs.isEmpty ? "Zuerst Dateien oder Ordner auswählen." : "Für diesen Vorgang werden beschreibbare Ordner benötigt.") }
             } else {
-                button.title = key.uppercased()+" "+(id == "trash" && active.remote != nil ? "Server löschen" : value.1);button.isEnabled = serverCommandEnabled(id) ?? true
+                button.title = key.uppercased()+" "+(id == "trash" && active.remote != nil ? "Server löschen" : value.1);button.isEnabled = archiveCommandEnabled(id) ?? serverCommandEnabled(id) ?? true
                 if id == "trash",active.remote != nil { button.toolTip = "Vorschau zum endgültigen Löschen der Serverauswahl öffnen. Kein Papierkorb und kein Rückgängig.";button.setAccessibilityLabel(button.title+" · "+(button.toolTip ?? "")) }
             }
         }
@@ -403,7 +415,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     }
     func refresh() { left.refresh(); right.refresh(); refreshLocations() }
     func showText(_ title:String,_ text:String) { let w = TextWindow(title:title,text:text); secondaryWindows.append(w); w.showWindow(nil) }
-    func preview(_ urls:[URL]) { guard let url = urls.first else { NSSound.beep(); return };guard url.isFileURL else { content.status.stringValue = "Serverdatei zuerst in einen lokalen Ordner herunterladen.";return };let w = PreviewController(url); secondaryWindows.append(w); w.showWindow(nil) }
+    func preview(_ urls:[URL]) { guard let url = urls.first else { NSSound.beep(); return };if archiveSession(for:url) != nil { openArchiveMember(url,preview:true);return };guard url.isFileURL else { content.status.stringValue = "Serverdatei zuerst in einen lokalen Ordner herunterladen.";return };let w = PreviewController(url); secondaryWindows.append(w); w.showWindow(nil) }
     func requireSelection() -> [URL]? { let urls = active.selectedURLs; if urls.isEmpty { NSSound.beep(); return nil }; return urls }
     func ensureWritable(_ pane:PaneView) -> Bool {
         guard pane.remote == nil else { content.status.stringValue = "Diese Funktion benötigt einen lokalen Ordner.";return false }
@@ -463,12 +475,6 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         if let id { operationWindow?.select(id) }
         operationWindow?.showWindow(nil)
         if let operationWindow { operationWindow.window?.makeFirstResponder(operationWindow.table) }
-    }
-    func openArchive(_ url:URL,in pane:PaneView) {
-        let dest = cache.appendingPathComponent(UUID().uuidString)
-        jobs.submit("Archiv öffnen",work:{ token,progress in try ArchiveService.extract(url,to:dest,token:token,progress:progress); return dest },completion:{ [weak pane] result in
-            switch result { case .success(let root): pane?.showArchive(root:root,original:url); case .failure(let e): showFailure(e) }
-        })
     }
     func windowShouldClose(_ sender:NSWindow) -> Bool {
         if !canTerminate { _ = dialog("Dateiaufträge sind offen",message:"Laufende Vorgänge einschließlich Suchen, vorgemerkte Synchronisationen und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return false }

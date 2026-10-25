@@ -58,6 +58,11 @@ public struct FileEntry: Identifiable, Hashable {
         modified = entry.modified ?? .distantPast;permissions = entry.permissions ?? 0
         kind = entry.isLink ? "Serververknüpfung" : entry.isDirectory ? "Serverordner" : "Serverdatei"
     }
+    public init(archive entry:ArchiveMember,address:URL) {
+        url = address;name = (entry.path as NSString).lastPathComponent;isDirectory = entry.isDirectory;isSymbolicLink = entry.isLink;isRegularFile = entry.isRegularFile;isPackage = false
+        size = max(0,entry.size);modified = entry.modified;permissions = entry.permissions
+        kind = entry.isLink ? "Archivverknüpfung" : entry.isDirectory ? "Archivordner" : entry.isRegularFile ? "Archivdatei" : "Spezialdatei im Archiv"
+    }
     public init(url: URL) throws {
         guard url.isFileURL else { throw CommanderError.message("Serverdateien benötigen den Server-Arbeitsablauf.") }
         let values = try url.resourceValues(forKeys:Self.metadataKeys)

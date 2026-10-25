@@ -26,7 +26,7 @@ extension PaneView {
         guard (try? value.validate()) != nil else { return }
         let selection = Set(selectedURLs)
         changingView = true;defer { changingView = false }
-        sortKey = value.sortKey;ascending = value.ascending;foldersFirst = value.foldersFirst;treeVisible = remote == nil && value.treeVisible
+        sortKey = value.sortKey;ascending = value.ascending;foldersFirst = value.foldersFirst;treeVisible = remote == nil && archive == nil && value.treeVisible
         if let columns = value.columns {
             // A folder rule must not change the global AppKit column autosave.
             table.autosaveTableColumns = false

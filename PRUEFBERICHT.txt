@@ -1,8 +1,8 @@
-ZweiCommander 0.22.0 (Build 23) — Prüfung abgeschlossen am 24. Oktober 2026
+ZweiCommander 0.23.0 (Build 24) — Prüfung abgeschlossen am 25. Oktober 2026
 
 Ergebnis
-- 306/306 Dateikern- und Integrationstests bestanden.
-- 1055/1055 native UI-Prüfungen in 39 Durchläufen am finalen
+- 332/332 Dateikern- und Integrationstests bestanden.
+- 1134/1134 native UI-Prüfungen in 40 Durchläufen am finalen
   universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
   Darstellung nach erneutem App-Start 9, Mittelstreifen und Mausbedienung 26,
@@ -25,12 +25,13 @@ Ergebnis
   Server-Tabs und Mutationen im Hauptfenster 47,
   Auswahl und Textzwischenablage 90, Tabgruppen und Sitzungsabläufe 56,
   Tabgruppen nach erneutem App-Start 9, Arbeitsbereiche und Layouts 62,
-  Arbeitsbereiche nach erneutem App-Start 15.
+  Arbeitsbereiche nach erneutem App-Start 15,
+  Archivabläufe und Vorschau 79.
 - Die Serie wurde in zwei Gruppen am identischen Release-Build ausgeführt:
-  24 Durchläufe mit 529 Prüfungen sowie 15 Durchläufe mit
-  526 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
+  24 Durchläufe mit 529 Prüfungen sowie 16 Durchläufe mit
+  605 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
   und Serverfenster sowie Server-Tabs, Auswahlvorschau, Tabgruppen und
-  Arbeitsbereiche in einer entsperrten GUI-Sitzung.
+  Arbeitsbereiche und Archive in einer entsperrten GUI-Sitzung.
   Alle Durchläufe sind vollständig bestanden;
   es stehen keine ausgelassenen Vordergrundprüfungen mehr aus.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
@@ -91,6 +92,77 @@ Auswahldateien enthalten ausdrücklich gespeicherte Pfade, keine Inhalte
 oder Zugangsdaten. Keine automatische Wiederherstellung nach Neustart.
 Shell-Kopie führt nichts aus. Sehr große Listen und aufwendige reguläre
 Ausdrücke benötigen weitere Praxisprüfungen.
+
+Archive, gezieltes Entpacken und bedarfsgesteuerte Vorschau
+26 neue Kernprüfungen prüfen ein Inhaltsverzeichnis ohne Entpacken,
+ergänzte Elternordner, versteckte und leere Ordner, normalisierte doppelte
+Namen, Pfadtraversierung, Dateieinträge als Elternordner und Verknüpfungen.
+Die Auswahl wird relativ zum angezeigten Archivordner geplant; überlappende
+Ordner-/Dateiauswahl zählt Inhalte nur einmal. Fremde Auswahl, belegte Ziele,
+ungültige Adressen, Größenbudget und Abbruch veröffentlichen kein Ergebnis.
+
+Echte Dateisystemänderungen ersetzen Quelle, Ziel und Elternordner während
+der Arbeit. Ein während des Entpackens neu belegtes Ziel bleibt unverändert;
+ein ausgetauschter Elternordner lenkt die Veröffentlichung nicht um.
+Veröffentlicht wird ein neuer Ordner über den vorab geöffneten Elternordner
+mit exklusivem Namen. Bei umbenanntem oder ausgetauschtem Elternpfad kann
+ein privater unveröffentlichter Zwischenordner im alten Verzeichnis bleiben;
+er wird nicht anhand eines fremd gewordenen Pfads entfernt.
+
+ZIP, 7z und TAR-GZip werden mit vollständigen Dateiinhalten und leeren
+Ordnern geschrieben und über dieselbe Entpackplanung gelesen. Belegte oder
+im Quellbaum liegende Archivziele, falsche Endungen, Links, doppelte Namen,
+Abbruch, neue Quellobjekte und während des Schreibens geänderte Dateien
+sperren die Veröffentlichung. Die Archivausgabe entsteht mit privaten
+Rechten über einen exklusiv geöffneten Dateideskriptor. Ein vor dem Öffnen
+in eine Pipe ersetzter Quellpfad wird ohne blockierenden Lesezugriff
+abgewiesen; temporäre und veröffentlichte Archive haben private Rechte.
+Ein echtes verschlüsseltes ZIP aus dem
+Systemwerkzeug prüft falsches Passwort ohne Zielreste und richtige Entpackung.
+Ein echtes TAR prüft sichtbare Links, abgewiesene Gesamtextraktion und die
+gezielte Entpackung einer unabhängigen gewöhnlichen Datei. Die frühere
+Gesamtextraktion verwendet ebenfalls die neue geprüfte Planung.
+
+79 neue native Prüfungen bedienen tatsächliche Menüs, Texteditoren und
+Fenster. Option+F5, F5, Option+F6, Cmd+L, Cmd+Enter, Cmd+Shift+Enter und
+Enter in der Warteschlange werden ausgelöst. Packvorschau, Format-/Endungs-
+wechsel, Kompressionsvorgaben, neue Quellen und belegte Entpackziele sind
+geprüft. Die Inhaltsansicht erstellt keine entpackten Dateien. Interne
+Navigation, Verlauf mit eigenen Belegungen, Pfadeingabe, Filter, Symbole,
+Sperren, lokal erhaltene Tabs und sinnvolle Textadressen sind geprüft.
+Standardkürzel behalten die automatische Tastaturanpassung von macOS;
+ausdrückliche eigene Belegungen werden unverändert verwendet.
+
+Die Vorschau stellt genau das ausgewählte Mitglied schreibgeschützt bereit;
+die seitliche Schnellansicht nutzt dieselbe geprüfte Kopie und wird bei
+Ordnerwahl geleert. Die Weitergabe an Vorschau beziehungsweise Öffnen wird
+an der Betriebssystemschnittstelle abgefangen; der tatsächliche Start einer
+fremden Standardanwendung wird nicht Ende zu Ende automatisiert.
+Dateizwischenablage und Drag-Quellen liefern keine virtuellen Mitgliedspfade
+als vermeintliche lokale Dateien. Eine verschlüsselte Vorschau benutzt das
+echte sichere Passwortfeld, einschließlich Wiederholung per Cmd+Enter.
+Passwortfeld, gespeicherte Sitzung und allgemeine Zwischenablage werden
+auf unveränderte beziehungsweise ausgeschlossene Inhalte geprüft.
+
+Gezieltes Entpacken wird tatsächlich vorgemerkt, über Enter gestartet und
+mit den erwarteten Dateiinhalten verglichen. Das Originalarchiv bleibt
+unverändert. Verschachtelte Archive behalten die äußere Adresse und kehren
+zum äußeren Ordner samt Mitgliedsauswahl zurück. Die gleiche Archivsitzung
+auf beiden Seiten bleibt schreibgeschützt. Nach Austausch einer Archivdatei
+sperren alte Einträge; Neu-Einlesen setzt entfernte interne Ordner zurück.
+Helle und dunkle Entpackfenster werden als lokale Bilder kontrolliert,
+einschließlich gerenderter Spaltentitel.
+
+Grenzen: keine Änderung bestehender Archive, kein verschlüsseltes Schreiben,
+kein Zusammenführen in vorhandene Ziele, keine vollständige Metadatenmatrix.
+Bis zu 100.000 Einträge/Quellobjekte, 100 GB Entpackung und 512 MiB je
+geöffnetem Mitglied; zehn verschachtelte Archive, 500 sichtbare Vorschauzeilen.
+Archivsitzungen, Passwörter und Aufträge sind nicht dauerhaft gespeichert.
+Die Quelle wird über Dateiversionen geprüft; es gibt keine transaktionale
+Sperre gegen fremde Schreiber oder vollständige Inhaltsprüfung aller
+unmarkierten Mitglieder. Laufende System-Codec-Aufrufe können Pause/Abbruch
+verzögern. Nicht geprüfte RAR-/Verschlüsselungsvarianten und sehr große
+Container benötigen weitere Laufzeitprüfungen.
 
 Arbeitsbereiche, Layouts und detaillierte Tabsperren
 16 neue Kernprüfungen prüfen vollständige Profile mit beiden Seiten,
@@ -701,7 +773,7 @@ leere Ordner. Anlegen, Umbenennen, geprüfte rekursive Löschung und ein
 Abbruch innerhalb einer verschlüsselten Dateiübertragung sind geprüft.
 Der öffentliche Prüflauf entfernt erzeugte Schlüssel und seinen Testserver.
 Systemdienste und persönliche SSH-Konfiguration werden nicht geändert.
-Die neun Zusatzprüfungen werden getrennt von den 306 Kerntests gezählt.
+Die neun Zusatzprüfungen werden getrennt von den 332 Kerntests gezählt.
 Externe SSH-Server, andere Algorithmen und weitere Anmeldevarianten brauchen
 zusätzliche Praxisprüfungen.
 

@@ -26,7 +26,7 @@ final class RemoteFolderSession {
 
 extension PaneView {
     var remote: RemoteFolderSession? { tab.remote }
-    var locationText: String { remote == nil ? currentURL.path : currentURL.absoluteString }
+    var locationText: String { if let archive { return archive.describe(currentURL) };return remote == nil ? currentURL.path : currentURL.absoluteString }
     var remoteReady: Bool { remote != nil && canUseDisplayedEntries && !isLoading && !pathField.sessionActive }
     var selectedRemoteEntries: [RemoteEntry] {
         guard remoteReady else { return [] }
@@ -39,6 +39,8 @@ extension PaneView {
         tabs.append(t);tabIndex = tabs.count-1;filterField.stringValue = "";restoreTabView();rebuildTabs();refresh();focus();return t
     }
     func configureRemoteAddress() {
+        if let archive { configureArchiveAddress(archive);return }
+        breadcrumb.addressDescription = nil;breadcrumb.rootTitle = nil
         guard let remote else { pathField.addressResolver = nil;pathField.folderProvider = nil;pathField.directoryValidator = nil;breadcrumb.folderProvider = nil;return }
         pathField.addressResolver = { [remote] text,base in try remote.resolve(text,relativeTo:base) }
         let provider: PathEditor.FolderProvider = { [remote] url,prefix,hidden,token in try remote.folders(in:url,prefix:prefix,hidden:hidden,token:token) }

@@ -107,7 +107,7 @@ extension PaneView: NSCollectionViewDataSource, NSCollectionViewDelegate {
     func collectionView(_ collectionView: NSCollectionView,didSelectItemsAt indexPaths: Set<IndexPath>) { if !syncingSelection { redrawFileFocus();updateStatus() } }
     func collectionView(_ collectionView: NSCollectionView,didDeselectItemsAt indexPaths: Set<IndexPath>) { if !syncingSelection { redrawFileFocus();updateStatus() } }
     func collectionView(_ collectionView: NSCollectionView,pasteboardWriterForItemAt indexPath: IndexPath) -> NSPasteboardWriting? {
-        guard remote == nil,visibleEntries.indices.contains(indexPath.item) else { return nil };return visibleEntries[indexPath.item].url as NSURL
+        guard remote == nil,archive == nil,visibleEntries.indices.contains(indexPath.item) else { return nil };return visibleEntries[indexPath.item].url as NSURL
     }
     func collectionView(_ collectionView:NSCollectionView,validateDrop info:NSDraggingInfo,proposedIndexPath:AutoreleasingUnsafeMutablePointer<NSIndexPath>,dropOperation:UnsafeMutablePointer<NSCollectionView.DropOperation>) -> NSDragOperation {
         let hit = collectionView.indexPathForItem(at:collectionView.convert(info.draggingLocation,from:nil))
