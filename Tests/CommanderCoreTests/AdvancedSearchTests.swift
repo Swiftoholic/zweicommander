@@ -28,6 +28,28 @@ extension CoreTests {
         XCTAssertEqual(Set(report.hits.map(\.name)),["visible.txt","cached.txt","hidden.txt"])
         XCTAssertEqual(report.hits.count,3)
     }
+    func testAdvancedSearchDuplicateDirectoriesStillApplyPruningRules() throws {
+        let parent = try folder("A"),explicit = try folder("A/B")
+        try file("A/B/Cache/secret.txt","excluded");try file("A/B/Allowed/visible.txt","included")
+        var options = SearchOptions();options.kind = .files;options.maximumDepth = 1;options.excludedFolders = "Cache"
+        let report = try SearchService.search([parent,explicit],options:options)
+        XCTAssertEqual(report.hits.map(\.name),["visible.txt"])
+        XCTAssertFalse(report.hits.contains { $0.name == "secret.txt" });XCTAssertEqual(report.hits.count,1)
+    }
+    func testAdvancedSearchSnippetsBoundBytesAcrossGiantCombiningGraphemes() throws {
+        let marks = String(repeating:"\u{0301}",count:300_000)
+        try file("A/before.txt","X"+marks+" needle tail")
+        try file("A/after.txt","needle X"+marks+" tail")
+        var options = SearchOptions();options.kind = .files;options.content = "needle"
+        let report = try SearchService.search(root.appendingPathComponent("A"),options:options)
+        XCTAssertEqual(report.hits.count,2)
+        for hit in report.hits {
+            XCTAssertTrue(hit.snippet.utf8.count <= 1024);XCTAssertTrue(hit.snippet.utf16.count <= 1024)
+            XCTAssertTrue(hit.snippet.contains("needle"))
+            XCTAssertTrue(hit.snippet.unicodeScalars.contains(UnicodeScalar(0x2026)!))
+            XCTAssertFalse(hit.snippet.unicodeScalars.contains(UnicodeScalar(0xFFFD)!))
+        }
+    }
     func testAdvancedSearchRootValidationPrecedesTraversal() throws {
         let valid = try folder("Valid");try file("Valid/file.txt","text");var updates = 0
         XCTAssertThrowsError(try SearchService.search([valid,root.appendingPathComponent("Missing")],options:SearchOptions(),onUpdate:{_ in updates += 1}))

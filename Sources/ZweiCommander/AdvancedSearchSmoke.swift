@@ -32,11 +32,13 @@ extension AppDelegate {
                 check(window.performKeyEquivalent(with:key(window,"l",[.command,.shift])),"Command Shift L opens root management")
                 let form = require(controller.rootsController,"root manager"),formWindow = require(form.window as? WorkflowWindow,"root manager window");await activate(formWindow)
                 check(window.attachedSheet === formWindow && form.roots.count == 2,"root manager is a native scoped sheet")
-                form.candidate.stringValue = left.path;form.add.performClick(nil);check(form.roots.count == 2,"duplicate root is deduplicated without splitting a semicolon path")
-                form.candidate.stringValue = root.appendingPathComponent("Missing").path;form.add.performClick(nil)
+                formWindow.makeFirstResponder(form.table);form.candidate.stringValue = left.path;form.add.performClick(nil);check(form.roots.count == 2,"duplicate root is deduplicated without splitting a semicolon path")
+                formWindow.makeFirstResponder(form.table);form.candidate.stringValue = root.appendingPathComponent("Missing").path;form.add.performClick(nil)
                 check(form.info.textColor == .systemRed && form.roots.count == 2,"missing root stays inline without changing accepted roots")
-                form.candidate.stringValue = deep.path;form.add.performClick(nil);check(form.roots.count == 3,"explicit deeper root is retained for bounded searches")
-                let deepRow = require(form.roots.firstIndex { FileSystem.canonical($0) == FileSystem.canonical(deep) },"deeper root row");form.table.selectRowIndexes(IndexSet(integer:deepRow),byExtendingSelection:false);form.remove.performClick(nil)
+                formWindow.makeFirstResponder(form.table);form.candidate.stringValue = deep.path;form.add.performClick(nil);check(form.roots.count == 3,"explicit deeper root is retained for bounded searches")
+                let deeperIndex = form.roots.firstIndex { FileSystem.canonical($0).path == FileSystem.canonical(deep).path }
+                if deeperIndex == nil { print("ADVANCED SEARCH ROOT DIAGNOSTIC target="+FileSystem.canonical(deep).path.debugDescription+" roots="+form.roots.map { FileSystem.canonical($0).path.debugDescription }.joined(separator:", ")) }
+                let deepRow = require(deeperIndex,"deeper root row");form.table.selectRowIndexes(IndexSet(integer:deepRow),byExtendingSelection:false);form.remove.performClick(nil)
                 check(form.roots.count == 2,"removing a root only edits the search list")
                 check(formWindow.performKeyEquivalent(with:key(formWindow,"\r",.command)),"Command Return applies the root list")
                 await wait("closed roots") { window.attachedSheet == nil };await activate(window)

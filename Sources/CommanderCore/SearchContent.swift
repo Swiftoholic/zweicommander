@@ -51,8 +51,15 @@ struct CompiledSearchContent {
         }
         if options.contentNegated { return match == nil ? "Suchinhalt nicht enthalten · Text geprüft" : nil }
         guard let match else { return nil }
-        let lower = text.index(match.lowerBound,offsetBy:-60,limitedBy:text.startIndex) ?? text.startIndex
-        let upper = text.index(lower,offsetBy:240,limitedBy:text.endIndex) ?? text.endIndex
-        return String(text[lower..<upper]).replacingOccurrences(of:"\r",with:" ").replacingOccurrences(of:"\n",with:" ")
+        // Character counts cannot bound a snippet: one grapheme can contain millions
+        // of combining scalars. Slice the UTF-8 view first, on scalar boundaries, and
+        // only copy the small result. Reserve six bytes for both ellipsis markers.
+        let source = text.utf8,matchStart = match.lowerBound.samePosition(in:text.utf8) ?? source.startIndex
+        var lower = source.index(matchStart,offsetBy:-240,limitedBy:source.startIndex) ?? source.startIndex
+        while lower < source.endIndex,source[lower]&0xC0 == 0x80 { lower = source.index(after:lower) }
+        var upper = source.index(lower,offsetBy:1018,limitedBy:source.endIndex) ?? source.endIndex
+        while upper > lower,upper < source.endIndex,source[upper]&0xC0 == 0x80 { upper = source.index(before:upper) }
+        let body = String(decoding:source[lower..<upper],as:UTF8.self).replacingOccurrences(of:"\r",with:" ").replacingOccurrences(of:"\n",with:" ")
+        return (lower > source.startIndex ? "…" : "")+body+(upper < source.endIndex ? "…" : "")
     }
 }
