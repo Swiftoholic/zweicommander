@@ -234,14 +234,21 @@ extension SearchService {
                 if let limit = depthLimit,depth >= limit { iterator.skipDescendants() }
                 if let limit = depthLimit,depth > limit { continue }
                 let path = url.standardizedFileURL.path
-                if duplicateSubtrees.contains(where: { path == $0 || path.hasPrefix($0+"/") }),!seen.insert(path).inserted { continue }
-                guard result.scanned < 1_000_000 else { result.scanLimitReached = true;warn("Prüfgrenze von 1.000.000 eindeutigen Einträgen erreicht. Teilergebnisse bleiben erhalten.");break rootsLoop }
-                result.scanned += 1
+                let duplicate = duplicateSubtrees.contains(where: { path == $0 || path.hasPrefix($0+"/") }) && !seen.insert(path).inserted
+                if !duplicate {
+                    guard result.scanned < 1_000_000 else { result.scanLimitReached = true;warn("Prüfgrenze von 1.000.000 eindeutigen Einträgen erreicht. Teilergebnisse bleiben erhalten.");break rootsLoop }
+                    result.scanned += 1
+                }
                 do {
                     var info = stat();guard lstat(url.path,&info) == 0 else { throw CommanderError.message("Eintrag nicht lesbar: \(url.path)") }
                     let directory = info.st_mode & S_IFMT == S_IFDIR,link = info.st_mode & S_IFMT == S_IFLNK,regular = info.st_mode & S_IFMT == S_IFREG
                     if link || !options.recursive { iterator.skipDescendants() }
-                    if directory && compiled.folders.matches(url.lastPathComponent) { iterator.skipDescendants();publish();continue }
+                    let excludedFolder = directory && compiled.folders.matches(url.lastPathComponent)
+                    if excludedFolder { iterator.skipDescendants() }
+                    // A duplicate directory still belongs to this traversal: apply its
+                    // pruning rules before skipping its already-reported result row.
+                    if duplicate { continue }
+                    if excludedFolder { publish();continue }
                     let modified = Date(timeIntervalSince1970:Double(info.st_mtimespec.tv_sec)+Double(info.st_mtimespec.tv_nsec)/1e9)
                     if options.searchArchives && regular && ArchiveService.isArchive(url) && !compiled.excluded.matches(url.lastPathComponent) {
                         do {
