@@ -39,15 +39,16 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let tabsSmoke = args.firstIndex(of:"--tabs-smoke")
         let layoutSmoke = args.firstIndex(of:"--layout-smoke")
         let archiveSmoke = args.firstIndex(of:"--archive-smoke")
+        let archiveMergeSmoke = args.firstIndex(of:"--archive-merge-smoke")
         let compareSmoke = args.firstIndex(of:"--compare-smoke")
-        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke,serverPaneSmoke,selectionSmoke,tabsSmoke,layoutSmoke,archiveSmoke].compactMap { $0 }.first
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke,serverPaneSmoke,selectionSmoke,tabsSmoke,layoutSmoke,archiveSmoke,archiveMergeSmoke].compactMap { $0 }.first
         Preferences.testMode = testIndex != nil
         if Preferences.testMode { setvbuf(stdout,nil,_IOLBF,0) }
         if Preferences.testMode { Preferences.state = SavedState() }
         if remoteSmoke != nil,let index = args.firstIndex(of:"--remote-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
             Preferences.remoteProfileTestDefaults = UserDefaults(suiteName:args[index+1])
         }
-        if let index = journalSmoke ?? ageSmoke ?? recoverySmoke,args.indices.contains(index+1) {
+        if let index = journalSmoke ?? ageSmoke ?? recoverySmoke ?? archiveMergeSmoke,args.indices.contains(index+1) {
             Preferences.transferJournalTestDirectory = URL(fileURLWithPath:args[index+1]).appendingPathComponent("Auftragsablage")
         }
         if profilesSmoke != nil || ageSmoke != nil,let index = args.firstIndex(of:"--profile-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
@@ -91,6 +92,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         main.onRebuildMenus = { [weak self] in self?.buildMenus(); self?.main.updateFunctionLabels() }
         buildMenus(); main.showWindow(nil); main.active.focus()
         NSApp.activate(ignoringOtherApps:true)
+        if let archiveMergeSmoke,args.indices.contains(archiveMergeSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runArchiveMergeSmoke(root:root,prefix:args[archiveMergeSmoke+2]) }
+        }
         if let archiveSmoke,args.indices.contains(archiveSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runArchiveSmoke(root:root,prefix:args[archiveSmoke+2]) }
         }
@@ -267,7 +271,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if item.keyEquivalentModifierMask.isEmpty, item.keyEquivalent == " ", NSApp.keyWindow?.firstResponder is NSTextView { return false }
         return true
     }
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "0.23.0",.version:Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "24",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "0.24.0",.version:Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "25",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
     func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply {
         if main?.canTerminate == false { _ = dialog("Dateivorgänge laufen",message:"Laufende Vorgänge einschließlich Suchen, vorgemerkte Synchronisationen und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return .terminateCancel }
         main?.saveState(); return .terminateNow

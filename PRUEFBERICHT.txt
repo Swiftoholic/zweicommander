@@ -1,8 +1,8 @@
-ZweiCommander 0.23.0 (Build 24) — Prüfung abgeschlossen am 25. Oktober 2026
+ZweiCommander 0.24.0 (Build 25) — Prüfung abgeschlossen am 25. Oktober 2026
 
 Ergebnis
-- 332/332 Dateikern- und Integrationstests bestanden.
-- 1134/1134 native UI-Prüfungen in 40 Durchläufen am finalen
+- 358/358 Dateikern- und Integrationstests bestanden.
+- 1191/1191 native UI-Prüfungen in 41 Durchläufen am finalen
   universellen Release-Build bestanden:
   Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
   Darstellung nach erneutem App-Start 9, Mittelstreifen und Mausbedienung 26,
@@ -26,12 +26,12 @@ Ergebnis
   Auswahl und Textzwischenablage 90, Tabgruppen und Sitzungsabläufe 56,
   Tabgruppen nach erneutem App-Start 9, Arbeitsbereiche und Layouts 62,
   Arbeitsbereiche nach erneutem App-Start 15,
-  Archivabläufe und Vorschau 79.
+  Archivabläufe und Vorschau 79, Archivkonflikte 57.
 - Die Serie wurde in zwei Gruppen am identischen Release-Build ausgeführt:
-  24 Durchläufe mit 529 Prüfungen sowie 16 Durchläufe mit
-  605 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
+  24 Durchläufe mit 529 Prüfungen sowie 17 Durchläufe mit
+  662 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
   und Serverfenster sowie Server-Tabs, Auswahlvorschau, Tabgruppen und
-  Arbeitsbereiche und Archive in einer entsperrten GUI-Sitzung.
+  Arbeitsbereiche, Archive und Archivkonflikte in einer entsperrten GUI-Sitzung.
   Alle Durchläufe sind vollständig bestanden;
   es stehen keine ausgelassenen Vordergrundprüfungen mehr aus.
 - Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
@@ -92,6 +92,56 @@ Auswahldateien enthalten ausdrücklich gespeicherte Pfade, keine Inhalte
 oder Zugangsdaten. Keine automatische Wiederherstellung nach Neustart.
 Shell-Kopie führt nichts aus. Sehr große Listen und aufwendige reguläre
 Ausdrücke benötigen weitere Praxisprüfungen.
+
+Entpacken in vorhandene Ordner und Konfliktentscheidungen
+26 zusätzliche Kernprüfungen vergleichen Vorschau und tatsächliche Inhalte.
+Die Vorschau schreibt nichts, sperrt offene Entscheidungen und reserviert
+Alternativnamen gegenüber sämtlichen eingehenden Namen. Gemischte Regeln
+überspringen, behalten beide Dateien, benennen um und ersetzen mit Sicherung.
+Die Regel „nur ältere“ unterscheidet ältere, gleiche und neuere Zieldaten;
+eine Einzelentscheidung kann sie überschreiben. Sammelregeln setzen eigene
+Namen auf den vorher reservierten Vorschlag zurück.
+
+Datei-/Ordner-/Linkkonflikte werden übersprungen oder als ganzer gewählter
+Unterbaum unter neuem Namen entpackt. Links und Pipes im Ziel werden nicht
+verfolgt oder geöffnet. Das Quellarchiv einschließlich Inode-Alias wird
+nicht ersetzt. Tiefe Einzelauswahl ergänzt nur erforderliche Elternordner.
+Bestehende Ordnerrechte und zusätzliche Zielinhalte bleiben erhalten.
+Unicode-/Schreibweisenkollisionen und ungültige oder belegte eigene Namen
+werden abgewiesen; lange Alternativnamen beachten die Dateinamenlänge.
+
+Vorhandene Inhalte werden erst nach Vorbereitung der gewählten Nutzdaten
+geändert. Echte konkurrierende Zieländerungen, neu belegte Namen, geänderte
+Archivdateien und ersetzte Wurzel-/Unterordner blockieren die Veröffentlichung.
+Abbruch während Lesen und Veröffentlichung setzt noch unveränderte eigene
+Schritte zurück. Nachträglich geänderte Dateien und fremde neue Kinder werden
+nicht gelöscht. Vorherige Inhalte bleiben gegebenenfalls als Sicherung
+zugeordnet; eine Wiederherstellung wird tatsächlich ausgeführt und verglichen.
+Unveränderte eigene leere Ordner werden bei Rücksetzung entfernt. Ausgelassene
+Inhalte werden nicht als Nutzdaten gelesen; reine Überspringpläne benötigen
+keine Entpackdateien.
+
+57 zusätzliche native Prüfungen bedienen die wirklichen Auswahlfelder,
+Einzelmenüs, das Umbenennungsblatt, das Zielfeld und die Warteschlange.
+Cmd+1/2/4/5, Cmd+Option+Pfeil hoch/runter, Cmd+L, Cmd+Enter im Namensblatt,
+Cmd+Shift+Enter, Enter in der Warteschlange und Escape werden ausgelöst.
+Eigene ungültige Namen bleiben mit Hinweis im Blatt. Entscheidungen bleiben
+beim Konfliktfilter und einer reinen Passwortänderung erhalten. Fünf Konflikte
+werden gemischt entschieden, vorgemerkt und mit exakten Ergebnisinhalten,
+Byte-Fortschritt, erhaltenem Zielzusatz und Wiederherstellungssicherung geprüft.
+Ein nach der Vorschau geändertes Ziel erzwingt neue Einzelentscheidungen.
+520 Konflikte prüfen beide Seiten der 500-Zeilen-Grenze, Sprünge, Sammelregeln
+für unsichtbare Zeilen und unveränderte Inhalte nach Schließen. Helle und dunkle
+Fenster, vollständig sichtbare Standardspalten und überlappungsfreie Ziel- und
+Fußbereiche werden geprüft. Allgemeine Zwischenablage und Benutzereinstellungen
+enthalten keine Vorgangspasswörter oder Einzelentscheidungen.
+
+Grenzen: Die Dateiveröffentlichung ist keine Gesamttransaktion und sperrt
+andere Programme nicht. Ein abruptes Prozessende kann Zwischenkopien oder
+noch nicht zugeordnete Sicherungen hinterlassen. Archivaufträge und Passwörter
+bleiben sitzungsbezogen; kein automatischer Wiederanlauf. Neue Ordner bleiben
+beim späteren allgemeinen Datei-Rückgängig bestehen. Vollständige Metadaten-
+und Codec-Matrix sowie sehr große reale Bestände sind weiter offen.
 
 Archive, gezieltes Entpacken und bedarfsgesteuerte Vorschau
 26 neue Kernprüfungen prüfen ein Inhaltsverzeichnis ohne Entpacken,
@@ -154,9 +204,9 @@ Helle und dunkle Entpackfenster werden als lokale Bilder kontrolliert,
 einschließlich gerenderter Spaltentitel.
 
 Grenzen: keine Änderung bestehender Archive, kein verschlüsseltes Schreiben,
-kein Zusammenführen in vorhandene Ziele, keine vollständige Metadatenmatrix.
+keine vollständige Metadatenmatrix.
 Bis zu 100.000 Einträge/Quellobjekte, 100 GB Entpackung und 512 MiB je
-geöffnetem Mitglied; zehn verschachtelte Archive, 500 sichtbare Vorschauzeilen.
+geöffnetem Mitglied; zehn verschachtelte Archive, 500 Vorschauzeilen je Seite.
 Archivsitzungen, Passwörter und Aufträge sind nicht dauerhaft gespeichert.
 Die Quelle wird über Dateiversionen geprüft; es gibt keine transaktionale
 Sperre gegen fremde Schreiber oder vollständige Inhaltsprüfung aller
@@ -773,7 +823,7 @@ leere Ordner. Anlegen, Umbenennen, geprüfte rekursive Löschung und ein
 Abbruch innerhalb einer verschlüsselten Dateiübertragung sind geprüft.
 Der öffentliche Prüflauf entfernt erzeugte Schlüssel und seinen Testserver.
 Systemdienste und persönliche SSH-Konfiguration werden nicht geändert.
-Die neun Zusatzprüfungen werden getrennt von den 332 Kerntests gezählt.
+Die neun Zusatzprüfungen werden getrennt von den 358 Kerntests gezählt.
 Externe SSH-Server, andere Algorithmen und weitere Anmeldevarianten brauchen
 zusätzliche Praxisprüfungen.
 

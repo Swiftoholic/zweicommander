@@ -17,6 +17,14 @@ extension ArchiveService {
             close(stageFD)
             if !published,(try? RenameVersion.read(parent).sameObject(plan.parentVersion)) == true { try? FileManager.default.removeItem(at:parent.appendingPathComponent(stage)) }
         }
+        try writeExtraction(plan.selection,catalog:plan.catalog,to:stageFD,password:password,token:token,progress:{ name,_ in progress(name) })
+        try token.check();try plan.validate()
+        guard renameatx_np(parentFD,stage,parentFD,destination.lastPathComponent,UInt32(RENAME_EXCL)) == 0 else { throw CommanderError.message("Das Entpackziel wurde inzwischen belegt. Nichts wurde ersetzt.") }
+        published = true
+    }
+    // The caller owns a private directory descriptor on the destination volume.
+    static func writeExtraction(_ selection:ArchiveSelection,catalog:ArchiveCatalog,to stageFD:Int32,password:String?,token:CancellationToken,directoryMetadata:Bool = true,progress:(String,Int64)->Void) throws {
+        try token.check();try catalog.validateSource()
         func folder(_ path:String) throws -> Int32 {
             var fd = dup(stageFD);guard fd >= 0 else { throw CommanderError.message("Entpackordner nicht verfügbar.") }
             do {
@@ -29,17 +37,17 @@ extension ArchiveService {
                 return fd
             } catch { close(fd);throw error }
         }
-        let reader = try reader(plan.catalog.source,password:password);defer { archive_read_free(reader) }
-        let expected = Dictionary(uniqueKeysWithValues:plan.catalog.members.map { ($0.path,$0) });var seen = Set<String>(),written = Set<String>(),header:OpaquePointer?,total:Int64 = 0,count = 0
+        let reader = try reader(catalog.source,password:password);defer { archive_read_free(reader) }
+        let expected = Dictionary(uniqueKeysWithValues:catalog.members.map { ($0.path,$0) });var seen = Set<String>(),written = Set<String>(),header:OpaquePointer?,total:Int64 = 0,count = 0
         var buffer = [UInt8](repeating:0,count:128*1024)
         while true {
             try token.check();let code = archive_read_next_header(reader,&header)
             if code == 1 { break };guard code == 0,let header else { throw failure(reader) }
             let value = try member(header);if value.path.isEmpty { continue };count += 1
             guard count <= ArchiveCatalog.maximumEntries,seen.insert(value.path).inserted,expected[value.path] == value else { throw CommanderError.message("Die Archiveinträge stimmen nicht mehr mit der Vorschau überein.") }
-            guard plan.selected.contains(value.path) else { continue }
-            let name = plan.basePath.isEmpty ? value.path : String(value.path.dropFirst(plan.basePath.count+1))
-            progress(name)
+            guard selection.selected.contains(value.path) else { continue }
+            let name = selection.basePath.isEmpty ? value.path : String(value.path.dropFirst(selection.basePath.count+1))
+            progress(name,total)
             if value.isDirectory { let fd = try folder(name);close(fd) }
             else {
                 let directory = try folder((name as NSString).deletingLastPathComponent);defer { close(directory) }
@@ -51,8 +59,8 @@ extension ArchiveService {
                     try token.check();let amount = archive_read_data(reader,&buffer,buffer.count)
                     if amount == 0 { break };guard amount > 0 else { throw failure(reader) }
                     let next = total.addingReportingOverflow(Int64(amount)),fileNext = size.addingReportingOverflow(Int64(amount))
-                    guard !next.overflow,!fileNext.overflow,next.partialValue <= plan.maximumBytes,fileNext.partialValue <= value.size else { throw CommanderError.message("Dateigröße oder Entpacklimit wurde überschritten: "+name) }
-                    total = next.partialValue;size = fileNext.partialValue;try handle.write(contentsOf:Data(buffer.prefix(amount)))
+                    guard !next.overflow,!fileNext.overflow,next.partialValue <= selection.maximumBytes,fileNext.partialValue <= value.size else { throw CommanderError.message("Dateigröße oder Entpacklimit wurde überschritten: "+name) }
+                    total = next.partialValue;size = fileNext.partialValue;try handle.write(contentsOf:Data(buffer.prefix(amount)));progress(name,total)
                 }
                 guard size == value.size else { throw CommanderError.message("Unvollständiger Archivinhalt: "+name) }
                 try handle.synchronize()
@@ -61,14 +69,13 @@ extension ArchiveService {
             }
             written.insert(value.path)
         }
-        guard seen == Set(expected.keys),written == plan.selected,total == plan.totalBytes else { throw CommanderError.message("Die Archivauswahl ist unvollständig oder wurde geändert.") }
-        for value in plan.rows.reversed() where value.isDirectory {
+        guard seen == Set(expected.keys),written == selection.selected,total == selection.totalBytes else { throw CommanderError.message("Die Archivauswahl ist unvollständig oder wurde geändert.") }
+        if directoryMetadata { for value in selection.rows.reversed() where value.isDirectory {
             let fd = try folder(value.path);defer { close(fd) }
             if value.modified != .distantPast { var times = [timeval(tv_sec:Int(value.modified.timeIntervalSince1970),tv_usec:0),timeval(tv_sec:Int(value.modified.timeIntervalSince1970),tv_usec:0)];guard futimes(fd,&times) == 0 else { throw CommanderError.message("Ordnerdatum konnte nicht gesetzt werden.") } }
             guard fchmod(fd,mode_t(value.permissions == 0 ? 0o755 : value.permissions)) == 0 else { throw CommanderError.message("Ordnerrechte konnten nicht gesetzt werden.") }
         }
-        try token.check();try plan.validate()
-        guard renameatx_np(parentFD,stage,parentFD,destination.lastPathComponent,UInt32(RENAME_EXCL)) == 0 else { throw CommanderError.message("Das Entpackziel wurde inzwischen belegt. Nichts wurde ersetzt.") }
-        published = true
+        }
+        try catalog.validateSource()
     }
 }

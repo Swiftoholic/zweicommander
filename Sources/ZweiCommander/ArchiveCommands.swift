@@ -17,10 +17,10 @@ extension MainWindow {
         return nil
     }
     @discardableResult func handleArchiveCommand(_ id:String) throws -> Bool {
-        if archiveCommandEnabled(id) == false { content.status.stringValue = "Die Archivansicht ist schreibgeschützt. Mit F5 oder ⌥F6 in einen neuen lokalen Ordner entpacken.";return true }
+        if archiveCommandEnabled(id) == false { content.status.stringValue = "Die Archivansicht ist schreibgeschützt. Mit F5 oder ⌥F6 in einen lokalen Ordner entpacken.";return true }
         guard let archive = active.archive else { return false }
         switch id {
-        case "copy","extract":showArchiveExtraction(session:archive,selection:active.selectedURLs.map(archive.path),base:archive.path(active.currentURL));return true
+        case "copy","extract":showArchiveExtraction(session:archive,selection:active.selectedURLs.map(archive.path),base:archive.path(active.currentURL),intoCurrent:id == "copy");return true
         case "archiveContainer":active.leaveArchive(container:true);return true
         case "archivePassword":askArchivePassword(archive.catalog.source.lastPathComponent) { [weak self,weak archive] value in guard let archive else { return };archive.password = value;self?.archiveQuickURL = nil;self?.reloadArchive(archive) };return true
         case "refresh":reloadArchive(archive);return true
@@ -49,8 +49,8 @@ extension MainWindow {
         let name = (sources.count == 1 ? ArchiveCatalog.folderName(for:sources[0]) : "Archiv")+"."+format.fileExtension
         showArchiveSetup(mode:.pack(sources),destination:other.currentURL.appendingPathComponent(name))
     }
-    func showArchiveExtraction(session:ArchiveFolderSession,selection:[String],base:String) {
-        showArchiveSetup(mode:.extract(session.catalog.source,session.catalog,selection.isEmpty ? nil : selection,base),destination:other.currentURL.appendingPathComponent(session.catalog.suggestedFolderName),password:session.password)
+    func showArchiveExtraction(session:ArchiveFolderSession,selection:[String],base:String,intoCurrent:Bool = false) {
+        showArchiveSetup(mode:.extract(session.catalog.source,session.catalog,selection.isEmpty ? nil : selection,base),destination:intoCurrent ? other.currentURL : other.currentURL.appendingPathComponent(session.catalog.suggestedFolderName),password:session.password)
     }
     func showArchiveSetup(mode:ArchiveSetupMode,destination:URL,password:String = "") {
         let cache = self.cache
@@ -62,15 +62,19 @@ extension MainWindow {
     }
     @discardableResult func enqueueArchive(_ plan:ArchivePrepared,password:String,start:Bool) -> Bool {
         let secret = ArchiveSecret(password),title:String
-        switch plan { case .pack:title = "Archiv erstellen";case .extract:title = "Archiv entpacken" }
-        let id = jobs.submitReported(title+" · "+plan.destination.lastPathComponent,start:start,notifyQueuedCancellation:true,body:{ token,reporter in
+        switch plan { case .pack:title = "Archiv erstellen";case .extract,.merge:title = "Archiv entpacken" }
+        let id = jobs.submitReported(title+" · "+plan.destination.lastPathComponent,start:start,items:plan.initialItems,notifyQueuedCancellation:true,body:{ token,reporter -> OperationReport in
             defer { secret.value = "" }
             switch plan { case .pack(let value):try value.execute(token:token,progress:{ reporter.report($0) })
-            case .extract(let value):try ArchiveService.extract(value,password:secret.value,token:token,progress:{ reporter.report($0) }) }
+            case .extract(let value):try ArchiveService.extract(value,password:secret.value,token:token,progress:{ reporter.report($0) })
+            case .merge(let value):return ArchiveService.extract(value,password:secret.value,token:token,progress:{ reporter.transfer($0) }) }
+            var report = OperationReport();report.completed = [plan.destination];return report
         },completion:{ [weak self] result in
             secret.value = "";guard let self else { return }
             self.refresh()
-            switch result { case .success:self.content.status.stringValue = "\(title) abgeschlossen: "+plan.destination.path
+            switch result { case .success(let report):
+                if !report.undo.isEmpty { self.undoSteps = report.undo;self.renameUndo = nil }
+                self.content.status.stringValue = report.errors.isEmpty ? "\(title) abgeschlossen: "+plan.destination.path : report.errors.joined(separator:" · ")
             case .failure(let error):self.content.status.stringValue = error.localizedDescription }
         })
         showOperations(select:id);return true

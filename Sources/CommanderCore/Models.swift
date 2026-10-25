@@ -218,6 +218,9 @@ public struct FileStamp: Equatable, Codable {
     let inode: UInt64
     let device: UInt64
     func sameObject(as other: FileStamp) -> Bool { inode == other.inode && device == other.device }
+    init(version:RenameVersion) {
+        size = UInt64(clamping:version.size);date = version.modified;inode = UInt64(version.inode);device = UInt64(bitPattern:Int64(version.device))
+    }
     public init(_ url: URL) throws {
         let a = try FileManager.default.attributesOfItem(atPath: url.path)
         size = (a[.size] as? NSNumber)?.uint64Value ?? 0

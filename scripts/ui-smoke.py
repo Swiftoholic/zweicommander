@@ -211,7 +211,22 @@ def fixtures(base):
     for name, contents in [("Links/Quellen/Docs/lesen.txt", "archive text\n"), ("Links/Quellen/Docs/Sub/note.md", "nested note\n"), ("Links/NestedSource/inner.txt", "inner text\n"), ("Links/EncryptedSource/secret.txt", "encrypted text\n"), ("Links/Quellen/.hidden", "hidden\n")]:
         write(archive, name, contents)
     (archive / "Links/Quellen/Docs/skip.bin").write_bytes(b"synthetic unselected archive content\n" * 100000)
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive
+    archive_merge = base / "archive-merge"
+    for name in ("Links/Incoming/Dir", "Links/Incoming/Conflict", "Links/Incoming/Empty", "Rechts", "Outside", "Many/Incoming", "BulkTarget"):
+        (archive_merge / name).mkdir(parents=True)
+    for name, contents in [("Keep.txt", "new keep\n"), ("Both.txt", "new both\n"), ("Replace.txt", "new replace\n"), ("Rename.txt", "new rename\n"), ("Fresh.txt", "fresh\n"), ("Dir/new.txt", "nested\n"), ("Conflict/child.txt", "child\n")]:
+        write(archive_merge, "Links/Incoming/" + name, contents)
+        os.utime(archive_merge / "Links/Incoming" / name, (1700000000, 1700000000))
+    for name, contents in [("Keep.txt", "old keep\n"), ("Both.txt", "old both\n"), ("Replace.txt", "old replace\n"), ("Rename.txt", "old rename\n"), ("only-target.txt", "target only\n")]:
+        write(archive_merge, "Rechts/" + name, contents)
+        date = 1700000100 if name == "Keep.txt" else 1690000000
+        os.utime(archive_merge / "Rechts" / name, (date, date))
+    (archive_merge / "Rechts/Conflict").symlink_to(archive_merge / "Outside", target_is_directory=True)
+    for number in range(520):
+        name = f"item-{number:04d}.txt"
+        write(archive_merge, "Many/Incoming/" + name, "new\n")
+        write(archive_merge, "BulkTarget/" + name, "old\n")
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive, archive_merge
 
 
 def main():
@@ -280,9 +295,10 @@ def main():
             ("layout-save", "--layout-smoke", roots[20], str(prefix), "LAYOUT UI PASS ", "LAYOUT SMOKE PASS 62 checks", 62),
             ("layout-reload", "--layout-smoke", roots[20], str(prefix), "LAYOUT UI PASS ", "LAYOUT SMOKE PASS 15 checks", 15),
             ("archive", "--archive-smoke", roots[21], str(prefix), "ARCHIVE UI PASS ", "ARCHIVE SMOKE PASS 79 checks", 79),
+            ("archive-merge", "--archive-merge-smoke", roots[22], str(prefix), "ARCHIVE MERGE UI PASS ", "ARCHIVE MERGE SMOKE PASS 57 checks", 57),
         ]
         if args.skip_foreground:
-            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload", "archive"}
+            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload", "archive", "archive-merge"}
             skipped = [case for case in cases if case[0] in foreground]
             cases = [case for case in cases if case[0] not in foreground]
             print("Ausgelassen: " + ", ".join(case[0] for case in skipped) + " · " + str(sum(case[-1] for case in skipped)) + " Vordergrundprüfungen offen", flush=True)
@@ -370,7 +386,7 @@ def main():
                     command += ["--wait-for-foreground"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
-                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180 if name == "archive" or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
+                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180 if name in {"archive", "archive-merge"} or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
                     except subprocess.TimeoutExpired:
                         raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
                 output = (args.results / (name + ".log")).read_text(encoding="utf-8")

@@ -115,7 +115,7 @@ extension AppDelegate {
                 let extract = await form(),extractWindow = require(extract.window as? WorkflowWindow,"extract workflow")
                 check(!extract.packing && extract.selectedOnly.state == .on && extract.prepared?.rows.map(\.path) == ["lesen.txt"],"F5 preview preserves paths relative to the current archive folder")
                 check(extract.password.cell is NSSecureTextFieldCell,"extraction password uses a secure native field")
-                check(!FileSystem.exists(extract.prepared!.destination),"extraction preview does not write destination contents")
+                check(extract.prepared?.merge != nil && extract.prepared?.destination == output && !FileSystem.exists(output.appendingPathComponent("lesen.txt")),"F5 reviews the existing opposite folder without extracting during preview")
                 extract.destination.stringValue = output.appendingPathComponent("Auswahl").path;extract.prepare();await prepared(extract)
                 Preferences.state.theme = 1;main.applyTheme();try? await Task.sleep(nanoseconds:150_000_000);capture(require(extract.window?.contentView,"extract content"),"-Entpacken-Hell",extract.table,light:true)
                 Preferences.state.theme = 2;main.applyTheme();try? await Task.sleep(nanoseconds:150_000_000);capture(require(extract.window?.contentView,"extract content"),"-Entpacken-Dunkel",extract.table,light:false)
@@ -131,7 +131,7 @@ extension AppDelegate {
                 let all = await form();all.selectedOnly.state = .off;all.optionChanged();await prepared(all)
                 check(all.prepared?.rows.contains { $0.path == "Quellen/Docs/skip.bin" } == true,"full extraction preview includes unselected archive contents")
                 all.destination.stringValue = output.appendingPathComponent("Auswahl").path;all.prepare();await wait("occupied extraction target") { !all.isPreparing }
-                check(all.prepared == nil && !all.start.isEnabled && !all.queue.isEnabled,"existing destination blocks both archive submission methods")
+                check(all.prepared?.merge != nil && all.start.isEnabled && all.queue.isEnabled,"existing destination prepares a merge when incoming paths have no conflicts")
                 let occupiedText = try String(contentsOf:output.appendingPathComponent("Auswahl/lesen.txt"),encoding:.utf8);check(occupiedText == "archive text\n","blocked extraction preserves the existing destination");all.close();await activate(window)
                 left.navigate(session.address("Quellen"));await settle();select(left,["inner.zip"]);left.openSelection();await wait("nested archive") { left.archive !== session && left.archive != nil };await settle()
                 check(left.archive?.parent === session && left.entries.contains { $0.name == "NestedSource" },"nested archive is opened by extracting only its container member")

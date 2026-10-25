@@ -56,16 +56,11 @@ public struct ArchiveCatalog {
     }
 }
 
-public struct ArchiveExtractionPlan {
-    public let catalog:ArchiveCatalog,destination:URL,rows:[ArchiveMember],totalBytes:Int64,basePath:String
-    public let maximumBytes:Int64
-    let selected:Set<String>,parentVersion:RenameVersion
-    public init(catalog:ArchiveCatalog,to destination:URL,selection:[String]? = nil,relativeTo basePath:String = "",maximumBytes:Int64 = 100*1024*1024*1024) throws {
+struct ArchiveSelection {
+    let rows:[ArchiveMember],selected:Set<String>,totalBytes:Int64,basePath:String,maximumBytes:Int64
+    init(catalog:ArchiveCatalog,selection:[String]?,basePath:String,maximumBytes:Int64) throws {
         try catalog.validateSource()
-        guard ArchiveService.isLocal(destination),maximumBytes >= 0,catalog.isDirectory(basePath),selection != nil || basePath.isEmpty else { throw CommanderError.message("Ungültiger Archivordner oder lokales Entpackziel.") }
-        let parent = FileSystem.canonical(destination.deletingLastPathComponent()),target = parent.appendingPathComponent(destination.lastPathComponent)
-        try FileSystem.validateName(destination.lastPathComponent)
-        let parentVersion = try RenameVersion.read(parent);guard parentVersion.isDirectory,!FileSystem.exists(target) else { throw CommanderError.message("Bitte einen neuen, noch nicht vorhandenen Zielordner in einem verfügbaren Ordner angeben.") }
+        guard maximumBytes >= 0,catalog.isDirectory(basePath),selection != nil || basePath.isEmpty else { throw CommanderError.message("Ungültiger Archivordner oder lokales Entpackziel.") }
         let prefixes = selection ?? [""]
         guard !prefixes.isEmpty,prefixes.count <= ArchiveCatalog.maximumEntries else { throw CommanderError.message("Keine Archiveinträge ausgewählt.") }
         for path in prefixes where !(selection == nil && path.isEmpty) {
@@ -82,9 +77,33 @@ public struct ArchiveExtractionPlan {
             guard !value.isLink,value.isDirectory || value.isRegularFile,value.isDirectory || value.size >= 0 else { throw CommanderError.message("Verknüpfungen, Spezialdateien oder unbekannte Dateigrößen können nicht entpackt werden: "+value.path) }
             if !value.isDirectory { let sum = total.addingReportingOverflow(value.size);guard !sum.overflow,sum.partialValue <= maximumBytes else { throw CommanderError.message("Die Auswahl überschreitet das Entpacklimit.") };total = sum.partialValue }
         }
-        self.catalog = catalog;self.destination = target;self.parentVersion = parentVersion;self.basePath = basePath;self.maximumBytes = maximumBytes;totalBytes = total
+        self.basePath = basePath;self.maximumBytes = maximumBytes;totalBytes = total
         rows = values.map { ArchiveMember(path:basePath.isEmpty ? $0.path : String($0.path.dropFirst(basePath.count+1)),size:$0.size,isDirectory:$0.isDirectory,isRegularFile:$0.isRegularFile,isLink:$0.isLink,modified:$0.modified,permissions:$0.permissions) }
         selected = Set(actual.map(\.path))
+    }
+    private init(rows:[ArchiveMember],selected:Set<String>,basePath:String,maximumBytes:Int64) {
+        self.rows = rows;self.selected = selected;self.basePath = basePath;self.maximumBytes = maximumBytes
+        totalBytes = rows.filter { !$0.isDirectory }.reduce(0) { $0+$1.size }
+    }
+    func selecting(_ paths:Set<String>) -> Self {
+        Self(rows:rows.filter { paths.contains($0.path) },selected:Set(selected.filter { paths.contains(basePath.isEmpty ? $0 : String($0.dropFirst(basePath.count+1))) }),basePath:basePath,maximumBytes:maximumBytes)
+    }
+}
+
+public struct ArchiveExtractionPlan {
+    public let catalog:ArchiveCatalog,destination:URL
+    public var rows:[ArchiveMember] { selection.rows }
+    public var totalBytes:Int64 { selection.totalBytes }
+    public var basePath:String { selection.basePath }
+    public var maximumBytes:Int64 { selection.maximumBytes }
+    let selection:ArchiveSelection,parentVersion:RenameVersion
+    public init(catalog:ArchiveCatalog,to destination:URL,selection:[String]? = nil,relativeTo basePath:String = "",maximumBytes:Int64 = 100*1024*1024*1024) throws {
+        guard ArchiveService.isLocal(destination) else { throw CommanderError.message("Ein lokaler Zielordner wird benötigt.") }
+        let content = try ArchiveSelection(catalog:catalog,selection:selection,basePath:basePath,maximumBytes:maximumBytes)
+        let parent = FileSystem.canonical(destination.deletingLastPathComponent()),target = parent.appendingPathComponent(destination.lastPathComponent)
+        try FileSystem.validateName(destination.lastPathComponent)
+        let parentVersion = try RenameVersion.read(parent);guard parentVersion.isDirectory,!FileSystem.exists(target) else { throw CommanderError.message("Bitte einen neuen, noch nicht vorhandenen Zielordner in einem verfügbaren Ordner angeben.") }
+        self.catalog = catalog;self.destination = target;self.parentVersion = parentVersion;self.selection = content
     }
     public func validate() throws {
         try catalog.validateSource()

@@ -57,7 +57,7 @@ extension MainWindow {
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.23.0
+        ZWEICOMMANDER · Version 0.24.0
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -153,7 +153,9 @@ extension MainWindow {
 
         ARCHIVE
         Doppelklick öffnet ZIP/TAR und unterstützte RAR-/7z-Archive in einer temporären, schreibgeschützten Ansicht. Von dort können Dateien in das andere Fenster kopiert werden. Unterarchive lassen sich ebenfalls öffnen. F4 oder Änderungen sind in Archivansichten gesperrt.
-        Packen erzeugt ZIP, 7z oder mit der Endung .tar.gz ein TAR-GZip-Archiv. Entpacken benötigt einen neuen Zielordner. Absolute Pfade, ../, Links und Spezialdateien werden abgewiesen. Das Entpacklimit beträgt 100 GB. Archive bewahren in dieser Version keine Finder-Tags, Resource Forks oder erweiterten Attribute.
+        Packen erzeugt ZIP, 7z oder mit der Endung .tar.gz ein TAR-GZip-Archiv. Entpacken verwendet neue oder vorhandene lokale Ordner. F5 schlägt im Archiv den Ordner der anderen Seite vor; Option+F6 einen neuen Unterordner. Die Vorschau zeigt Quell-/Zielgröße, Datum, Konfliktentscheidung und endgültigen Zielpfad. Einzelentscheidungen: Überspringen, beide behalten, umbenennen oder gewöhnliche Dateien mit Sicherung überschreiben. Vorhandene Ordner werden ergänzt. Typkonflikte mit Ordnern, Links oder Spezialdateien überspringen oder umbenennen; das Quellarchiv wird nicht ersetzt.
+        Im Entpackdialog wählen Cmd+1/2/3/4/5 die Regeln einzeln, überspringen, überschreiben, nur ältere oder beide behalten. Die Sammelregel setzt Einzelentscheidungen zurück. Cmd+Option+Pfeil hoch/runter springt zum offenen Konflikt; Cmd+D öffnet dessen Entscheidung. Cmd+L bearbeitet das Ziel, Cmd+Shift+L wählt einen Ordner, Cmd+R prüft neu, Cmd+Enter startet und Cmd+Shift+Enter merkt vor. Ohne offene Konflikte werden alle Entscheidungen vor dem Start erneut geprüft. Überschriebene Dateien bleiben unter „Wiederherstellung“ erhalten. Bei Abbruch werden noch unveränderte Schritte zurückgesetzt; nachträglich geänderte Ziele bleiben samt Sicherung erhalten. Archivaufträge bleiben sitzungsbezogen.
+        Absolute Mitgliedspfade, ../, Archivlinks und Spezialdateien werden abgewiesen. Das Entpacklimit beträgt 100 GB. Archive bewahren in dieser Version keine Finder-Tags, Resource Forks oder erweiterten Attribute.
 
         SUCHE UND VERGLEICH
         Cmd+F öffnet ein eigenes Suchfenster. Mehrere Namensmuster mit Semikolon trennen; ohne Platzhalter wird ein Namensteil gesucht. Namens-RegEx, ausgeschlossene Dateinamen und ganze Unterordner, Rekursion, versteckte Einträge und Dateien/Ordner sind einstellbar. „Größe und Datum …“ ergänzt Größenbereiche, feste Zeitpunkte oder relatives Alter mit einer gemeinsamen Bezugszeit je Suche. Namensausschlüsse und Ordnerausschlüsse verwenden * und ?. Die Ergebnisliste lässt sich zusätzlich filtern und nach Spalten sortieren.
