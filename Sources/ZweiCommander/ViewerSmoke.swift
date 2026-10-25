@@ -22,8 +22,12 @@ extension AppDelegate {
             @MainActor func show(_ url:URL,files:[URL] = []) async -> PreviewController {
                 let viewer = PreviewController(url,files:files);self.main.secondaryWindows.append(viewer);viewer.showWindow(nil);await activate(viewer.window!);await ready(viewer);return viewer
             }
+            @MainActor func enter(_ field:NSTextField,_ value:String) {
+                if let editor = field.currentEditor() as? NSTextView { editor.selectAll(nil);editor.insertText(value,replacementRange:editor.selectedRange()) }
+                else { field.stringValue = value }
+            }
             @MainActor func query(_ viewer:PreviewController,_ value:String,hex:Bool = false) {
-                viewer.find.stringValue = value;viewer.findMode.selectItem(at:hex ? 1 : 0);viewer.searchKindChanged()
+                enter(viewer.find,value);viewer.findMode.selectItem(at:hex ? 1 : 0);viewer.searchKindChanged()
             }
             do {
                 await wait("main listing") { !self.main.left.isLoading && !self.main.right.isLoading }
@@ -43,11 +47,11 @@ extension AppDelegate {
                 check(window.performKeyEquivalent(with:key(window,String(UnicodeScalar(NSUpArrowFunctionKey)!),[.command,.option])),"Command Option Up requests the previous page");await ready(viewer)
                 check(viewer.byteWindow?.offset == 0,"previous page returns to the beginning")
                 check(window.performKeyEquivalent(with:key(window,"l",.command)) && viewer.offset.currentEditor() is NSTextView,"Command L focuses the byte offset")
-                viewer.offset.stringValue = "0x10000";viewer.go.performClick(nil);await ready(viewer)
+                enter(viewer.offset,"0x10000");viewer.go.performClick(nil);await ready(viewer)
                 check(viewer.byteWindow?.offset == 65_536,"hexadecimal byte position is accepted")
-                viewer.offset.stringValue = "-1";viewer.go.performClick(nil)
+                enter(viewer.offset,"-1");viewer.go.performClick(nil)
                 check(viewer.byteWindow?.offset == 65_536 && viewer.status.textColor == .systemOrange,"invalid offset stays inline without replacing the page")
-                viewer.offset.stringValue = "0";viewer.go.performClick(nil);await ready(viewer)
+                enter(viewer.offset,"0");viewer.go.performClick(nil);await ready(viewer)
                 check(window.performKeyEquivalent(with:key(window,"f",.command)) && viewer.find.currentEditor() is NSTextView,"Command F focuses exact search")
                 check(!viewer.handleImportedKey(key(window,"h")) && viewer.mode.selectedSegment == 1,"imported single-letter shortcuts do not steal text entry")
                 query(viewer,"needle");viewer.nextMatch.performClick(nil);await ready(viewer)
@@ -84,6 +88,13 @@ extension AppDelegate {
                 check(document.special && document.text.string.contains("Hallo Dokument") && document.rangeInfo.stringValue.contains("keine Bytezuordnung"),"Office XML text remains available with a truthful scope")
                 query(document,"Dokument");document.nextMatch.performClick(nil)
                 check((document.text.string as NSString).substring(with:document.text.selectedRange()) == "Dokument","special-report search selects within the displayed text")
+                try Data("<document><p>ababa</p></document>".utf8).write(to:word.appendingPathComponent("document.xml"));let overlapURL = folder.appendingPathComponent("Ueberlappung.docx");try ArchiveService.pack([word],to:overlapURL)
+                let overlap = await show(overlapURL);overlap.mode.selectedSegment = 1;overlap.previewModeChanged();await ready(overlap);overlap.wrap.state = .off
+                query(overlap,"aba");overlap.nextMatch.performClick(nil);overlap.nextMatch.performClick(nil)
+                check(overlap.text.selectedRange() == NSRange(location:2,length:3),"displayed text search reaches an overlapping second hit")
+                overlap.previousMatch.performClick(nil)
+                check(overlap.text.selectedRange() == NSRange(location:0,length:3),"backward displayed-text search retains overlapping hits with wrap disabled")
+                overlap.close()
                 document.close();await activate(window)
                 let folderPreview = await show(folder)
                 check(folderPreview.quick.previewItem != nil && folderPreview.rangeInfo.stringValue.contains("Ordner") && !folderPreview.go.isEnabled,"system preview of directories remains available without a byte reader")
@@ -99,6 +110,29 @@ extension AppDelegate {
                 check(viewer.mode.selectedSegment == 2 && viewer.byteDisplay != nil && viewer.textWindow == nil,"rapid mode changes discard stale text results")
                 viewer.close()
                 check(viewer.closed && viewer.file == nil && viewer.byteWindow == nil && viewer.text.string.isEmpty && viewer.quick.previewItem == nil && viewer.eventMonitor == nil,"closing releases file identities text data Quick Look and event monitoring")
+                let positionsURL = folder.appendingPathComponent("Positionen.txt");var positions = Data(String(repeating:"line\n",count:40_000).utf8)
+                for position in [10,80_000,150_000] { positions.replaceSubrange(position..<(position+6),with:Data("needle".utf8)) };try positions.write(to:positionsURL)
+                let navigation = await show(positionsURL);navigation.mode.selectedSegment = 1;navigation.previewModeChanged();await ready(navigation);navigation.wrap.state = .off
+                query(navigation,"needle");navigation.nextMatch.performClick(nil);await ready(navigation)
+                check(navigation.match?.offset == 10,"navigation regression fixture begins at the first actual byte hit")
+                enter(navigation.offset,"100000");navigation.go.performClick(nil);await ready(navigation)
+                check(navigation.match == nil && !navigation.status.stringValue.hasPrefix("Treffer"),"manual byte jump resets the prior match and its status")
+                navigation.nextMatch.performClick(nil);await ready(navigation)
+                check(navigation.match?.offset == 150_000,"search continues from a manually chosen page instead of an older hit")
+                navigation.previousPage.performClick(nil);await ready(navigation)
+                check(navigation.match == nil && navigation.pageOffset == 150_000-65_536,"manual page navigation clears the old search continuation")
+                navigation.nextMatch.performClick(nil);await ready(navigation)
+                check(navigation.match?.offset == 150_000,"next search after a page move starts at the displayed page")
+                let found = require(try navigation.file?.find(ViewerNeedle(text:"needle",encoding:.utf8),from:0,wrap:false),"regression match")
+                navigation.showMatch(found,request:navigation.searchRequest)
+                check(navigation.isLoading,"a found match starts its asynchronous page handoff")
+                query(navigation,"other");await ready(navigation)
+                check(navigation.match == nil && navigation.text.selectedRange().length == 0 && !navigation.status.stringValue.hasPrefix("Treffer"),"editing search during page loading rejects an old pending highlight")
+                query(navigation,"needle");navigation.showMatch(found,request:navigation.searchRequest);navigation.encoding.selectItem(at:ViewerEncoding.allCases.firstIndex(of:.utf8)!);navigation.encodingChanged();await ready(navigation)
+                check(navigation.match == nil && navigation.text.selectedRange().length == 0 && !navigation.status.stringValue.hasPrefix("Treffer"),"encoding changes invalidate the match page request and highlight")
+                query(navigation,"needle");let obsolete = navigation.searchRequest;query(navigation,"other");navigation.showMatch(found,request:obsolete)
+                check(!navigation.isLoading && navigation.match == nil,"a late match from an obsolete search request is ignored")
+                navigation.close()
                 let stale = await show(large);stale.mode.selectedSegment = 1;stale.previewModeChanged();await ready(stale)
                 try Data("changed after preview".utf8).write(to:large);stale.nextPage.performClick(nil);await ready(stale)
                 check(stale.file == nil && stale.status.textColor == .systemRed && !stale.text.string.contains("alpha\n"),"changed source cannot display an old next page")
