@@ -865,7 +865,14 @@ let tests: [(String, (CoreTests) throws -> Void)] = [
     ("testViewerBinaryWindowOffsetsRemainAbsolute", { try $0.testViewerBinaryWindowOffsetsRemainAbsolute() }),
     ("testViewerByteDisplayShowsAbsoluteOffsetsAndCrossLineHighlights", { try $0.testViewerByteDisplayShowsAbsoluteOffsetsAndCrossLineHighlights() }),
     ("testViewerByteDisplayEnforcesSmallPagesAndCancellation", { try $0.testViewerByteDisplayEnforcesSmallPagesAndCancellation() }),
-    ("testViewerTextSearchKeepsUTF16CodeUnitAlignment", { try $0.testViewerTextSearchKeepsUTF16CodeUnitAlignment() })
+    ("testViewerTextSearchKeepsUTF16CodeUnitAlignment", { try $0.testViewerTextSearchKeepsUTF16CodeUnitAlignment() }),
+    ("testAdvancedSearchDuplicateDirectoriesStillApplyPruningRules", { try $0.testAdvancedSearchDuplicateDirectoriesStillApplyPruningRules() }),
+    ("testAdvancedSearchSnippetsBoundBytesAcrossGiantCombiningGraphemes", { try $0.testAdvancedSearchSnippetsBoundBytesAcrossGiantCombiningGraphemes() }),
+    ("testViewerDisplayedSearchPreservesBackwardOverlappingHits", { try $0.testViewerDisplayedSearchPreservesBackwardOverlappingHits() }),
+    ("testViewerDisplayedSearchUsesUnicodePositionsAndRejectsInvalidRequests", { try $0.testViewerDisplayedSearchUsesUnicodePositionsAndRejectsInvalidRequests() }),
+    ("testViewerInspectorCancellationPrecedesFileOpening", { try $0.testViewerInspectorCancellationPrecedesFileOpening() }),
+    ("testViewerInspectorResourceReadCancellationPropagates", { try $0.testViewerInspectorResourceReadCancellationPropagates() }),
+    ("testViewerVersionResourceParserHonorsEarlyCancellation", { try $0.testViewerVersionResourceParserHonorsEarlyCancellation() })
 ]
 var failed = 0
 let testFilter = CommandLine.arguments.firstIndex(of:"--filter").flatMap { CommandLine.arguments.indices.contains($0+1) ? CommandLine.arguments[$0+1] : nil }

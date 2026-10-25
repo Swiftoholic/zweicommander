@@ -18,6 +18,7 @@ extension PreviewController {
         encoding.addItems(withTitles:ViewerEncoding.allCases.map(\.title));encoding.target = self;encoding.action = #selector(encodingChanged)
         findMode.addItems(withTitles:["Text","Hex"]);findMode.target = self;findMode.action = #selector(searchKindChanged)
         find.delegate = self;find.target = self;find.action = #selector(findRequested);offset.target = self;offset.action = #selector(goRequested)
+        find.cell?.sendsActionOnEndEditing = false;offset.cell?.sendsActionOnEndEditing = false
         sourceInfo.lineBreakMode = .byTruncatingMiddle;rangeInfo.lineBreakMode = .byTruncatingTail;status.lineBreakMode = .byTruncatingTail
         scroll.documentView = text;scroll.hasVerticalScroller = true;scroll.hasHorizontalScroller = true;scroll.borderType = .bezelBorder
         text.isEditable = false;text.isRichText = false;text.isSelectable = true;text.isAutomaticLinkDetectionEnabled = false

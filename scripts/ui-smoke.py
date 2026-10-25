@@ -300,9 +300,13 @@ def main():
             ("layout-reload", "--layout-smoke", roots[20], str(prefix), "LAYOUT UI PASS ", "LAYOUT SMOKE PASS 15 checks", 15),
             ("archive", "--archive-smoke", roots[21], str(prefix), "ARCHIVE UI PASS ", "ARCHIVE SMOKE PASS 79 checks", 79),
             ("archive-merge", "--archive-merge-smoke", roots[22], str(prefix), "ARCHIVE MERGE UI PASS ", "ARCHIVE MERGE SMOKE PASS 57 checks", 57),
+            ("file-diff", "--file-diff-smoke", roots[23], str(prefix), "FILE DIFF UI PASS ", "FILE DIFF SMOKE PASS 50 checks", 50),
+            ("advanced-search", "--advanced-search-smoke", roots[24], str(prefix), "ADVANCED SEARCH UI PASS ", "ADVANCED SEARCH SMOKE PASS 40 checks", 40),
+            ("viewer", "--viewer-smoke", roots[25], str(prefix), "VIEWER UI PASS ", "VIEWER SMOKE PASS 63 checks", 63),
+            ("tools-integration", "--tools-integration-smoke", roots[26], str(prefix), "TOOLS INTEGRATION UI PASS ", "TOOLS INTEGRATION SMOKE PASS 23 checks", 23),
         ]
         if args.skip_foreground:
-            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload", "archive", "archive-merge"}
+            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload", "archive", "archive-merge", "file-diff", "advanced-search", "viewer", "tools-integration"}
             skipped = [case for case in cases if case[0] in foreground]
             cases = [case for case in cases if case[0] not in foreground]
             print("Ausgelassen: " + ", ".join(case[0] for case in skipped) + " · " + str(sum(case[-1] for case in skipped)) + " Vordergrundprüfungen offen", flush=True)
@@ -383,7 +387,7 @@ def main():
                     command += ["--search-test-suite", search_suite]
                     if name == "search-reload":
                         command += ["--reload-search"]
-                if name == "advanced-search":
+                if name in {"advanced-search", "tools-integration"}:
                     command += ["--search-test-suite", advanced_search_suite]
                 if name.startswith("compare-"):
                     command += ["--compare-test-suite", compare_suite]
@@ -393,7 +397,7 @@ def main():
                     command += ["--wait-for-foreground"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
-                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=180 if name in {"archive", "archive-merge"} or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
+                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=240 if name in {"file-diff", "advanced-search", "viewer", "tools-integration"} else 180 if name in {"archive", "archive-merge"} or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
                     except subprocess.TimeoutExpired:
                         raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
                 output = (args.results / (name + ".log")).read_text(encoding="utf-8")

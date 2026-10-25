@@ -59,6 +59,7 @@ final class PreviewController:NSWindowController,NSWindowDelegate,NSTextFieldDel
         pageOffset = delta > 0 ? bytes.end : max(0,bytes.offset-Int64(pageLength));resetSearchPosition();loadPage()
     }
     func jump() {
+        guard !closed,!isLoading,!isSearching else { return }
         let value = (offset.currentEditor()?.string ?? offset.stringValue).trimmingCharacters(in:.whitespacesAndNewlines),number = value.lowercased().hasPrefix("0x") ? Int64(value.dropFirst(2),radix:16) : Int64(value)
         guard !special,let file,let number,number >= 0,number <= file.size else { status.stringValue = "Byteoffset ab 0, dezimal oder als 0x… eingeben; höchstens Dateigröße.";status.textColor = .systemOrange;return }
         pageOffset = number;resetSearchPosition();loadPage()

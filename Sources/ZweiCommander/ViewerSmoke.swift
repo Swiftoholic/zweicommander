@@ -6,7 +6,7 @@ extension AppDelegate {
     func runViewerSmoke(root:URL,prefix:String) {
         Task { @MainActor in
             var checks = 0,failures:[String] = []
-            func check(_ value:Bool,_ name:String) { checks += 1;print("VIEWER UI \(value ? "PASS" : "FAIL") \(name)");if !value { failures.append(name) } }
+            @MainActor func check(_ value:Bool,_ name:String) { checks += 1;print("VIEWER UI \(value ? "PASS" : "FAIL") \(name)");if !value { failures.append(name);print("VIEWER UI CONTEXT active=\(NSApp.isActive) key=\(NSApp.keyWindow?.title ?? "none") front=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "none")") } }
             func require<T>(_ value:T?,_ name:String) -> T { guard let value else { print("VIEWER SMOKE FAIL missing "+name);exit(1) };return value }
             @MainActor func wait(_ name:String,_ predicate:()->Bool) async {
                 for _ in 0..<500 { if predicate() { return };try? await Task.sleep(nanoseconds:30_000_000) }
@@ -46,15 +46,19 @@ extension AppDelegate {
                 check(viewer.byteWindow?.offset == 65_536 && viewer.previousPage.isEnabled,"next page reaches contents beyond the former prefix")
                 check(window.performKeyEquivalent(with:key(window,String(UnicodeScalar(NSUpArrowFunctionKey)!),[.command,.option])),"Command Option Up requests the previous page");await ready(viewer)
                 check(viewer.byteWindow?.offset == 0,"previous page returns to the beginning")
+                await activate(window)
                 check(window.performKeyEquivalent(with:key(window,"l",.command)) && viewer.offset.currentEditor() is NSTextView,"Command L focuses the byte offset")
-                enter(viewer.offset,"0x10000");viewer.go.performClick(nil);await ready(viewer)
+                check(!viewer.isLoading && viewer.byteWindow?.offset == 0,"focusing the offset does not navigate or start a read")
+                enter(viewer.offset,"0x10000");require(viewer.offset.currentEditor() as? NSTextView,"offset field editor").insertNewline(nil);await ready(viewer)
                 check(viewer.byteWindow?.offset == 65_536,"hexadecimal byte position is accepted")
                 enter(viewer.offset,"-1");viewer.go.performClick(nil)
                 check(viewer.byteWindow?.offset == 65_536 && viewer.status.textColor == .systemOrange,"invalid offset stays inline without replacing the page")
                 enter(viewer.offset,"0");viewer.go.performClick(nil);await ready(viewer)
                 check(window.performKeyEquivalent(with:key(window,"f",.command)) && viewer.find.currentEditor() is NSTextView,"Command F focuses exact search")
                 check(!viewer.handleImportedKey(key(window,"h")) && viewer.mode.selectedSegment == 1,"imported single-letter shortcuts do not steal text entry")
-                query(viewer,"needle");viewer.nextMatch.performClick(nil);await ready(viewer)
+                query(viewer,"needle");window.makeFirstResponder(viewer.text)
+                check(!viewer.isLoading && !viewer.isSearching && viewer.match == nil,"leaving the search field does not start an implicit search")
+                viewer.nextMatch.performClick(nil);await ready(viewer)
                 check(viewer.match?.offset == first,"whole-file text search finds a word crossing the read boundary")
                 check((viewer.text.string as NSString).substring(with:viewer.text.selectedRange()) == "needle","found text is selected at the right Unicode range")
                 check(window.performKeyEquivalent(with:key(window,"g",.command)),"Command G advances the search");await ready(viewer)

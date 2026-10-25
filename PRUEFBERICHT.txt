@@ -1,47 +1,29 @@
-ZweiCommander 0.24.0 (Build 25) — Prüfung abgeschlossen am 25. Oktober 2026
+ZweiCommander 0.25.0 (Build 26) — Kandidatenprüfung am 25. Oktober 2026
 
-Ergebnis
-- 358/358 Dateikern- und Integrationstests bestanden.
-- 1191/1191 native UI-Prüfungen in 41 Durchläufen am finalen
-  universellen Release-Build bestanden:
-  Hauptfenster/INI-Import/Profilübernahme 20, kompakte Oberfläche/Themen 47,
-  Darstellung nach erneutem App-Start 9, Mittelstreifen und Mausbedienung 26,
-  Adressleiste und Ordnervervollständigung 46,
-  Direkte Dateibedienung 62,
-  UX-Arbeitsabläufe 55,
-  Werkzeugleiste nach erneutem App-Start 6, Warteschlange 14,
-  Kopierfilter 22, Ordner zusammenführen 29, Profile speichern 19,
-  Profile nach erneutem App-Start laden und verwenden 16,
-  Aufträge speichern 8, nach Neustart neu prüfen und ausführen 23,
-  abruptes Prozessende während Kopie 7, Wiederanlauf mit neuem Plan 13,
-  Speicherfehler während Kopie 10, beschädigte Auftragsablage 5,
-  relative Altersregeln und Speichern 12, Altersregeln nach Neustart 19,
-  Ansichten/Tabs/Favoriten und Speichern 44, Arbeitsbereich nach Neustart 16,
-  Mehrfachumbenennen und Profile speichern 20, nach Neustart verwenden 27,
-  Sucharbeitsbereich und Profile speichern 22, nach Neustart verwenden 25,
-  Ordnervergleich und Profile speichern 24, nach Neustart verwenden 30,
-  Wiederherstellung/Tastaturabläufe speichern 40, nach Neustart verwenden 15,
-  Serverprofile und rekursive Übertragungen 31, Profile nach Neustart 14,
-  Server-Tabs und Mutationen im Hauptfenster 47,
-  Auswahl und Textzwischenablage 90, Tabgruppen und Sitzungsabläufe 56,
-  Tabgruppen nach erneutem App-Start 9, Arbeitsbereiche und Layouts 62,
-  Arbeitsbereiche nach erneutem App-Start 15,
-  Archivabläufe und Vorschau 79, Archivkonflikte 57.
-- Die Serie wurde in zwei Gruppen am identischen Release-Build ausgeführt:
-  24 Durchläufe mit 529 Prüfungen sowie 17 Durchläufe mit
-  662 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-
-  und Serverfenster sowie Server-Tabs, Auswahlvorschau, Tabgruppen und
-  Arbeitsbereiche, Archive und Archivkonflikte in einer entsperrten GUI-Sitzung.
-  Alle Durchläufe sind vollständig bestanden;
-  es stehen keine ausgelassenen Vordergrundprüfungen mehr aus.
-- Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt.
-- App-Bundle lokal ad-hoc signiert und mit codesign --verify --strict geprüft.
-- Debug-Pfadverweise vor Signierung entfernt; Release-Binärdatei auf lokale
-  Benutzerpfade und persönliche Namen geprüft, ohne Treffer.
-- Regulärer App-Start aus dem Benutzer-Programmeordner mit den bisherigen
-  Benutzereinstellungen geprüft:
-  gespeicherte Tabs, Favoriten, Anzeige, Tastenkürzel und Importprofil erhalten;
-  keine künstlichen Testpfade oder Test-Arbeitsbereiche gespeichert.
+Bisheriges Ergebnis
+- 426/426 Dateikern- und Integrationstests bestanden.
+- 9/9 zusätzliche echte SSH/SFTP-Prüfungen bestanden; Testschlüssel entfernt.
+- Universeller Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt;
+  keine Compilerwarnungen. Lokale Ad-hoc-Signatur streng geprüft.
+- Release-Binärdatei enthält keine geprüften lokalen Benutzerpfade/persönlichen
+  Namen. Die eingefrorenen Build-Eingaben stimmen mit den Quellen überein.
+- Am integrierten Debugstand sind 50 Dateidiff-, 40 erweiterte Such- und
+  23 gemeinsame Werkzeugprüfungen bestanden. Der Offsetfehler des Viewers
+  ist in einem echten Fensterlauf bestätigt korrigiert.
+
+Noch ausstehend
+- Vollständiger Lauf der 1367 registrierten nativen UI-Prüfungen in
+  45 Durchläufen am universellen Release-Build. Davon gehören 24 Durchläufe
+  mit 529 Prüfungen zur Gruppe ohne Vordergrundanforderung und 21 mit
+  838 Prüfungen zur Gruppe für aktive Fenster.
+- Vollständiger 63-Prüfungen-Viewer-Lauf mit durchgehend aktiven Testfenstern.
+  Fokuswechsel zu anderen Apps haben den letzten Tastaturlauf unterbrochen.
+- Installation und regulärer Start des Kandidaten mit Vergleich des bisherigen
+  persönlichen Zustands. Die installierte geprüfte Version 0.24 bleibt erhalten.
+- Veröffentlichung des abschließend geprüften Stands auf dem Hauptzweig.
+
+Die folgenden Abschnitte beschreiben implementierte Prüfbereiche und deren
+Grenzen. Sie ersetzen die oben noch ausstehende Release-Gesamtprüfung nicht.
 
 Testsystem
 Intel-Mac, macOS 26.7.1, Swift 6.3.3. Apple Silicon und ältere macOS-Versionen
@@ -53,6 +35,72 @@ Bei einer früheren Entwicklungsprüfung blieb ein Start aus dem Entwicklungsord
 Anwendungsinitialisierung hängen. Derselbe unveränderte Build startete aus
 dem Benutzer-Programmeordner regulär. Die genaue Ursache des ersten Hängers
 ist nicht abschließend bestimmt; die Verwendung aus Programme wird empfohlen.
+
+Dateivergleich, erweiterte Suche und seitenweise Vorschau
+Drei getrennte Funktionszweige wurden zunächst einzeln gebaut und mit
+gezielten Kernprüfungen abgesichert, dann in einen gemeinsamen Integrationszweig
+zusammengeführt. Gegenseitige Quellenprüfungen und reale native Bedienprüfungen
+führten zu zusätzlichen Regressionen für Pfadausschlüsse, Speichergrenzen,
+Suchzustand, Abbruch und aktive Eingabefelder.
+
+19 zusätzliche Dateidiff-Kernprüfungen prüfen vollständige Edit-Skripte,
+Zeilenpositionen und Originaltexte; 80 deterministische Gegenprüfungen verwenden
+eine unabhängige LCS-Berechnung. Unicode, Kodierungen, BOM und Zeilenenden,
+Normalisierung, exakte Binärbereiche, Seitenlängen, Rechen-/Speichergrenzen,
+früher/später Abbruch sowie ersetzte oder gleich groß veränderte Quellen sind
+abgedeckt. Links, Ordner, Pipes und Remote-Adressen werden nicht gelesen.
+Grenzüberschreitungen liefern kein scheinbar vollständiges Teilergebnis.
+
+23 zusätzliche Suchprüfungen prüfen mehrere Orte, Alias-/Überlappungsabgleich,
+explizite tiefere Wurzeln, ausgeschlossene/versteckte Unterordner, Tiefe,
+gemeinsame Treffergrenzen und Fortschritt. Inhalts-RegEx unterbricht auch
+problematisches Backtracking über ICU-Rückrufe, mit 1 MiB/100 ms je Datei.
+Hexbytes über Lesegrenzen, Negation ausschließlich nach erfolgreicher Prüfung,
+Spezialdateien, geänderte Quellen und Profilmigration sind geprüft. Doppelte
+Ordner wenden ihre Abstiegsregeln auch bei erneutem Durchlauf an. Fundstellen
+mit extrem großen kombinierenden Graphemen bleiben vor der Stringkopie auf
+höchstens 1024 UTF-8-Bytes begrenzt. Version-1-Profile bleiben lesbar; erweiterte
+Regeln unter falsch deklarierter Version 1 werden abgewiesen.
+
+26 zusätzliche Viewer-Kernprüfungen prüfen begrenzte Dateifenster, vollständige
+UTF-8-/UTF-16-Zeichen und Surrogate, BOM, fehlerhafte und ältere Kodierungen,
+absolute Bytebereiche, Vorwärts-/Rückwärtssuche mit Überlappungen und Umlauf,
+Suchmustergrenzen, KMP-Laufzeitverhalten, Abbruch und spätere Quellenänderungen.
+UTF-16-Textsuche hält ihre Codeunit-Ausrichtung ein. Rohbyteanzeigen bleiben
+klein; angezeigte Positionen sind absolut. Der Dateistrukturleser verwendet
+geprüfte reguläre Dateien, liest Ressourcen in 64-KiB-Schritten und propagiert
+Abbruch aus den Unterparsern. Die bisherigen beiden Binärkopfprüfungen bleiben
+unverändert bestanden.
+
+50 native Dateidiff-Prüfungen bedienen zwei Dateien einer Seite, je eine pro
+Seite, lokale Sammlungsverweise und die tatsächliche Ordnervergleichsaktion.
+Modi, Regeln, Unterschiedsfilter/-navigation, Seitentausch, Eingabefehler,
+Quelländerungen, Hell-/Dunkelfenster, Schließen und unveränderte Inhalte sind
+geprüft. 40 native Suchprüfungen bedienen Ortsliste, tiefere Orte, RegEx/Hex,
+Negation, Kodierungs-/Moduskombinationen, Profile, Vergleichshook, Abbruch und
+Clipboard-Erhaltung. Die bisherigen 22+25 Suchprüfungen bleiben erhalten.
+
+63 registrierte native Viewer-Prüfungen bedienen Quick Look für Dateien und Ordner,
+Kodierungen, Seiten, Byteoffset als Dezimal-/Hexzahl, tatsächliche Texteingabe
+und Return, ganze Dateisuche mit Trefferhervorhebung, nächste/vorherige Datei,
+Office-Text, Strukturansicht, FIFO-Abweisung und Schließen. Such-/Positions-
+änderungen übernehmen keine alten Treffer oder verspäteten Hervorhebungen;
+überlappende Rückwärtstreffer bleiben erreichbar. Fokuswechsel in Offset- und
+Suchfelder starten keine unbeabsichtigten Aktionen. 23 weitere Prüfungen
+bedienen gemeinsame Menü-/Shortcut-Auflösung und echte Arbeitsbereichsfenster.
+Eigene Belegungen verdrängen den neuen Standard, Hover-Hilfe aktualisiert sich,
+Texteingaben sperren Dateiaktionen und das aktive Workflow-Sheet sperrt Befehle
+zur verdeckten Dateiseite. Quellen, Zwischenablage und persönliche Einstellungen
+werden dabei nicht beschrieben. Helle und dunkle Ansichten werden lokal geprüft.
+
+Grenzen: Dateidiff bis 16 MiB je Datei, 100.000 Zeilen, 256 KiB je Textzeile und
+zusätzliche Rechen-/Speicherbudgets. Kein externer Vergleicher. Dateisuche bis
+100 Orte, 50.000 Treffer und eine Million eindeutige Einträge; Text/Hex bis
+32 MiB, RegEx bis 1 MiB/100 ms. PDF-Inhalte und weitere Konverter bleiben offen.
+Viewer-Suche ist exakt, ohne RegEx. Office-XML im Viewer bis 4 MiB;
+Dokument-/Strukturberichte zeigen begrenzte Auszüge und durchsuchen nur diese.
+Sehr große reale Dateien, langsame Netzwerkvolumes und weitere Plattformen
+benötigen zusätzliche Alltagstests.
 
 Auswahl und Textzwischenablage
 18 neue Dateikerntests prüfen Musterunion, reguläre Ausdrücke mit Semikola,
@@ -823,7 +871,7 @@ leere Ordner. Anlegen, Umbenennen, geprüfte rekursive Löschung und ein
 Abbruch innerhalb einer verschlüsselten Dateiübertragung sind geprüft.
 Der öffentliche Prüflauf entfernt erzeugte Schlüssel und seinen Testserver.
 Systemdienste und persönliche SSH-Konfiguration werden nicht geändert.
-Die neun Zusatzprüfungen werden getrennt von den 358 Kerntests gezählt.
+Die neun Zusatzprüfungen werden getrennt von den 426 Kerntests gezählt.
 Externe SSH-Server, andere Algorithmen und weitere Anmeldevarianten brauchen
 zusätzliche Praxisprüfungen.
 
