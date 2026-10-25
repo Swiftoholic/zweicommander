@@ -12,12 +12,13 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
     let table = CommanderTableView(),resultFilter = input(placeholder:"Vergleichsliste nach Pfad filtern"),statusFilter = NSPopUpButton()
     let toRight = ActionButton("Auswahl →",action:{}),toLeft = ActionButton("← Auswahl",action:{}),skip = ActionButton("Auswahl auslassen",action:{})
     let previewLeft = ActionButton("Links ansehen",action:{}),previewRight = ActionButton("Rechts ansehen",action:{}),revealLeft = ActionButton("Links markieren",action:{}),revealRight = ActionButton("Rechts markieren",action:{})
+    let fileCompare = ActionButton("Dateien vergleichen",symbol:"doc.on.doc",action:{})
     let info = label("Ordner und Vergleichsregeln wählen, dann Vergleichen.",size:12,color:.secondaryLabelColor),summary = label("",size:12,color:.secondaryLabelColor),detail = label("",size:11,color:.secondaryLabelColor)
     let progress = NSProgressIndicator(),reportButton = ActionButton("Bericht",action:{})
     private(set) var comparison: FolderComparison?,plan: FolderSyncPlan?,rows: [ComparisonItem] = [],visibleRows: [ComparisonItem] = [],directions: [String:SyncDirection] = [:]
     private(set) var isComparing = false,isWorking = false,isPreparingPlan = false,selectedProfileID: UUID?
     var profileNameWindow: CopyProfileNameController?,deleteAlert: NSAlert?,reviewWindow: SyncReviewController?
-    var onSubmit: ((FolderSyncPlan,Bool)->UUID)?,onCancel: ((UUID)->Void)?,onPreview: ((URL)->Void)?,onReveal: ((URL,Bool)->Void)?,onReport: ((String)->Void)?
+    var onSubmit: ((FolderSyncPlan,Bool)->UUID)?,onCancel: ((UUID)->Void)?,onPreview: ((URL)->Void)?,onReveal: ((URL,Bool)->Void)?,onReport: ((String)->Void)?,onFileCompare:((URL,URL)->Void)?
     var onCompareProgress: (() -> Void)?
     var validatePaths: ((URL,URL) throws -> Void)?
     private let worker = DispatchQueue(label:"local.zweicommander.compare",qos:.userInitiated)
@@ -58,7 +59,9 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
         info.frame = NSRect(x:22,y:53,width:900,height:40);info.maximumNumberOfLines = 2;info.autoresizingMask = [.width];root.addSubview(info)
         reviewButton.frame = NSRect(x:973,y:60,width:185,height:30);reviewButton.autoresizingMask = [.minXMargin];root.addSubview(reviewButton)
         reportButton.frame = NSRect(x:1033,y:18,width:125,height:28);reportButton.autoresizingMask = [.minXMargin];root.addSubview(reportButton)
-        progress.frame = NSRect(x:22,y:25,width:990,height:12);progress.autoresizingMask = [.width];progress.style = .bar;progress.isIndeterminate = true;progress.isHidden = true;root.addSubview(progress)
+        fileCompare.frame = NSRect(x:804,y:17,width:215,height:30);fileCompare.autoresizingMask = [.minXMargin];root.addSubview(fileCompare)
+        fileCompare.perform = { [weak self] in self?.compareSelectedFiles() };fileCompare.setHelp("Dateien vergleichen","Die beiden regulären Dateien der ausgewählten Zeile schreibgeschützt gegenüberstellen.",shortcut:"⌘⌥V")
+        progress.frame = NSRect(x:22,y:25,width:760,height:12);progress.autoresizingMask = [.width];progress.style = .bar;progress.isIndeterminate = true;progress.isHidden = true;root.addSubview(progress)
         leftPath.stringValue = left.path;rightPath.stringValue = right.path
         chooseLeft.perform = { [weak self] in self?.pickRoot(true) };chooseRight.perform = { [weak self] in self?.pickRoot(false) }
         compareButton.perform = { [weak self] in self?.beginCompare() };cancelButton.perform = { [weak self] in self?.cancel() };reviewButton.perform = { [weak self] in self?.review() }
@@ -207,6 +210,7 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
         let canEdit = comparison != nil && !isComparing && !isWorking,selected = selectedRows,one = selected.count == 1
         toRight.isEnabled = canEdit && selected.contains { $0.allowedDirections.contains(.leftToRight) };toLeft.isEnabled = canEdit && selected.contains { $0.allowedDirections.contains(.rightToLeft) };skip.isEnabled = canEdit && !selected.isEmpty
         previewLeft.isEnabled = one && selected[0].left?.isRegularFile == true;previewRight.isEnabled = one && selected[0].right?.isRegularFile == true
+        fileCompare.isEnabled = canEdit && one && !selected[0].isBlocked && selected[0].left?.isRegularFile == true && selected[0].right?.isRegularFile == true
         revealLeft.isEnabled = one && selected[0].left != nil;revealRight.isEnabled = one && selected[0].right != nil
         applyStrategy.isEnabled = canEdit;reviewButton.isEnabled = canEdit && !isPreparingPlan && plan?.steps.isEmpty == false
         detail.stringValue = one ? selected[0].relativePath+" · "+selected[0].state.rawValue : "Entscheidungen gelten pro Zeile · Elternordner werden bei Bedarf mit angelegt"
@@ -216,6 +220,7 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
         summary.stringValue = "\(visibleRows.count) von \(rows.count) Zeilen · \(conflicts) Konflikte · \(pending) Entscheidungen offen"+(plan.map { " · \($0.steps.count) Kopierschritte · \(bytes($0.bytes))" } ?? "")
     }
     private func previewSide(_ left: Bool) { guard selectedRows.count == 1,let entry = left ? selectedRows[0].left : selectedRows[0].right,entry.isRegularFile else { return };onPreview?(entry.url) }
+    func compareSelectedFiles() { guard fileCompare.isEnabled,selectedRows.count == 1,let left = selectedRows[0].left,let right = selectedRows[0].right else { return };onFileCompare?(left.url,right.url) }
     private func revealSide(_ left: Bool) { guard selectedRows.count == 1,let entry = left ? selectedRows[0].left : selectedRows[0].right else { return };onReveal?(entry.url,left) }
     func numberOfRows(in tableView: NSTableView) -> Int { visibleRows.count }
     func tableView(_ tableView: NSTableView,viewFor column: NSTableColumn?,row: Int) -> NSView? {
@@ -241,7 +246,7 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
     func canPerformCommand(_ id: String) -> Bool {
         let editing = NSApp.keyWindow?.firstResponder is NSTextView
         if window?.attachedSheet != nil { return id == "closeTab" || (editing && ["clipboardCopy","clipboardCut","clipboardPaste","undo","selectAll"].contains(id)) }
-        switch id { case "closeTab":return !isWorking;case "refresh","compare":return !isWorking && !isComparing;case "selectAll","help","settings","operations","recovery","pauseTransfers","stopTransfers":return true;case "clipboardCopy","clipboardCut","clipboardPaste","undo":return editing;case "preview":return selectedRows.count == 1 && (selectedRows[0].left?.isRegularFile == true || selectedRows[0].right?.isRegularFile == true);default:return false }
+        switch id { case "closeTab":return !isWorking;case "refresh","compare":return !isWorking && !isComparing;case "fileCompare":return fileCompare.isEnabled && !editing;case "selectAll","help","settings","operations","recovery","pauseTransfers","stopTransfers":return true;case "clipboardCopy","clipboardCut","clipboardPaste","undo":return editing;case "preview":return selectedRows.count == 1 && (selectedRows[0].left?.isRegularFile == true || selectedRows[0].right?.isRegularFile == true);default:return false }
     }
     func command(_ id: String) {
         guard canPerformCommand(id) else { return };let editor = NSApp.keyWindow?.firstResponder as? NSTextView
@@ -251,7 +256,7 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
                 else if sheet === profileNameWindow?.window { profileNameWindow?.close() }
                 else { window?.endSheet(sheet,returnCode:.alertSecondButtonReturn);sheet.orderOut(nil) }
             } else { window?.performClose(nil) }
-        case "refresh","compare":beginCompare();case "selectAll":if let editor { editor.selectAll(nil) } else { table.selectAll(nil) };case "clipboardCopy":editor?.copy(nil);case "clipboardCut":editor?.cut(nil);case "clipboardPaste":editor?.paste(nil);case "undo":editor?.undoManager?.undo();case "preview":previewSide(selectedRows[0].left?.isRegularFile == true);default:break }
+        case "refresh","compare":beginCompare();case "fileCompare":compareSelectedFiles();case "selectAll":if let editor { editor.selectAll(nil) } else { table.selectAll(nil) };case "clipboardCopy":editor?.copy(nil);case "clipboardCut":editor?.cut(nil);case "clipboardPaste":editor?.paste(nil);case "undo":editor?.undoManager?.undo();case "preview":previewSide(selectedRows[0].left?.isRegularFile == true);default:break }
     }
     func refreshProfiles() {
         do {
