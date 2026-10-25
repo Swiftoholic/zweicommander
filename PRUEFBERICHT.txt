@@ -1,40 +1,34 @@
-ZweiCommander 0.25.0 (Build 26) — Kandidatenprüfung am 25. Oktober 2026
+ZweiCommander 0.25.0 (Build 26) — Prüfung am 25. Oktober 2026
 
-Bisheriges Ergebnis
+Ergebnis
 - 426/426 Dateikern- und Integrationstests bestanden.
+- 1367/1367 native Oberflächenprüfungen in 45 Durchläufen am universellen
+  Release-Build bestanden. Kein Fall wurde ausgelassen. Die beiden Gruppen
+  umfassen 24 Durchläufe mit 529 Prüfungen und 21 mit 838 Prüfungen für aktive
+  Fenster. Unterbrochene Fokusläufe wurden nicht als bestanden gezählt.
+- Darin enthalten: 50 Dateidiff-, 40 erweiterte Such-, 63 Viewer- und
+  23 gemeinsame Werkzeugprüfungen einschließlich echter Tastaturabläufe.
 - 9/9 zusätzliche echte SSH/SFTP-Prüfungen bestanden; Testschlüssel entfernt.
 - Universeller Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt;
   keine Compilerwarnungen. Lokale Ad-hoc-Signatur streng geprüft.
 - Release-Binärdatei enthält keine geprüften lokalen Benutzerpfade/persönlichen
   Namen. Die eingefrorenen Build-Eingaben stimmen mit den Quellen überein.
-- Am integrierten Debugstand sind 50 Dateidiff-, 40 erweiterte Such- und
-  23 gemeinsame Werkzeugprüfungen bestanden. Der Offsetfehler des Viewers
-  ist in einem echten Fensterlauf bestätigt korrigiert.
+- Installierte App bytegleich zum geprüften Release-Bundle. Regulärer Start
+  erfolgreich; bestehende Tabs, Favoriten, Anzeige, Tastenkürzel, Importprofil,
+  weitere Profile, gespeicherte Anordnung und lokale Auftragsdaten erhalten.
+  Keine künstlichen Testpfade im persönlichen Sitzungsstand.
 
-Noch ausstehend
-- Vollständiger Lauf der 1367 registrierten nativen UI-Prüfungen in
-  45 Durchläufen am universellen Release-Build. Davon gehören 24 Durchläufe
-  mit 529 Prüfungen zur Gruppe ohne Vordergrundanforderung und 21 mit
-  838 Prüfungen zur Gruppe für aktive Fenster.
-- Vollständiger 63-Prüfungen-Viewer-Lauf mit durchgehend aktiven Testfenstern.
-  Fokuswechsel zu anderen Apps haben den letzten Tastaturlauf unterbrochen.
-- Installation und regulärer Start des Kandidaten mit Vergleich des bisherigen
-  persönlichen Zustands. Die installierte geprüfte Version 0.24 bleibt erhalten.
-- Veröffentlichung des abschließend geprüften Stands auf dem Hauptzweig.
-
-Die folgenden Abschnitte beschreiben implementierte Prüfbereiche und deren
-Grenzen. Sie ersetzen die oben noch ausstehende Release-Gesamtprüfung nicht.
+Die folgenden Abschnitte beschreiben die geprüften Bereiche und deren Grenzen.
 
 Testsystem
 Intel-Mac, macOS 26.7.1, Swift 6.3.3. Apple Silicon und ältere macOS-Versionen
 wurden kompiliert, aber nicht zur Laufzeit geprüft. Keine Developer-ID-Signatur
 oder Notarisierung.
 
-Startort
-Bei einer früheren Entwicklungsprüfung blieb ein Start aus dem Entwicklungsordner im macOS-Fensteraufbau vor der
-Anwendungsinitialisierung hängen. Derselbe unveränderte Build startete aus
-dem Benutzer-Programmeordner regulär. Die genaue Ursache des ersten Hängers
-ist nicht abschließend bestimmt; die Verwendung aus Programme wird empfohlen.
+Start
+Der Release-Build startete für die nativen Prüfungen aus dem Ausgabeordner.
+Die installierte App startete anschließend regulär aus Programme; vorhandener
+Sitzungsstand und Profile wurden gegen den Stand vor dem Upgrade verglichen.
 
 Dateivergleich, erweiterte Suche und seitenweise Vorschau
 Drei getrennte Funktionszweige wurden zunächst einzeln gebaut und mit
@@ -80,7 +74,7 @@ geprüft. 40 native Suchprüfungen bedienen Ortsliste, tiefere Orte, RegEx/Hex,
 Negation, Kodierungs-/Moduskombinationen, Profile, Vergleichshook, Abbruch und
 Clipboard-Erhaltung. Die bisherigen 22+25 Suchprüfungen bleiben erhalten.
 
-63 registrierte native Viewer-Prüfungen bedienen Quick Look für Dateien und Ordner,
+63 native Viewer-Prüfungen bedienen Quick Look für Dateien und Ordner,
 Kodierungen, Seiten, Byteoffset als Dezimal-/Hexzahl, tatsächliche Texteingabe
 und Return, ganze Dateisuche mit Trefferhervorhebung, nächste/vorherige Datei,
 Office-Text, Strukturansicht, FIFO-Abweisung und Schließen. Such-/Positions-
