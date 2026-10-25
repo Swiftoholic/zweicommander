@@ -34,7 +34,10 @@ extension AppDelegate {
                 let folder = root.appendingPathComponent("Links"),large = folder.appendingPathComponent("Gross.txt"),utf16 = folder.appendingPathComponent("Unicode.txt"),legacy = folder.appendingPathComponent("Alt.txt")
                 var data = Data(String(repeating:"alpha\n",count:10_922).utf8);let first = Int64(data.count);data.append(Data("needle\n".utf8));data.append(Data(String(repeating:"beta\n",count:17_000).utf8));let second = Int64(data.count);data.append(Data("needle\nEnde\n".utf8));try data.write(to:large)
                 try (Data([0xFF,0xFE])+"Grüße 😀\nZweite Zeile\n".data(using:.utf16LittleEndian)!).write(to:utf16);try Data([0x80,0x20,0x47,0x72,0xFC,0xDF,0x65]).write(to:legacy)
+                // Settle the fixture's normal first save before comparing persisted tabs.
+                self.main.saveState()
                 let clipboard = NSPasteboard.general.changeCount,preferences = try JSONEncoder().encode(Preferences.state)
+                let paneTabs = try JSONEncoder().encode([self.main.left.savedTabs,self.main.right.savedTabs])
                 let viewer = await show(large,files:[large,utf16,legacy]),window = require(viewer.window as? WorkflowWindow,"workflow window")
                 check(viewer.file?.size == Int64(data.count) && viewer.quick.previewItem != nil,"Quick Look remains available after a checked regular-file open")
                 check(viewer.files == [large,utf16,legacy] && viewer.nextFile.isEnabled && !viewer.previousFile.isEnabled,"visible file order and navigation boundaries are retained")
@@ -151,7 +154,9 @@ extension AppDelegate {
                 check(closing.closed && !closing.isLoading && !closing.isSearching && closing.text.string.isEmpty && closing.file == nil,"closing during an asynchronous read cannot revive its result")
                 check(NSPasteboard.general.changeCount == clipboard,"viewer leaves the user clipboard untouched")
                 let after = try JSONEncoder().encode(Preferences.state),beforeObject = try JSONSerialization.jsonObject(with:preferences) as! [String:Any],afterObject = try JSONSerialization.jsonObject(with:after) as! [String:Any]
-                check((beforeObject["left"] as? NSArray) == (afterObject["left"] as? NSArray) && (beforeObject["right"] as? NSArray) == (afterObject["right"] as? NSArray),"viewer navigation does not rewrite saved pane tabs")
+                let currentTabs = try JSONEncoder().encode([self.main.left.savedTabs,self.main.right.savedTabs])
+                let beforeTabs = try JSONSerialization.jsonObject(with:paneTabs) as! NSArray,afterTabs = try JSONSerialization.jsonObject(with:currentTabs) as! NSArray
+                check((beforeObject["left"] as? NSArray) == (afterObject["left"] as? NSArray) && (beforeObject["right"] as? NSArray) == (afterObject["right"] as? NSArray) && beforeTabs == afterTabs,"viewer navigation does not rewrite saved pane tabs")
                 print("VIEWER SMOKE \(failures.isEmpty ? "PASS" : "FAIL") \(checks) checks");fflush(stdout);exit(failures.isEmpty ? 0 : 1)
             } catch { print("VIEWER SMOKE FAIL "+error.localizedDescription);fflush(stdout);exit(1) }
         }
