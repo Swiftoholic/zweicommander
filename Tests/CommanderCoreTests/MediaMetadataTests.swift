@@ -96,4 +96,21 @@ extension CoreTests {
     func testMediaLongUTF8TagKeepsValidBoundedPrefix() throws { let bytes = mediaID3([("TIT2",Data([3])+Data(String(repeating:"😀",count:10_000).utf8))]);let value = try MediaMetadataReader.read(mediaFile("LangerTitel.mp3",bytes));XCTAssertNotNil(value.title);XCTAssertTrue((value.title?.utf8.count ?? 0) <= 512);XCTAssertFalse(value.title?.contains("�") == true) }
     func testMediaGarbageWithMP3ExtensionIsNotEmptyMetadata() throws { XCTAssertThrowsError(try MediaMetadataReader.read(mediaFile("Falsch.mp3",Data(repeating:0,count:300)))) }
 
+    func testMediaRepeatedID3NotesAreDeduplicated() throws {
+        let fields = Array(repeating:("TLEN",Data([3])+Data("1000".utf8)),count:1200)+Array(repeating:("TIT2",Data([3])+Data("X".utf8)),count:600)
+        var bytes = mediaID3(fields),offset = 10+1200*15
+        for _ in 0..<600 { bytes[offset+9] = 8;offset += 12 }
+        let value = try MediaMetadataReader.read(mediaFile("WiederholteHinweise.mp3",bytes))
+        XCTAssertEqual(value.duration,1);XCTAssertEqual(value.notes.count,2);XCTAssertEqual(Set(value.notes).count,2)
+    }
+
+    func testMediaNotesHaveCountByteAndCanonicalDedupLimits() throws {
+        let url = try file("Hinweisquelle.txt"),identity = try MediaMetadataIdentity(url)
+        var value = MediaMetadata(identity:identity)
+        for index in 0..<100 { value.addNote("Hinweis \(index) "+String(repeating:"\u{0344}",count:1000)) }
+        XCTAssertEqual(value.notes.count,32);XCTAssertTrue(value.notes.allSatisfy { $0.utf8.count <= 512 })
+        let frozen = value.notes;value.addNote("");value.addNote(frozen[0]);XCTAssertEqual(value.notes,frozen)
+        var canon = MediaMetadata(identity:identity);canon.addNote("e\u{0301}");canon.addNote("é");XCTAssertEqual(canon.notes,["é"])
+    }
+
 }

@@ -43,7 +43,7 @@ public enum MediaMetadataReader {
                 let parser = DateFormatter();parser.locale = Locale(identifier:"en_US_POSIX");parser.calendar = Calendar(identifier:.gregorian);parser.timeZone = TimeZone(secondsFromGMT:0);parser.dateFormat = "yyyy:MM:dd HH:mm:ss";parser.isLenient = false
                 if let date = parser.date(from:value),parser.string(from:date) == value { result.taken = date;result.year = Int(value.prefix(4)) }
             }
-            result.notes.append("EXIF-Aufnahmezeit ohne Zeitzonenumrechnung; Bildabmessungen aus dem Dateikopf.")
+            result.addNote("EXIF-Aufnahmezeit ohne Zeitzonenumrechnung; Bildabmessungen aus dem Dateikopf.")
         } else { throw CommanderError.message("Für diesen Dateityp ist kein begrenzter Medienleser vorhanden.") }
         try context.check();try context.file.validate()
         guard try MediaMetadataIdentity(url) == identity else { throw CommanderError.message("Die Mediendatei wurde während der Prüfung verändert.") }

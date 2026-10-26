@@ -17,7 +17,11 @@ public struct MediaMetadata: Equatable {
     public var width:Int?,height:Int?
     public var title:String?,artist:String?,album:String?,year:Int?,track:Int?
     public var taken:Date?,camera:String?
-    public var notes:[String] = []
+    public private(set) var notes:[String] = []
+    public mutating func addNote(_ text:String) {
+        guard notes.count < 32,let value = Self.boundedText(text),!notes.contains(value) else { return }
+        notes.append(value)
+    }
     public init(identity:MediaMetadataIdentity) { self.identity = identity }
     public var hasValues:Bool { duration != nil || width != nil || title != nil || artist != nil || album != nil || year != nil || track != nil || taken != nil || camera != nil }
     public static func boundedText(_ text:String,limit:Int = 512) -> String? {
