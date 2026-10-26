@@ -7,6 +7,10 @@ public struct UndoStep {
     public let original: URL?
     public let backup: URL?
     public let stamp: FileStamp
+    public let mirrorRemoval:MirrorRemovalReceipt?
+    public init(current:URL,original:URL?,backup:URL?,stamp:FileStamp,mirrorRemoval:MirrorRemovalReceipt? = nil) {
+        self.current = current;self.original = original;self.backup = backup;self.stamp = stamp;self.mirrorRemoval = mirrorRemoval
+    }
 }
 public struct OperationReport {
     public var completed: [URL] = []
@@ -116,6 +120,10 @@ public enum FileOperations {
         var errors: [String] = []
         for step in steps.reversed() {
             do {
+                if let receipt = step.mirrorRemoval {
+                    guard step.current.path == receipt.stored.path,step.original?.path == receipt.original.path,step.backup == nil else { throw mirrorError("Entfernungsbeleg passt nicht zur Rücknahme.") }
+                    try FolderMirrorEngine.restoreRemoval(receipt);continue
+                }
                 guard FileSystem.exists(step.current), try FileStamp(step.current) == step.stamp else {
                     throw CommanderError.message("Datei wurde nachträglich geändert. Rückgängig übersprungen: \(step.current.path)")
                 }

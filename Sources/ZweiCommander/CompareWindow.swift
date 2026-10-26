@@ -13,11 +13,14 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
     let toRight = ActionButton("Auswahl →",action:{}),toLeft = ActionButton("← Auswahl",action:{}),skip = ActionButton("Auswahl auslassen",action:{})
     let previewLeft = ActionButton("Links ansehen",action:{}),previewRight = ActionButton("Rechts ansehen",action:{}),revealLeft = ActionButton("Links markieren",action:{}),revealRight = ActionButton("Rechts markieren",action:{})
     let fileCompare = ActionButton("Dateien vergleichen",symbol:"doc.on.doc",action:{})
+    let mirrorButton = ActionButton("Spiegeln …",symbol:"arrow.right.to.line",action:{})
     let info = label("Ordner und Vergleichsregeln wählen, dann Vergleichen.",size:12,color:.secondaryLabelColor),summary = label("",size:12,color:.secondaryLabelColor),detail = label("",size:11,color:.secondaryLabelColor)
     let progress = NSProgressIndicator(),reportButton = ActionButton("Bericht",action:{})
     private(set) var comparison: FolderComparison?,plan: FolderSyncPlan?,rows: [ComparisonItem] = [],visibleRows: [ComparisonItem] = [],directions: [String:SyncDirection] = [:]
     private(set) var isComparing = false,isWorking = false,isPreparingPlan = false,selectedProfileID: UUID?
     var profileNameWindow: CopyProfileNameController?,deleteAlert: NSAlert?,reviewWindow: SyncReviewController?
+    var mirrorWindow:MirrorReviewController?
+    var onSubmitMirror:((FolderMirrorPlan,Bool)->UUID)?
     var onSubmit: ((FolderSyncPlan,Bool)->UUID)?,onCancel: ((UUID)->Void)?,onPreview: ((URL)->Void)?,onReveal: ((URL,Bool)->Void)?,onReport: ((String)->Void)?,onFileCompare:((URL,URL)->Void)?
     var onCompareProgress: (() -> Void)?
     var validatePaths: ((URL,URL) throws -> Void)?
@@ -42,7 +45,10 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
         top(label("Dateinamen",size:12),22,586,80);top(include,108,586,260);top(label("Auslassen",size:12),388,586,90);top(exclude,484,586,240);top(label("Ordner auslassen",size:12),747,586,150);top(excludedFolders,903,586,255,26,true)
         strategy.addItems(withTitles:["Links → Rechts","Rechts → Links","Neuere und fehlende in beide Richtungen","Nur fehlende in beide Richtungen"])
         top(label("Vorschlag",size:12),22,545,80);top(strategy,108,544,540,28);top(applyStrategy,665,543,220,30)
-        top(label("Kein Löschen zusätzlicher Dateien · Ersetzen mit Sicherung",size:11,color:.secondaryLabelColor),22,511,1136,23,true)
+        top(label("Kopierplan erhält zusätzliche Dateien · Spiegelung mit getrennter Entfernungsvorschau",size:11,color:.secondaryLabelColor),22,511,840,23,true)
+        top(mirrorButton,900,506,258,30);mirrorButton.autoresizingMask = [.minYMargin,.minXMargin]
+        WorkflowKeys.bind(mirrorButton,key:"M",modifiers:[.command,.shift],title:"⌘⇧M",detail:"Zusätzliche Ziele in einem eigenen Spiegelungsplan mit Sicherung prüfen.")
+        mirrorButton.perform = { [weak self] in self?.reviewMirror() }
         statusFilter.addItems(withTitles:["Alle Zeilen","Unterschiede","Nur links","Nur rechts","Konflikte","Gleiche"])
         top(resultFilter,22,470,330,27);top(statusFilter,366,469,220,28);top(compareButton,774,468,185,30);top(cancelButton,973,468,185,30)
         compareButton.autoresizingMask = [.minYMargin,.minXMargin];cancelButton.autoresizingMask = [.minYMargin,.minXMargin]
@@ -78,7 +84,16 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
         refreshProfiles();updateActions();cancelButton.isEnabled = false;reportButton.isEnabled = false;w.center()
     }
     required init?(coder: NSCoder) { fatalError() }
-    func refreshFileCompareHelp() { CommandHelp.apply(fileCompare,id:"fileCompare",title:"Dateien vergleichen",context:"Die beiden regulären Dateien der ausgewählten Zeile schreibgeschützt gegenüberstellen.") }
+    func refreshFileCompareHelp() {
+        CommandHelp.apply(fileCompare,id:"fileCompare",title:"Dateien vergleichen",context:"Die beiden regulären Dateien der ausgewählten Zeile schreibgeschützt gegenüberstellen.")
+        let scope:Set<String> = ["closeTab","refresh","compare","fileCompare","selectAll","help","settings","operations","recovery","pauseTransfers","stopTransfers","clipboardCopy","clipboardCut","clipboardPaste","undo","preview"]
+        let occupied = AppDelegate.menuDefinitions.flatMap(\.1).contains { _,id,_ in
+            guard scope.contains(id),let (key,modifiers) = AppDelegate.parseShortcut(AppDelegate.resolvedShortcut(id)) else { return false }
+            return key.lowercased() == "m" && modifiers == [.command,.shift]
+        }
+        mirrorButton.keyEquivalent = occupied ? "" : "M";mirrorButton.keyEquivalentModifierMask = [.command,.shift]
+        mirrorButton.setHelp("Spiegeln","Zusätzliche Ziele in einem eigenen Spiegelungsplan mit Sicherung prüfen."+(occupied ? " Ein eigenes Menükürzel hat Vorrang; die Schaltfläche bleibt verfügbar." : ""),shortcut:occupied ? "" : "⌘⇧M")
+    }
     deinit { token.cancel();delayed?.cancel();if let observer { NotificationCenter.default.removeObserver(observer) } }
     func options() throws -> CompareOptions {
         var value = CompareOptions();value.mode = ComparisonMode.allCases[mode.indexOfSelectedItem];value.strategy = SyncStrategy.allCases[strategy.indexOfSelectedItem]
@@ -159,6 +174,17 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
         let controller = SyncReviewController(plan);reviewWindow = controller
         controller.onStart = { [weak self] start in self?.submit(plan,start:start) };window.beginSheet(controller.window!)
     }
+    func reviewMirror() {
+        guard !isWorking,!isComparing,let comparison,let window,window.attachedSheet == nil,onSubmitMirror != nil else { return }
+        let controller = MirrorReviewController(comparison,direction:strategy.indexOfSelectedItem == 1 ? .rightToLeft : .leftToRight);mirrorWindow = controller
+        controller.onStart = { [weak self] plan,start in
+            guard let self,!self.isWorking,!self.isComparing,let submit = self.onSubmitMirror else { return }
+            self.isWorking = true;self.setBusy();self.info.stringValue = start ? "Spiegelung startet …" : "Spiegelung wartet in der Warteschlange …";self.jobID = submit(plan,start)
+            self.summary.stringValue = "Spiegelung · \(plan.copies.steps.count) Kopierschritte · \(plan.removals.count) Entfernungen mit Sicherung"
+            self.detail.stringValue = "Zuerst vollständig kopieren · zusätzliche Ziele nur gemäß bestätigter Vorschau entfernen · fertige Schritte bleiben bei Abbruch erhalten"
+        }
+        window.beginSheet(controller.window!)
+    }
     private func submit(_ plan: FolderSyncPlan,start: Bool) {
         guard !isWorking,!isComparing,self.plan != nil,let onSubmit else { return };isWorking = true;setBusy();info.stringValue = start ? "Synchronisierung startet …" : "Synchronisierung wartet in der Warteschlange …";jobID = onSubmit(plan,start)
     }
@@ -176,7 +202,7 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
     func cancel() { if isWorking,let jobID { onCancel?(jobID) } else if isComparing { token.cancel();cancelButton.isEnabled = false;info.stringValue = "Vergleich wird abgebrochen …" } }
     override func cancelOperation(_ sender: Any?) { cancel() }
     func windowShouldClose(_ sender: NSWindow) -> Bool { !isWorking }
-    override func close() { guard !isWorking else { return };invalidate();reviewWindow?.close();profileNameWindow?.close();super.close() }
+    override func close() { guard !isWorking else { return };invalidate();reviewWindow?.close();mirrorWindow?.close();profileNameWindow?.close();super.close() }
     func windowWillClose(_ notification: Notification) { token.cancel();generation += 1;planGeneration += 1;delayed?.cancel() }
     private func showError(_ error: Error) { info.stringValue = error.localizedDescription;info.toolTip = info.stringValue;info.textColor = .systemRed }
     private func pickRoot(_ left: Bool) {
@@ -214,6 +240,7 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
         fileCompare.isEnabled = canEdit && one && !selected[0].isBlocked && selected[0].left?.isRegularFile == true && selected[0].right?.isRegularFile == true
         revealLeft.isEnabled = one && selected[0].left != nil;revealRight.isEnabled = one && selected[0].right != nil
         applyStrategy.isEnabled = canEdit;reviewButton.isEnabled = canEdit && !isPreparingPlan && plan?.steps.isEmpty == false
+        mirrorButton.isEnabled = canEdit && window?.attachedSheet == nil && onSubmitMirror != nil
         detail.stringValue = one ? selected[0].relativePath+" · "+selected[0].state.rawValue : "Entscheidungen gelten pro Zeile · Elternordner werden bei Bedarf mit angelegt"
     }
     private func updateSummary() {
@@ -254,6 +281,7 @@ final class CompareController: NSWindowController,NSWindowDelegate,NSTableViewDa
         switch id { case "closeTab":
             if let sheet = window?.attachedSheet {
                 if sheet === reviewWindow?.window { reviewWindow?.close() }
+                else if sheet === mirrorWindow?.window { mirrorWindow?.close() }
                 else if sheet === profileNameWindow?.window { profileNameWindow?.close() }
                 else { window?.endSheet(sheet,returnCode:.alertSecondButtonReturn);sheet.orderOut(nil) }
             } else { window?.performClose(nil) }

@@ -13,7 +13,7 @@ private func descriptorPath(_ fd: Int32) throws -> URL {
     var buffer = [CChar](repeating:0,count:Int(MAXPATHLEN))
     guard fcntl(fd,F_GETPATH,&buffer) == 0 else { throw syncError("Aktueller Ordnerpfad nicht lesbar") };return URL(fileURLWithPath:String(cString:buffer))
 }
-private final class SyncRoot {
+final class SyncRoot {
     let url: URL,fd: Int32,version: RenameVersion
     var folders: [String:RenameVersion]
     init(_ url: URL,_ version: RenameVersion,_ entries: [String:ComparedEntry]) throws {
@@ -25,7 +25,7 @@ private final class SyncRoot {
     }
     deinit { close(fd) }
     func validate() throws {
-        guard try RenameVersion.read(url).sameObject(version),try descriptorVersion(fd).sameObject(version) else { throw CommanderError.message("Vergleichsordner wurde verschoben oder ersetzt.") }
+        guard try RenameVersion.read(url).sameObject(version),try descriptorVersion(fd).sameObject(version),try FileSystem.canonical(descriptorPath(fd)).path == url.path else { throw CommanderError.message("Vergleichsordner wurde verschoben oder ersetzt.") }
     }
     func parent(_ path: String,allowMissing: Bool = false) throws -> Int32? {
         try validate();var current = dup(fd);guard current >= 0 else { throw syncError("Ordnerhandle") }
@@ -52,7 +52,9 @@ private final class SyncRoot {
     }
     func checkParent(_ path: String,_ held: Int32) throws {
         guard let current = try parent(path) else { throw CommanderError.message("Zielordner fehlt.") };defer { close(current) }
-        guard try descriptorVersion(current).sameObject(descriptorVersion(held)) else { throw CommanderError.message("Ordnerpfad wurde während der Übertragung verändert.") }
+        let relative = (path as NSString).deletingLastPathComponent
+        let expected = relative.isEmpty ? url : url.appendingPathComponent(relative)
+        guard try descriptorVersion(current).sameObject(descriptorVersion(held)),try FileSystem.canonical(descriptorPath(held)).path == expected.path else { throw CommanderError.message("Ordnerpfad wurde während der Übertragung verändert.") }
     }
 }
 public enum FolderSyncEngine {

@@ -129,8 +129,10 @@ public enum CompareService {
             guard let iterator = FileManager.default.enumerator(at:root,includingPropertiesForKeys:nil,options:options.showHidden ? [] : [.skipsHiddenFiles],errorHandler:{ _,error in failure = error;return false }) else { throw CommanderError.message("Ordner nicht lesbar: "+root.path) }
             for case let url as URL in iterator {
                 try token.check();let version = try RenameVersion.read(url),name = url.lastPathComponent
-                if name.hasPrefix(".zweicommander-") || (version.isDirectory && filter.excludesFolder(name)) { iterator.skipDescendants();continue }
-                if !options.recursive || version.mode & S_IFMT == S_IFLNK { iterator.skipDescendants() }
+                if name.hasPrefix(".zweicommander-") || (version.isDirectory && filter.excludesFolder(name)) { if version.isDirectory { iterator.skipDescendants() };continue }
+                // DirectoryEnumerator does not traverse links. Calling skipDescendants on
+                // a non-directory can instead prune the next real directory it yields.
+                if !options.recursive && version.isDirectory { iterator.skipDescendants() }
                 guard result.count < 50_000 else { throw CommanderError.message("Vergleich auf 50.000 Einträge je Seite begrenzt. Bitte kleinere Ordner oder mehr Ordnerausschlüsse wählen.") }
                 let path = try FileSystem.relativePath(of:url,inside:root);result[path] = ComparedEntry(url,version);progress("Erfasse "+path)
             }
