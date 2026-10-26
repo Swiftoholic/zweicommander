@@ -2,6 +2,8 @@ import AppKit
 import ImageIO
 import CommanderCore
 
+private final class MediaMetadataSmokeLifetime { var touches = 0 }
+
 extension AppDelegate {
     func runMediaMetadataSmoke(root:URL,prefix:String) {
         Task { @MainActor in
@@ -27,6 +29,20 @@ extension AppDelegate {
                 CGImageDestinationAddImage(writer,image,nil);guard CGImageDestinationFinalize(writer) else { throw CommanderError.message("Künstliches Bild nicht gespeichert.") }
                 let clipboard = NSPasteboard.general.changeCount,defaults = UserDefaults(suiteName:"local.zweicommander.app")!,saved = defaults.persistentDomain(forName:"local.zweicommander.app") ?? [:]
                 self.main.left.refresh();await wait("synthetic files") { !self.main.left.isLoading && self.main.left.visibleEntries.contains(where:{ $0.name == wave.lastPathComponent }) };self.main.setActive(self.main.left);self.main.left.sortKey = "name";self.main.left.ascending = true;self.main.left.applyFilter();await wait("initial order") { !self.main.left.isSorting };await activate(self.main.window!);self.main.left.select([wave,audio]);self.main.window?.makeFirstResponder(self.main.left.table)
+                let subscriberCache = PaneMediaMetadataCache(),subscriberEntry = try FileEntry(url:wave)
+                var delivered:[Int] = [],subscriberDuration:Double?
+                weak var obsoleteLifetime:MediaMetadataSmokeLifetime?
+                do {
+                    let lifetime = MediaMetadataSmokeLifetime();obsoleteLifetime = lifetime
+                    _ = subscriberCache.request(subscriberEntry,generation:1,completion:{ [lifetime] _ in lifetime.touches += 1;delivered.append(-1) })
+                }
+                let oldSubscriberWasRetained = obsoleteLifetime != nil
+                for index in 0..<64 {
+                    _ = subscriberCache.request(subscriberEntry,generation:1,completion:{ value in delivered.append(index);if case .ready(let metadata) = value { subscriberDuration = metadata.duration } })
+                }
+                check(oldSubscriberWasRetained && obsoleteLifetime == nil,"replacing pending identity subscriptions releases obsolete closure lifetimes")
+                await wait("newest identity subscriber") { delivered == [63] }
+                check(subscriberDuration == 2 && delivered == [63],"64 synchronous requests notify the latest subscriber with one bounded callback")
                 check(MediaMetadataField.allCases.allSatisfy { self.main.left.table.tableColumn(withIdentifier:.init($0.rawValue))?.isHidden == true },"all nine optional columns begin hidden")
                 check(self.main.mediaMetadataCommandEnabled && self.main.mediaMetadataURLs == [wave,audio],"command freezes visible order of local regular selections")
                 self.main.showMediaMetadata();let inspector = require(self.main.secondaryWindows.last as? MediaMetadataController,"inspector"),window = require(inspector.window as? WorkflowWindow,"workflow window");await activate(window);await wait("WAV result") { !inspector.isLoading }
@@ -58,9 +74,10 @@ extension AppDelegate {
                 check(blocked.error != nil && blocked.metadata == nil,"symbolic links are refused rather than traversed");blocked.close()
                 self.main.left.refresh();await wait("fresh metadata identities") { !self.main.left.isLoading };await activate(self.main.window!);self.main.left.select([wave]);self.main.window?.makeFirstResponder(self.main.left.table)
                 let pane = self.main.left,column = require(pane.table.tableColumn(withIdentifier:.init("mediaDuration")),"duration column");column.isHidden = false;pane.table.reloadData()
-                let row = require(pane.visibleEntries.firstIndex(where:{ $0.url == wave }),"WAV row"),cell = require(pane.table.view(atColumn:pane.table.tableColumns.firstIndex(of:column)!,row:row,makeIfNecessary:true) as? FileCellView,"media cell")
-                await wait("asynchronous media cell") { cell.textField?.stringValue == "0:00:02" }
-                check(cell.toolTip?.contains("Dauer") == true,"visible media cells load asynchronously with explanatory help")
+                let row = require(pane.visibleEntries.firstIndex(where:{ $0.url == wave }),"WAV row"),columnIndex = pane.table.tableColumns.firstIndex(of:column)!
+                @MainActor func currentCell(_ row:Int,_ column:Int) -> FileCellView? { pane.table.view(atColumn:column,row:row,makeIfNecessary:true) as? FileCellView }
+                await wait("asynchronous media cell") { currentCell(row,columnIndex)?.textField?.stringValue == "0:00:02" }
+                check(currentCell(row,columnIndex)?.toolTip?.contains("Dauer") == true,"visible media cells load asynchronously with explanatory help")
                 check(Set(pane.selectedURLs) == [wave],"asynchronous cell updates preserve file selection")
                 pane.sortKey = "mediaDuration";pane.applyFilter();await wait("metadata sorting") { !pane.isSorting }
                 let waveIndex = require(pane.visibleEntries.firstIndex(where:{ $0.url == wave }),"sorted WAV"),audioIndex = require(pane.visibleEntries.firstIndex(where:{ $0.url == audio }),"sorted audio")
@@ -68,6 +85,13 @@ extension AppDelegate {
                 check(Set(pane.selectedURLs) == [wave],"asynchronous metadata sorting preserves selected file identities")
                 pane.sortKey = "mediaTitle";pane.applyFilter();pane.sortKey = "name";pane.applyFilter();await wait("latest sort") { !pane.isSorting }
                 check(pane.visibleEntries.map(\.name) == FileSystem.sorted(pane.entries).map(\.name),"a later normal sort discards an obsolete metadata sort")
+                let repeated = folder.appendingPathComponent("09-Wiederholt.wav");try wav().write(to:repeated);pane.refresh();await wait("repeated row listing") { !pane.isLoading && pane.visibleEntries.contains(where:{ $0.url == repeated }) }
+                let repeatedRow = require(pane.visibleEntries.firstIndex(where:{ $0.url == repeated }),"repeated row")
+                for field in MediaMetadataField.allCases { pane.table.tableColumn(withIdentifier:.init(field.rawValue))?.isHidden = false }
+                let mediaColumns = pane.table.tableColumns.indices.filter { MediaMetadataField(rawValue:pane.table.tableColumns[$0].identifier.rawValue) != nil }
+                for _ in 0..<8 { pane.table.reloadData();for column in mediaColumns { _ = currentCell(repeatedRow,column) } }
+                await wait("current nine metadata cells") { mediaColumns.allSatisfy { guard let value = currentCell(repeatedRow,$0)?.textField?.stringValue else { return false };return !value.isEmpty && value != "…" } }
+                check(currentCell(repeatedRow,columnIndex)?.textField?.stringValue == "0:00:02" && mediaColumns.count == 9,"eight nine-column reloads refresh every current metadata cell without stuck loading")
                 let legacy = FolderViewSettings(columns:FolderViewSettings.baseColumnIDs.sorted().map { ViewColumn(id:$0,width:100,hidden:$0 != "name") });pane.applyView(legacy);await wait("legacy view") { !pane.isSorting }
                 check(MediaMetadataField.allCases.allSatisfy { pane.table.tableColumn(withIdentifier:.init($0.rawValue))?.isHidden == true },"legacy eight-column views keep optional metadata hidden")
                 self.main.window?.makeFirstResponder(pane.filterField);pane.filterField.selectText(nil)
