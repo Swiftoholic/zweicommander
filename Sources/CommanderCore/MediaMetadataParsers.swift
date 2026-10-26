@@ -32,7 +32,7 @@ extension MediaMetadataReader {
         case "TALB","IPRD","©alb":result.album = value
         case "TYER","TDRC","ICRD","©day":if let year = Int(value.prefix(4)),(1...9999).contains(year) { result.year = year }
         case "TRCK","ITRK":if let track = Int(value.split(separator:"/").first ?? ""),(1...100_000).contains(track) { result.track = track }
-        case "TLEN":if let value = Double(value),value.isFinite,value > 0,value <= 1_000_000_000_000 { result.duration = value/1000;result.notes.append("Dauer aus dem ID3-TLEN-Tag, ohne Audioscan.") }
+        case "TLEN":if let value = Double(value),value.isFinite,value > 0,value <= 1_000_000_000_000 { result.duration = value/1000;result.addNote("Dauer aus dem ID3-TLEN-Tag, ohne Audioscan.") }
         default:break
         }
     }
@@ -77,7 +77,7 @@ extension MediaMetadataReader {
             // Compressed, encrypted, grouped or unsynchronised frames have no plain text payload.
             if ["TIT2","TPE1","TALB","TYER","TDRC","TRCK","TLEN"].contains(id) {
                 let unsupported = frame[9] != 0 || frame[8] & (version == 4 ? 0x8F : 0x1F) != 0
-                if unsupported { result.notes.append("Ein codierter ID3-Textwert ist nicht verfügbar.") }
+                if unsupported { result.addNote("Ein codierter ID3-Textwert ist nicht verfügbar.") }
                 else { applyTag(id,tagText(try c.read(offset+10,min(count,4096)),truncated:count > 4096),to:&result) }
             }
             offset += Int64(count)+10
@@ -165,6 +165,6 @@ extension MediaMetadataReader {
             }
         }
         try walk(0,c.file.size,0,"");guard foundMovie else { throw CommanderError.message("Kein unterstützter MP4-/MOV-Filmkopf gefunden.") }
-        result.notes.append("Dauer und Auflösung aus Containerköpfen; keine vollständige Codec- oder Medienprüfung.")
+        result.addNote("Dauer und Auflösung aus Containerköpfen; keine vollständige Codec- oder Medienprüfung.")
     }
 }
