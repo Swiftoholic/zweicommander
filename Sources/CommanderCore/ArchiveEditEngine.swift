@@ -5,8 +5,18 @@ import CArchive
 
 public enum ArchiveEditEngine {
     public static func execute(_ plan:ArchiveEditPlan,token:CancellationToken = .init(),progress:(String)->Void = { _ in }) -> OperationReport {
-        var report = OperationReport(),stageFD:Int32 = -1,parentFD:Int32 = -1,stageVersion:RenameVersion?
+        var report = OperationReport(),stageFD:Int32 = -1,parentFD:Int32 = -1,stageVersion:RenameVersion?,publishedVersion:RenameVersion?,publishedStamp:FileStamp?
         let parent = plan.source.deletingLastPathComponent(),stage = ".zweicommander-archive-edit-"+UUID().uuidString,backup = ".zweicommander-backup-"+UUID().uuidString,name = plan.source.lastPathComponent
+        func publishedPaths() throws -> (parent:URL,current:URL,backup:URL) {
+            let actual = try descriptorDirectory(parentFD)
+            return (actual,actual.appendingPathComponent(name),actual.appendingPathComponent(backup))
+        }
+        @discardableResult func refreshPublishedReceipt() throws -> (parent:URL,current:URL,backup:URL) {
+            guard let publishedVersion else { throw CommanderError.message("Kein veröffentlichtes Archiv vorhanden.") }
+            let paths = try publishedPaths()
+            report.completed = [paths.current];report.undo = [UndoStep(current:paths.current,original:nil,backup:paths.backup,stamp:publishedStamp ?? FileStamp(version:publishedVersion))]
+            return paths
+        }
         defer {
             if stageFD >= 0 { close(stageFD) }
             if parentFD >= 0 {
@@ -19,7 +29,7 @@ public enum ArchiveEditEngine {
             try plan.validate(token:token)
             parentFD = open(parent.path,O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC)
             guard parentFD >= 0 else { throw CommanderError.message("Archivordner kann nicht geöffnet werden.") }
-            var parentStat = stat();guard fstat(parentFD,&parentStat) == 0,RenameVersion(parentStat).sameObject(plan.parentVersion) else { throw CommanderError.message("Archivordner wurde ersetzt.") }
+            var parentStat = stat();guard fstat(parentFD,&parentStat) == 0,RenameVersion(parentStat).sameObject(plan.parentVersion),try FileSystem.canonical(descriptorDirectory(parentFD)).path == parent.path else { throw CommanderError.message("Archivordner wurde ersetzt oder verschoben.") }
             let original = try ArchiveEditFile(plan.source,expected:plan.sourceVersion)
             switch plan.format {
             case .zip:try ArchiveEditZip.validate(original.fd,size:Int64(original.version.size),token:token)
@@ -36,6 +46,8 @@ public enum ArchiveEditEngine {
                 for offset in [3,4,5,6,7,9] { var byte = header[offset];guard pwrite(stageFD,&byte,1,off_t(offset)) == 1 else { throw CommanderError.message("GZip-Kopfdaten können nicht erhalten werden.") } }
             }
             try token.check();try original.validate();try plan.validate(token:token)
+            // Apply our own metadata changes before freezing the version whose contents are verified.
+            try NativeCopy.metadataDescriptors(original.fd,to:stageFD)
             progress("Prüfe vollständige Inhalte und Metadaten")
             guard fstat(stageFD,&value) == 0 else { throw CommanderError.message("Neue Archivdatei nicht verfügbar.") }
             let staged = try ArchiveEditFile(parent.appendingPathComponent(stage),expected:RenameVersion(value))
@@ -46,20 +58,20 @@ public enum ArchiveEditEngine {
             }
             try verify(plan,fd:stageFD,expected:expected,token:token,progress:progress)
             try token.check();try original.validate();try plan.validate(token:token)
-            // A decoder may have buffered old bytes. Bind the entire verification to the
-            // frozen stage version before our own metadata writes create a new version.
+            // A decoder may have buffered old bytes. All content verification and sealing
+            // must describe this same frozen version; no owned writes follow the snapshot.
             try staged.validate()
-            try NativeCopy.metadataDescriptors(original.fd,to:stageFD)
             guard fsync(stageFD) == 0,fstat(stageFD,&value) == 0 else { throw CommanderError.message("Die geprüfte Archivdatei konnte nicht gespeichert werden.") }
             let sizeLimit = plan.maximumBytes.addingReportingOverflow(128*1024*1024),limit = sizeLimit.overflow ? Int64.max : sizeLimit.partialValue
             let sealed = try seal(stageFD,limit:limit,token:token),outputVersion = sealed.version
+            guard outputVersion == staged.version else { throw CommanderError.message("Die neue Archivdatei wurde nach der Inhaltsprüfung verändert.") }
             progress("Übernehme geprüftes Archiv mit Originalsicherung")
             try token.check();try original.validate();try plan.validate(token:token)
             guard fstat(stageFD,&value) == 0,RenameVersion(value) == outputVersion,try RenameVersion.read(parentFD,stage) == outputVersion else { throw CommanderError.message("Die geprüfte neue Archivdatei wurde verändert.") }
             let finalSeal = try seal(stageFD,limit:limit,token:token)
             guard finalSeal.version == outputVersion,finalSeal.digest == sealed.digest else { throw CommanderError.message("Die geprüfte neue Archivdatei wurde verändert.") }
             try token.check();try original.validate();try plan.validate(token:token)
-            guard try RenameVersion.read(parent).sameObject(plan.parentVersion),try RenameVersion.read(parentFD,name) == plan.sourceVersion,try RenameVersion.read(parentFD,stage) == outputVersion,fstat(stageFD,&value) == 0,RenameVersion(value) == outputVersion else { throw CommanderError.message("Archiv oder Ausgabe wurde vor der Übernahme verändert.") }
+            guard try RenameVersion.read(parent).sameObject(plan.parentVersion),try FileSystem.canonical(descriptorDirectory(parentFD)).path == parent.path,try RenameVersion.read(parentFD,name) == plan.sourceVersion,try RenameVersion.read(parentFD,stage) == outputVersion,fstat(stageFD,&value) == 0,RenameVersion(value) == outputVersion else { throw CommanderError.message("Archiv oder Ausgabe wurde vor der Übernahme verändert.") }
             guard renameatx_np(parentFD,name,parentFD,backup,UInt32(RENAME_EXCL)) == 0 else { throw CommanderError.message("Die unveränderte Originaldatei konnte nicht gesichert werden.") }
             guard (try? RenameVersion.read(parentFD,backup)).map(plan.sourceVersion.sameAfterRename) == true else {
                 _ = renameatx_np(parentFD,backup,parentFD,name,UInt32(RENAME_EXCL))
@@ -68,20 +80,33 @@ public enum ArchiveEditEngine {
             // Complete this short publication step without another cancellation point.
             guard renameatx_np(parentFD,stage,parentFD,name,UInt32(RENAME_EXCL)) == 0 else {
                 let restored = renameatx_np(parentFD,backup,parentFD,name,UInt32(RENAME_EXCL)) == 0
-                if !restored { report.undo = [UndoStep(current:plan.source,original:nil,backup:parent.appendingPathComponent(backup),stamp:FileStamp(version:outputVersion))] }
-                throw CommanderError.message(restored ? "Archivübernahme fehlgeschlagen; das Original wurde wiederhergestellt." : "Der Archivname wurde inzwischen belegt. Das Original bleibt gesichert unter "+parent.appendingPathComponent(backup).path)
+                let paths = try publishedPaths()
+                if !restored { report.undo = [UndoStep(current:paths.current,original:nil,backup:paths.backup,stamp:FileStamp(version:outputVersion))] }
+                throw CommanderError.message(restored ? "Archivübernahme fehlgeschlagen; das Original wurde wiederhergestellt." : "Der Archivname wurde inzwischen belegt. Das Original bleibt gesichert unter "+paths.backup.path)
             }
             // Register recovery before any post-publication callback/validation. The frozen stamp
             // cannot authorize undo over a subsequently replaced or modified foreign file.
-            report.completed = [plan.source];report.undo = [UndoStep(current:plan.source,original:nil,backup:parent.appendingPathComponent(backup),stamp:FileStamp(version:outputVersion))]
+            publishedVersion = outputVersion;try refreshPublishedReceipt()
             progress("Prüfe übernommenes Archiv")
-            guard let actual = try? RenameVersion.read(parentFD,name),outputVersion.sameAfterRename(actual) else { throw CommanderError.message("Das neue Archiv wurde unmittelbar nach der Übernahme verändert. Original gesichert unter "+parent.appendingPathComponent(backup).path) }
-            let stamp = try FileStamp(plan.source)
-            guard stamp.inode == UInt64(actual.inode),stamp.device == UInt64(truncatingIfNeeded:actual.device) else { throw CommanderError.message("Das neue Archiv wurde vor dem Erstellen der Rücknahme ersetzt. Das Original bleibt gesichert unter "+parent.appendingPathComponent(backup).path) }
-            report.completed = [plan.source];report.undo = [UndoStep(current:plan.source,original:nil,backup:parent.appendingPathComponent(backup),stamp:stamp)]
+            var paths = try refreshPublishedReceipt()
+            guard FileSystem.canonical(paths.parent).path == parent.path else { throw CommanderError.message("Der Archivordner wurde nach der Übernahme verschoben. Original gesichert unter "+paths.backup.path) }
+            guard let actual = try? RenameVersion.read(parentFD,name),outputVersion.sameAfterRename(actual) else { throw CommanderError.message("Das neue Archiv wurde unmittelbar nach der Übernahme verändert. Original gesichert unter "+paths.backup.path) }
+            let stamp = try FileStamp(paths.current)
+            guard stamp.inode == UInt64(actual.inode),stamp.device == UInt64(truncatingIfNeeded:actual.device) else { throw CommanderError.message("Das neue Archiv wurde vor dem Erstellen der Rücknahme ersetzt. Das Original bleibt gesichert unter "+paths.backup.path) }
+            publishedStamp = stamp;try refreshPublishedReceipt()
             progress("Archivänderungen übernommen · Original gesichert")
-        } catch { report.errors.append(error.localizedDescription) }
+            paths = try refreshPublishedReceipt()
+            guard FileSystem.canonical(paths.parent).path == parent.path else { throw CommanderError.message("Der Archivordner wurde nach der Übernahme verschoben. Original gesichert unter "+paths.backup.path) }
+        } catch {
+            if publishedVersion != nil { _ = try? refreshPublishedReceipt() }
+            report.errors.append(error.localizedDescription)
+        }
         return report
+    }
+    private static func descriptorDirectory(_ fd:Int32) throws -> URL {
+        var path = [CChar](repeating:0,count:Int(MAXPATHLEN))
+        guard fd >= 0,fcntl(fd,F_GETPATH,&path) == 0 else { throw CommanderError.message("Der aktuelle Archivordner kann nicht ermittelt werden.") }
+        return URL(fileURLWithPath:String(cString:path),isDirectory:true)
     }
     private static func seal(_ fd:Int32,limit:Int64,token:CancellationToken) throws -> (version:RenameVersion,digest:Data) {
         var info = stat();guard fstat(fd,&info) == 0,info.st_size >= 0,info.st_size <= limit else { throw CommanderError.message("Archivdatei überschreitet die geprüfte Ausgabegrenze.") }

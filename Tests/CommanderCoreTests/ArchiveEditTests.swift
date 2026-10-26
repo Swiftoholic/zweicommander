@@ -327,3 +327,46 @@ extension CoreTests {
         XCTAssertTrue(try editTemporaryFiles(root).isEmpty)
     }
 }
+
+extension CoreTests {
+    func testArchiveEditMetadataIsFinalBeforeVerificationSnapshot() throws {
+        let input = try file("Input.txt","payload"),archive = root.appendingPathComponent("Metadata.zip"),date = Date(timeIntervalSince1970:1_600_000_000)
+        try ArchiveService.pack([input],to:archive)
+        try FileManager.default.setAttributes([.modificationDate:date,.posixPermissions:0o640],ofItemAtPath:archive.path)
+        let plan = try ArchiveEditPlan(source:archive,renames:["Input.txt":"Renamed.txt"]);var metadataReady = false
+        let report = ArchiveEditEngine.execute(plan,progress:{ text in
+            guard text == "Prüfe vollständige Inhalte und Metadaten",let stage = try? FileManager.default.contentsOfDirectory(at:archive.deletingLastPathComponent(),includingPropertiesForKeys:nil).first(where:{$0.lastPathComponent.hasPrefix(".zweicommander-archive-edit-")}),let attributes = try? FileManager.default.attributesOfItem(atPath:stage.path) else { return }
+            metadataReady = attributes[.modificationDate] as? Date == date && (attributes[.posixPermissions] as? NSNumber)?.intValue == 0o640
+        })
+        XCTAssertTrue(metadataReady,"Own metadata changes must precede the frozen verification snapshot")
+        XCTAssertTrue(report.errors.isEmpty,report.errors.joined(separator:" · "))
+        XCTAssertEqual(try FileManager.default.attributesOfItem(atPath:archive.path)[.modificationDate] as? Date,date)
+    }
+    func testArchiveEditPostPublicationParentMoveRetainsAccessibleRecovery() throws {
+        let input = try file("Input.txt","payload")
+        for (index,phase) in ["Prüfe übernommenes Archiv","Archivänderungen übernommen · Original gesichert"].enumerated() {
+            let parent = try folder("Case\(index)/Parent"),moved = root.appendingPathComponent("Case\(index)/Moved"),outside = try folder("Case\(index)/Outside"),archive = parent.appendingPathComponent("Original.zip")
+            let foreign = try file("Case\(index)/Outside/Original.zip","outside archive"),sentinel = try file("Case\(index)/Outside/Sentinel.txt","outside sentinel")
+            try ArchiveService.pack([input],to:archive);let before = try Data(contentsOf:archive),plan = try ArchiveEditPlan(source:archive,renames:["Input.txt":"Renamed.txt"]);var injected = false
+            let report = ArchiveEditEngine.execute(plan,progress:{ text in
+                guard text == phase,!injected else { return }
+                do { try FileManager.default.moveItem(at:parent,to:moved);try FileManager.default.createSymbolicLink(at:parent,withDestinationURL:outside);injected = true } catch { }
+            })
+            XCTAssertTrue(injected);XCTAssertFalse(report.errors.isEmpty);XCTAssertEqual(report.undo.count,1)
+            let current = moved.appendingPathComponent("Original.zip")
+            XCTAssertEqual(report.completed.map { FileSystem.canonical($0).path },[FileSystem.canonical(current).path])
+            if let step = report.undo.first,let backup = step.backup {
+                XCTAssertEqual(FileSystem.canonical(step.current).path,FileSystem.canonical(current).path)
+                XCTAssertEqual(FileSystem.canonical(backup.deletingLastPathComponent()).path,FileSystem.canonical(moved).path)
+                XCTAssertEqual(try Data(contentsOf:backup),before)
+                let history = try TransferHistory(journal:TransferJournal(directory:root.appendingPathComponent("Case\(index)/History")))
+                try history.captureBackups(report.undo);let items = history.inspect();XCTAssertEqual(items.count,1);XCTAssertTrue(items.first?.available == true)
+                if let item = items.first {
+                    XCTAssertEqual(FileSystem.canonical(item.original).path,FileSystem.canonical(current).path)
+                    try history.restore(history.planRestore(item.id));XCTAssertEqual(try Data(contentsOf:current),before)
+                }
+            }
+            XCTAssertEqual(try read(foreign),"outside archive");XCTAssertEqual(try read(sentinel),"outside sentinel")
+        }
+    }
+}
