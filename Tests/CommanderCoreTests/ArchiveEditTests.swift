@@ -303,3 +303,27 @@ extension CoreTests {
         XCTAssertThrowsError(try ArchiveEditPlan(source:archive));XCTAssertEqual(try Data(contentsOf:archive),before)
     }
 }
+
+extension CoreTests {
+    func testArchiveEditMutationDuringVerificationCannotAcquireFreshSeal() throws {
+        let first = try file("Input/First.txt","ALPHA_PAYLOAD_TO_EDIT_1234"),second = try file("Input/Second.txt","BETA_PAYLOAD_TO_KEEP_6789"),archive = root.appendingPathComponent("DuringVerify.zip")
+        try ArchiveService.pack([first,second],to:archive,compressionLevel:0)
+        let original = try Data(contentsOf:archive)
+        let plan = try ArchiveEditPlan(source:archive,renames:["First.txt":"Renamed.txt"],compressionLevel:0)
+        var checked:[String] = [],injected = false,sameInode = false
+        let report = ArchiveEditEngine.execute(plan,progress:{ text in
+            guard text.hasPrefix("Prüfe Inhalt · ") else { return }
+            checked.append(String(text.dropFirst("Prüfe Inhalt · ".count)))
+            guard checked.count == 2,let stage = try? FileManager.default.contentsOfDirectory(at:archive.deletingLastPathComponent(),includingPropertiesForKeys:nil).first(where:{$0.lastPathComponent.hasPrefix(".zweicommander-archive-edit-")}),let data = try? Data(contentsOf:stage) else { return }
+            let payload = Data((checked[0] == "Renamed.txt" ? "ALPHA_PAYLOAD_TO_EDIT_1234" : "BETA_PAYLOAD_TO_KEEP_6789").utf8)
+            guard let range = data.range(of:payload),let handle = try? FileHandle(forWritingTo:stage) else { return }
+            var before = stat(),after = stat();guard lstat(stage.path,&before) == 0 else { try? handle.close();return }
+            do { try handle.seek(toOffset:UInt64(range.lowerBound));try handle.write(contentsOf:Data([0x58]));try handle.close();injected = true } catch { try? handle.close() }
+            sameInode = lstat(stage.path,&after) == 0 && before.st_ino == after.st_ino && before.st_dev == after.st_dev
+        })
+        XCTAssertEqual(checked.count,2);XCTAssertTrue(injected);XCTAssertTrue(sameInode)
+        XCTAssertFalse(report.errors.isEmpty,"A changed, previously verified payload must not receive a new trusted seal")
+        XCTAssertEqual(try Data(contentsOf:archive),original);XCTAssertTrue(report.undo.isEmpty)
+        XCTAssertTrue(try editTemporaryFiles(root).isEmpty)
+    }
+}

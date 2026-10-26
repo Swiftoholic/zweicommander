@@ -46,6 +46,9 @@ public enum ArchiveEditEngine {
             }
             try verify(plan,fd:stageFD,expected:expected,token:token,progress:progress)
             try token.check();try original.validate();try plan.validate(token:token)
+            // A decoder may have buffered old bytes. Bind the entire verification to the
+            // frozen stage version before our own metadata writes create a new version.
+            try staged.validate()
             try NativeCopy.metadataDescriptors(original.fd,to:stageFD)
             guard fsync(stageFD) == 0,fstat(stageFD,&value) == 0 else { throw CommanderError.message("Die geprüfte Archivdatei konnte nicht gespeichert werden.") }
             let sizeLimit = plan.maximumBytes.addingReportingOverflow(128*1024*1024),limit = sizeLimit.overflow ? Int64.max : sizeLimit.partialValue
