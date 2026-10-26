@@ -191,7 +191,7 @@ extension CoreTests {
         XCTAssertThrowsError(try library.save(name:"A\u{308}PFEL",rule:rule));XCTAssertEqual(library,original)
         var invalid = rule;invalid.step = 0;XCTAssertThrowsError(try library.save(name:"Bad",rule:invalid));XCTAssertEqual(library,original)
         XCTAssertThrowsError(try RenameProfileLibrary(data:Data("{broken".utf8)))
-        XCTAssertThrowsError(try RenameProfileLibrary(data:Data("{\"version\":2,\"profiles\":[]}".utf8)))
+        XCTAssertThrowsError(try RenameProfileLibrary(data:Data("{\"version\":3,\"profiles\":[]}".utf8)))
         XCTAssertThrowsError(try RenameProfileLibrary(data:Data(repeating:32,count:1_048_577)))
         for index in 1..<50 { try library.save(name:"Profil \(index)",rule:rule) }
         XCTAssertThrowsError(try library.save(name:"Eines zu viel",rule:rule));XCTAssertEqual(library.profiles.count,50)
