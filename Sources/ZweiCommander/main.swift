@@ -4,7 +4,7 @@ import CommanderCore
 final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
     var main:MainWindow!
     static let menuDefinitions:[(String,[(String,String,String)])] = [
-        ("Datei",[("Öffnen","open","cmd+o"),("Ordner in neuem Tab öffnen","openInNewTab","cmd+return"),("Ordner auf anderer Seite öffnen","openInOther","cmd+option+return"),("Ordner in neuem Tab auf anderer Seite","openInOtherTab","cmd+option+o"),("Vorschau","preview","F3"),("Mit TextEdit bearbeiten","edit","F4"),("Neuer Ordner …","newFolder","F7"),("Neue Datei …","newFile","shift+F4"),("—","",""),("Kopieren …","copy","F5"),("Verschieben …","move","F6"),("Umbenennen …","rename","F2"),("Mehrfachumbenennen …","batchRename","cmd+shift+m"),("In den Papierkorb …","trash","F8"),("—","",""),("Archiv erstellen …","pack","option+F5"),("Archiv entpacken …","extract","option+F6"),("Zum Archivcontainer","archiveContainer","cmd+option+up"),("Archivpasswort …","archivePassword",""),("Symbolische Verknüpfung …","symlink",""),("Eigenschaften","properties","cmd+i"),("Rechte und Datum …","attributes","")]),
+        ("Datei",[("Öffnen","open","cmd+o"),("Ordner in neuem Tab öffnen","openInNewTab","cmd+return"),("Ordner auf anderer Seite öffnen","openInOther","cmd+option+return"),("Ordner in neuem Tab auf anderer Seite","openInOtherTab","cmd+option+o"),("Vorschau","preview","F3"),("Mit TextEdit bearbeiten","edit","F4"),("Neuer Ordner …","newFolder","F7"),("Neue Datei …","newFile","shift+F4"),("—","",""),("Kopieren …","copy","F5"),("Verschieben …","move","F6"),("Umbenennen …","rename","F2"),("Mehrfachumbenennen …","batchRename","cmd+shift+m"),("In den Papierkorb …","trash","F8"),("—","",""),("Archiv erstellen …","pack","option+F5"),("Archiv bearbeiten …","archiveEdit","cmd+shift+e"),("Archiv entpacken …","extract","option+F6"),("Zum Archivcontainer","archiveContainer","cmd+option+up"),("Archivpasswort …","archivePassword",""),("Symbolische Verknüpfung …","symlink",""),("Eigenschaften","properties","cmd+i"),("Medieninformationen …","mediaMetadata","cmd+option+i"),("Rechte und Datum …","attributes","")]),
         ("Bearbeiten",[("Rückgängig","undo","cmd+z"),("Ausschneiden","clipboardCut","cmd+x"),("Kopieren","clipboardCopy","cmd+c"),("Einfügen …","clipboardPaste","cmd+v"),("—","",""),("Namen kopieren","copyNames","cmd+option+c"),("Namen ohne Endung kopieren","copyStems","cmd+option+shift+c"),("Vollständige Pfade kopieren","copyPath","cmd+shift+c"),("Datei-URLs kopieren","copyURLs",""),("Als Shell-Argumente kopieren","copyShellPaths",""),("Als Tabelle kopieren","copySelectionTable",""),("—","",""),("Alles auswählen","selectAll","cmd+a")]),
         ("Auswahl",[("Alle Dateien auswählen","selectFiles","cmd+option+a"),("Alles abwählen","deselectAll","cmd+option+shift+a"),("Auswahl umkehren","invertSelection","cmd+shift+a"),("Nur Dateien umkehren","invertFiles",""),("Nach Muster auswählen …","selectPattern","cmd+shift+s"),("—","",""),("Gleiche Endung hinzufügen","sameExtension","cmd+option+e"),("Gleiche Endung abwählen","deselectExtension","cmd+option+shift+e"),("Gleichen Stammnamen hinzufügen","sameStem","cmd+option+n"),("Gleichen Stammnamen abwählen","deselectStem","cmd+option+shift+n"),("—","",""),("Auswahl merken","saveSelection","cmd+option+s"),("Auswahl wiederherstellen","restoreSelection","cmd+option+r"),("Auswahl in Datei speichern …","saveSelectionFile",""),("Auswahl aus Datei laden …","loadSelectionFile","")]),
         ("Ansicht",[("Aktualisieren","refresh","cmd+r"),("Versteckte Dateien","hidden","cmd+shift+."),("Ordnerbaum","tree","cmd+shift+t"),("Details","details","cmd+1"),("Miniaturbilder","thumbnails","cmd+2"),("Symbole","icons","cmd+3"),("Ordneransicht merken …","rememberView",""),("Gespeicherte Ordneransichten …","folderViews",""),("Schnellansicht","quickView","cmd+y"),("Anordnung wechseln","orientation","cmd+option+h"),("Ein-/Zweifensteransicht","onePane","cmd+shift+1"),("Fensterinhalte tauschen","swap","cmd+u"),("Gleicher Ordner im anderen Fenster","sameFolder","cmd+shift+u"),("Verknüpftes Navigieren","linked",""),("Flache Ansicht","flat","cmd+b"),("Schnellfilter","filter","cmd+shift+f"),("Werkzeugleiste anpassen …","customizeToolbar","")]),
@@ -44,15 +44,19 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let advancedSearchSmoke = args.firstIndex(of:"--advanced-search-smoke")
         let viewerSmoke = args.firstIndex(of:"--viewer-smoke")
         let toolsIntegrationSmoke = args.firstIndex(of:"--tools-integration-smoke")
+        let mirrorSmoke = args.firstIndex(of:"--mirror-smoke")
+        let archiveEditSmoke = args.firstIndex(of:"--archive-edit-smoke")
+        let mediaMetadataSmoke = args.firstIndex(of:"--media-metadata-smoke")
+        let packageIntegrationSmoke = args.firstIndex(of:"--package-integration-smoke")
         let compareSmoke = args.firstIndex(of:"--compare-smoke")
-        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke,serverPaneSmoke,selectionSmoke,tabsSmoke,layoutSmoke,archiveSmoke,archiveMergeSmoke,fileDiffSmoke,advancedSearchSmoke,viewerSmoke,toolsIntegrationSmoke].compactMap { $0 }.first
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke,serverPaneSmoke,selectionSmoke,tabsSmoke,layoutSmoke,archiveSmoke,archiveMergeSmoke,fileDiffSmoke,advancedSearchSmoke,viewerSmoke,toolsIntegrationSmoke,mirrorSmoke,archiveEditSmoke,mediaMetadataSmoke,packageIntegrationSmoke].compactMap { $0 }.first
         Preferences.testMode = testIndex != nil
         if Preferences.testMode { setvbuf(stdout,nil,_IOLBF,0) }
         if Preferences.testMode { Preferences.state = SavedState() }
         if remoteSmoke != nil,let index = args.firstIndex(of:"--remote-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
             Preferences.remoteProfileTestDefaults = UserDefaults(suiteName:args[index+1])
         }
-        if let index = journalSmoke ?? ageSmoke ?? recoverySmoke ?? archiveMergeSmoke,args.indices.contains(index+1) {
+        if let index = journalSmoke ?? ageSmoke ?? recoverySmoke ?? archiveMergeSmoke ?? mirrorSmoke ?? archiveEditSmoke ?? packageIntegrationSmoke,args.indices.contains(index+1) {
             Preferences.transferJournalTestDirectory = URL(fileURLWithPath:args[index+1]).appendingPathComponent("Auftragsablage")
         }
         if profilesSmoke != nil || ageSmoke != nil,let index = args.firstIndex(of:"--profile-test-suite"),args.indices.contains(index+1),args[index+1].hasPrefix("local.zweicommander.tests.") {
@@ -96,6 +100,18 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         main.onRebuildMenus = { [weak self] in self?.buildMenus(); self?.main.updateFunctionLabels() }
         buildMenus(); main.showWindow(nil); main.active.focus()
         NSApp.activate(ignoringOtherApps:true)
+        if let mirrorSmoke,args.indices.contains(mirrorSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runMirrorSmoke(root:root,prefix:args[mirrorSmoke+2]) }
+        }
+        if let archiveEditSmoke,args.indices.contains(archiveEditSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runArchiveEditSmoke(root:root,prefix:args[archiveEditSmoke+2]) }
+        }
+        if let mediaMetadataSmoke,args.indices.contains(mediaMetadataSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runMediaMetadataSmoke(root:root,prefix:args[mediaMetadataSmoke+2]) }
+        }
+        if let packageIntegrationSmoke,args.indices.contains(packageIntegrationSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runPackageIntegrationSmoke(root:root,prefix:args[packageIntegrationSmoke+2]) }
+        }
         if let toolsIntegrationSmoke,args.indices.contains(toolsIntegrationSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runToolsIntegrationSmoke(root:root,prefix:args[toolsIntegrationSmoke+2]) }
         }
@@ -243,7 +259,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if let explicit = values[id] { return explicit }
         let fallback = menuDefinitions.flatMap { $0.1 }.first { $0.1 == id }?.2 ?? ""
         // New defaults must not displace a previously configured command.
-        if id == "fileCompare",let proposed = parseShortcut(fallback),values.contains(where:{ key,value in
+        if ["fileCompare","archiveEdit","mediaMetadata"].contains(id),let proposed = parseShortcut(fallback),values.contains(where:{ key,value in
             guard key != id,!value.isEmpty,let occupied = parseShortcut(value) else { return false }
             return proposed.0 == occupied.0 && proposed.1 == occupied.1
         }) { return "" }
@@ -287,6 +303,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if let compare = main?.keyCompareController { return compare.canPerformCommand(id) }
         if let search = main?.keySearchController { return search.canPerformCommand(id) }
         if id == "fileCompare" { return NSApp.keyWindow === main?.window && main?.fileComparisonURLs != nil }
+        if id == "mediaMetadata" { return main?.mediaMetadataCommandEnabled == true }
         if let enabled = main?.archiveCommandEnabled(id) { return enabled }
         if let enabled = main?.selectionCommandEnabled(id) { return enabled }
         if let mode = ["tabUnlock":TabLockMode.none,"tabCloseLock":.closeOnly,"tabFixedLock":.fixed,"tabNewLock":.newTab][id] { item.state = main?.active.tab.lockMode == mode ? .on : .off }
@@ -302,7 +319,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if item.keyEquivalentModifierMask.isEmpty, item.keyEquivalent == " ", NSApp.keyWindow?.firstResponder is NSTextView { return false }
         return true
     }
-    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "0.25.0",.version:Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "26",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"ZweiCommander",.applicationVersion:Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "0.26.0",.version:Bundle.main.object(forInfoDictionaryKey:"CFBundleVersion") as? String ?? "27",.credits:NSAttributedString(string:"Dateimanager für macOS.\nSwift · AppKit · macOS-Systembibliotheken")]) }
     func applicationShouldTerminate(_ sender:NSApplication) -> NSApplication.TerminateReply {
         if main?.canTerminate == false { _ = dialog("Dateivorgänge laufen",message:"Laufende Vorgänge einschließlich Suchen, vorgemerkte Synchronisationen und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return .terminateCancel }
         main?.saveState(); return .terminateNow

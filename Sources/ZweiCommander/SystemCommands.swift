@@ -57,7 +57,7 @@ extension MainWindow {
     }
     var helpText:String {
         """
-        ZWEICOMMANDER · Version 0.25.0
+        ZWEICOMMANDER · Version 0.26.0
 
         ZweiCommander ist ein Dateimanager für macOS.
 
@@ -83,7 +83,16 @@ extension MainWindow {
         „Auswahl in Datei speichern …“ schreibt ausdrücklich markierte Adressen als JSON. „Auswahl aus Datei laden …“ markiert passende sichtbare Einträge. Eine Datei ohne passende Adressen erhält die bestehende Auswahl; eine ausdrücklich leere Auswahldatei hebt die Markierung auf. Grenzen: 10.000 Einträge und 2 MiB. Die Datei enthält Pfade; daher nur bewusst weitergeben.
         Unter „Bearbeiten“ und im Kontextmenü „Text kopieren“ stehen Namen, Namen ohne Endung, vollständige Pfade, Datei-URLs, Shell-Argumente und eine Tabelle bereit. Cmd+Option+C kopiert Namen, zusätzlich Shift Namen ohne Endung. Cmd+Shift+C kopiert Pfade oder ohne Auswahl die Ordneradresse. Shell-Argumente sind für lokale Dateien einfach quotiert; die Kopie führt nichts aus. Tabellen verwenden Tabulatoren, Byte-Größen und ISO-Datum; Tabulatoren, Zeilenumbrüche und Backslashes in Namen werden sichtbar maskiert. Serveradressen enthalten keine Zugangsdaten. Das normale Cmd+C/X/V bleibt die Dateizwischenablage.
 
+        SPIEGELN
+        Im Ordnervergleich öffnet „Spiegeln …“ eine eigene Vorschau für Links → Rechts oder Rechts → Links. Kopien, zusätzliche Zielobjekte und beibehaltene Einträge werden getrennt angezeigt. Ausgeschlossene oder nicht vollständig geprüfte Bäume bleiben erhalten. Erst nach der Bestätigung werden Kopien fertiggestellt und zusätzliche Zielobjekte unter wiederherstellbaren Sicherungsnamen abgelegt. Rücknahme überschreibt keine inzwischen neu belegten Namen. Ein vorgemerkter Spiegelplan gilt für diese Sitzung; nach Änderungen erneut vergleichen.
+
+        MEDIENINFORMATIONEN
+        „Medieninformationen …“ zeigt die eingefrorene lokale Auswahl mit nächster/vorheriger Datei und Abbruch. Die optionalen Medienspalten werden erst bei Bedarf im Hintergrund gelesen; die bisherige Acht-Spalten-Ansicht bleibt erhalten. Standard für den Inspector: Cmd+Option+I. Die Menüs und Hover-Hilfen zeigen eigene Belegungen.
+        Mehrfachumbenennen unterstützt {title}, {artist}, {album}, {year}, {track}, {duration} (ganze Sekunden), {camera} sowie {width}, {height} und {taken}. Fehlende Werte erzeugen einen Zeilenfehler; die betreffende Datei bleibt unverändert. Neue Medientokens benötigen Profilversion 2, bisherige Profile bleiben lesbar.
+        \(MediaMetadataReader.help)
+
         ARCHIVE
+        „Archiv bearbeiten …“ bereitet Hinzufügen, Umbenennen und Entfernen in einem lokalen Archiv vor. Änderungen erst nach der vollständigen Vorschau übernehmen; das bisherige Archiv bleibt als Sicherung erhalten. Verschlüsselte Archive und nicht verlustfrei unterstützte Zusatzdaten werden abgewiesen. Der zugewiesene Befehl steht im Menü „Datei“ (Standard: Cmd+Shift+E). Bei TAR-GZip können äußere GZip-Hülldaten normalisiert werden; die abschließende Bestätigung weist darauf hin.
         Enter oder Cmd+O öffnet Archive als schreibgeschützte Inhaltsansicht. Dabei werden die Einträge eingelesen und keine Dateien vollständig entpackt. Enter öffnet interne Ordner; Cmd+L und die Pfadsegmente navigieren im Archiv. Zurück/Vorwärts und Tabs funktionieren auch dort. Cmd+Option+Pfeil hoch kehrt zum Archivcontainer zurück; bei verschachtelten Archiven zunächst zum äußeren Archiv. Bis zu 100.000 Einträge einschließlich zusätzlicher Elternordner und zehn verschachtelte Archive.
         Leertaste beziehungsweise das zugewiesene Vorschaukürzel und Öffnen stellen nur die gewählte Archivdatei temporär und schreibgeschützt bereit, bis 512 MiB. Die Schnellansicht lädt ebenfalls bei Bedarf. Größere Dateien zuerst mit F5 entpacken. F5 öffnet eine Vorschau der markierten Einträge für einen neuen Ordner auf der anderen Seite. Namen bleiben relativ zum angezeigten Archivordner erhalten. Option+F6 entpackt ein ausgewähltes Archiv oder öffnet die Auswahlvorschau im Archiv. Ohne „Nur markierte Archiveinträge“ wird das vollständige Archiv entpackt. Vorhandene Zielordner bleiben erhalten; kein Zusammenführen oder Ersetzen. Höchstens 100 GB entpackte Daten je Vorgang.
         Option+F5 erstellt ZIP, 7z oder TAR+GZip mit Inhaltsvorschau. ZIP und 7z verwenden Stufe 0 bis 9; TAR+GZip verwendet die Systemvorgabe. Endung und gewähltes Format müssen passen. Quellen bleiben erhalten. Verknüpfungen und Spezialdateien werden nicht gepackt oder entpackt; sie können im Inhaltsverzeichnis sichtbar sein. Verschlüsseltes Schreiben, Bearbeiten vorhandener Archive und Metadaten über normale Rechte/Zeitstempel hinaus sind nicht enthalten.

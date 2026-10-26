@@ -230,7 +230,11 @@ def fixtures(base):
     for target in (file_diff, advanced_search, viewer, tools_integration):
         for side in ("Links", "Rechts"):
             (target / side).mkdir(parents=True)
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive, archive_merge, file_diff, advanced_search, viewer, tools_integration
+    mirror, archive_edit, media_metadata, package_integration = (base / name for name in ("mirror", "archive-edit", "media-metadata", "package-integration"))
+    for target in (mirror, archive_edit, media_metadata, package_integration):
+        for side in ("Links", "Rechts"):
+            (target / side).mkdir(parents=True)
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive, archive_merge, file_diff, advanced_search, viewer, tools_integration, mirror, archive_edit, media_metadata, package_integration
 
 
 def main():
@@ -304,9 +308,13 @@ def main():
             ("advanced-search", "--advanced-search-smoke", roots[24], str(prefix), "ADVANCED SEARCH UI PASS ", "ADVANCED SEARCH SMOKE PASS 40 checks", 40),
             ("viewer", "--viewer-smoke", roots[25], str(prefix), "VIEWER UI PASS ", "VIEWER SMOKE PASS 63 checks", 63),
             ("tools-integration", "--tools-integration-smoke", roots[26], str(prefix), "TOOLS INTEGRATION UI PASS ", "TOOLS INTEGRATION SMOKE PASS 23 checks", 23),
+            ("mirror", "--mirror-smoke", roots[27], str(prefix), "MIRROR UI PASS ", "MIRROR SMOKE PASS 44 checks", 44),
+            ("archive-edit", "--archive-edit-smoke", roots[28], str(prefix), "ARCHIVE EDIT UI PASS ", "ARCHIVE EDIT SMOKE PASS 39 checks", 39),
+            ("media-metadata", "--media-metadata-smoke", roots[29], str(prefix), "MEDIA METADATA UI PASS ", "MEDIA METADATA SMOKE PASS 42 checks", 42),
+            ("package-integration", "--package-integration-smoke", roots[30], str(prefix), "PACKAGE INTEGRATION UI PASS ", "PACKAGE INTEGRATION SMOKE PASS 26 checks", 26),
         ]
         if args.skip_foreground:
-            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload", "archive", "archive-merge", "file-diff", "advanced-search", "viewer", "tools-integration"}
+            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload", "archive", "archive-merge", "file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration"}
             skipped = [case for case in cases if case[0] in foreground]
             cases = [case for case in cases if case[0] not in foreground]
             print("Ausgelassen: " + ", ".join(case[0] for case in skipped) + " · " + str(sum(case[-1] for case in skipped)) + " Vordergrundprüfungen offen", flush=True)
@@ -397,7 +405,7 @@ def main():
                     command += ["--wait-for-foreground"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
-                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=240 if name in {"file-diff", "advanced-search", "viewer", "tools-integration"} else 180 if name in {"archive", "archive-merge"} or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
+                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=240 if name in {"file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration"} else 180 if name in {"archive", "archive-merge"} or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
                     except subprocess.TimeoutExpired:
                         raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
                 output = (args.results / (name + ".log")).read_text(encoding="utf-8")

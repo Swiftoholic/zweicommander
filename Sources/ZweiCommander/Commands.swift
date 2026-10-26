@@ -51,6 +51,7 @@ extension MainWindow {
             case "duplicates": duplicates()
             case "compare": compare()
             case "fileCompare": compareSelectedFiles()
+            case "mediaMetadata": if mediaMetadataCommandEnabled { showMediaMetadata() }
             case "pack": pack()
             case "extract": extract()
             case "hash": hashes()

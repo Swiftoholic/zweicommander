@@ -20,8 +20,8 @@ extension AppDelegate {
                 for (name,body) in [("Keep.txt","keep"),("Old.txt","rename"),("Remove.txt","remove")] { try Data(body.utf8).write(to:docs.appendingPathComponent(name)) }
                 try Data("extra".utf8).write(to:added);try Data("collision".utf8).write(to:collision);try ArchiveService.pack([docs],to:archive)
                 let original = try Data(contentsOf:archive),clipboard = NSPasteboard.general.changeCount
-                self.main.active.navigate(links);await wait("main listing") { !self.main.active.isLoading && self.main.active.canUseDisplayedEntries }
-                self.main.active.requestSelection([archive]);await activate(self.main.window!);self.main.active.focus();self.main.saveState()
+                self.main.active.navigate(links);self.main.active.refresh();await wait("main listing") { !self.main.active.isLoading && self.main.active.canUseDisplayedEntries && self.main.active.visibleEntries.contains { $0.name == archive.lastPathComponent } }
+                self.main.active.select([archive]);await activate(self.main.window!);self.main.active.focus();self.main.saveState()
                 let state = try JSONSerialization.jsonObject(with:JSONEncoder().encode(Preferences.state)) as! [String:Any]
                 check(self.main.archiveCommandEnabled("archiveEdit") == true,"local regular archive enables editing")
                 self.main.showArchiveEditor();let editor = require(self.main.secondaryWindows.last as? ArchiveEditController,"archive editor"),window = require(editor.window as? WorkflowWindow,"workflow window")

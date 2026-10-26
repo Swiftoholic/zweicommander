@@ -16,6 +16,12 @@ enum WorkflowKeys {
 /// Secondary workspaces consume their own shortcuts and cannot operate an obscured file pane.
 final class WorkflowWindow: NSWindow {
     var workflowKeys: ((NSEvent)->Bool)?
+    override func performClose(_ sender:Any?) {
+        guard let parent = sheetParent else { super.performClose(sender);return }
+        // Attached sheets can have a disabled native close button; still honor the delegate.
+        guard delegate?.windowShouldClose?(self) != false else { return }
+        parent.endSheet(self);close()
+    }
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if isKeyWindow,attachedSheet == nil,event.window == nil || event.window === self,workflowKeys?(event) == true { return true }
         return super.performKeyEquivalent(with:event)

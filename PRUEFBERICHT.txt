@@ -1,24 +1,22 @@
-ZweiCommander 0.25.0 (Build 26) — Prüfung am 25. Oktober 2026
+ZweiCommander 0.26.0 (Build 27) — Kandidatenprüfung am 26. Oktober 2026
 
-Ergebnis
-- 426/426 Dateikern- und Integrationstests bestanden.
-- 1367/1367 native Oberflächenprüfungen in 45 Durchläufen am universellen
-  Release-Build bestanden. Kein Fall wurde ausgelassen. Die beiden Gruppen
-  umfassen 24 Durchläufe mit 529 Prüfungen und 21 mit 838 Prüfungen für aktive
-  Fenster. Unterbrochene Fokusläufe wurden nicht als bestanden gezählt.
-- Darin enthalten: 50 Dateidiff-, 40 erweiterte Such-, 63 Viewer- und
-  23 gemeinsame Werkzeugprüfungen einschließlich echter Tastaturabläufe.
+Bisheriges Ergebnis
+- 535/535 gemeinsame Dateikern- und Integrationstests bestanden.
 - 9/9 zusätzliche echte SSH/SFTP-Prüfungen bestanden; Testschlüssel entfernt.
-- Universeller Release-Build für x86_64 und arm64 mit Ziel macOS 13 erstellt;
-  keine Compilerwarnungen. Lokale Ad-hoc-Signatur streng geprüft.
-- Release-Binärdatei enthält keine geprüften lokalen Benutzerpfade/persönlichen
-  Namen. Die eingefrorenen Build-Eingaben stimmen mit den Quellen überein.
-- Installierte App bytegleich zum geprüften Release-Bundle. Regulärer Start
-  erfolgreich; bestehende Tabs, Favoriten, Anzeige, Tastenkürzel, Importprofil,
-  weitere Profile, gespeicherte Anordnung und lokale Auftragsdaten erhalten.
-  Keine künstlichen Testpfade im persönlichen Sitzungsstand.
+- Drei getrennte Funktionszweige zusammengeführt; unabhängige Quellenprüfungen
+  führten zu zusätzlichen Regressionen für Speichergrenzen, Archivversiegelung,
+  verschobene Elternordner, Wiederherstellung und asynchrone Metadatenzellen.
 
-Die folgenden Abschnitte beschreiben die geprüften Bereiche und deren Grenzen.
+Vor der Veröffentlichung noch ausstehend
+- Universeller Release-Build mit Prüfung von Binärdatei, Signatur und Quellen.
+- Alle 1518 registrierten nativen Oberflächenprüfungen in 49 Durchläufen am
+  unveränderten Release-Build; 24 Fälle/529 Prüfungen ohne Vordergrundanforderung
+  sowie 25 Fälle/989 Prüfungen für aktive Fenster.
+- Upgradeprüfung gegen den privat gesicherten Zustand einschließlich Profilen,
+  Journal und Wiederherstellungsablage; anschließend Veröffentlichung.
+
+Die folgenden Abschnitte beschreiben die geprüften bisherigen Bereiche und
+Grenzen. Sie ersetzen die oben noch ausstehende Release-Gesamtprüfung nicht.
 
 Testsystem
 Intel-Mac, macOS 26.7.1, Swift 6.3.3. Apple Silicon und ältere macOS-Versionen

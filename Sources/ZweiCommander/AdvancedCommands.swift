@@ -62,6 +62,23 @@ extension MainWindow {
                 self?.refresh()
             })
         }
+        controller.onSubmitMirror = { [weak self,weak controller] plan,start in
+            guard let self else { return UUID() }
+            let history = self.jobs.history
+            return self.jobs.submitReported("Ordner spiegeln",start:start,items:plan.initialItems,notifyQueuedCancellation:true,body:{ token,reporter in
+                FolderMirrorEngine.execute(plan,token:token,history:history,progress:{ value in
+                    reporter.transfer(value)
+                    DispatchQueue.main.async { controller?.updateProgress(value.detail) }
+                })
+            },completion:{ [weak self,weak controller] result in
+                controller?.finished(result)
+                if case .success(let report) = result {
+                    self?.undoSteps = report.undo;self?.renameUndo = nil
+                    self?.jobs.log.append("Spiegelung: \(report.completed.count) Schritte · \(report.errors.count) Fehler")
+                }
+                self?.refresh()
+            })
+        }
         secondaryWindows.append(controller);controller.showWindow(nil)
     }
     func pack() {
