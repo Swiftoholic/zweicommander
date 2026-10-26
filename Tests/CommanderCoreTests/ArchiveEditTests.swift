@@ -303,3 +303,70 @@ extension CoreTests {
         XCTAssertThrowsError(try ArchiveEditPlan(source:archive));XCTAssertEqual(try Data(contentsOf:archive),before)
     }
 }
+
+extension CoreTests {
+    func testArchiveEditMutationDuringVerificationCannotAcquireFreshSeal() throws {
+        let first = try file("Input/First.txt","ALPHA_PAYLOAD_TO_EDIT_1234"),second = try file("Input/Second.txt","BETA_PAYLOAD_TO_KEEP_6789"),archive = root.appendingPathComponent("DuringVerify.zip")
+        try ArchiveService.pack([first,second],to:archive,compressionLevel:0)
+        let original = try Data(contentsOf:archive)
+        let plan = try ArchiveEditPlan(source:archive,renames:["First.txt":"Renamed.txt"],compressionLevel:0)
+        var checked:[String] = [],injected = false,sameInode = false
+        let report = ArchiveEditEngine.execute(plan,progress:{ text in
+            guard text.hasPrefix("Prüfe Inhalt · ") else { return }
+            checked.append(String(text.dropFirst("Prüfe Inhalt · ".count)))
+            guard checked.count == 2,let stage = try? FileManager.default.contentsOfDirectory(at:archive.deletingLastPathComponent(),includingPropertiesForKeys:nil).first(where:{$0.lastPathComponent.hasPrefix(".zweicommander-archive-edit-")}),let data = try? Data(contentsOf:stage) else { return }
+            let payload = Data((checked[0] == "Renamed.txt" ? "ALPHA_PAYLOAD_TO_EDIT_1234" : "BETA_PAYLOAD_TO_KEEP_6789").utf8)
+            guard let range = data.range(of:payload),let handle = try? FileHandle(forWritingTo:stage) else { return }
+            var before = stat(),after = stat();guard lstat(stage.path,&before) == 0 else { try? handle.close();return }
+            do { try handle.seek(toOffset:UInt64(range.lowerBound));try handle.write(contentsOf:Data([0x58]));try handle.close();injected = true } catch { try? handle.close() }
+            sameInode = lstat(stage.path,&after) == 0 && before.st_ino == after.st_ino && before.st_dev == after.st_dev
+        })
+        XCTAssertEqual(checked.count,2);XCTAssertTrue(injected);XCTAssertTrue(sameInode)
+        XCTAssertFalse(report.errors.isEmpty,"A changed, previously verified payload must not receive a new trusted seal")
+        XCTAssertEqual(try Data(contentsOf:archive),original);XCTAssertTrue(report.undo.isEmpty)
+        XCTAssertTrue(try editTemporaryFiles(root).isEmpty)
+    }
+}
+
+extension CoreTests {
+    func testArchiveEditMetadataIsFinalBeforeVerificationSnapshot() throws {
+        let input = try file("Input.txt","payload"),archive = root.appendingPathComponent("Metadata.zip"),date = Date(timeIntervalSince1970:1_600_000_000)
+        try ArchiveService.pack([input],to:archive)
+        try FileManager.default.setAttributes([.modificationDate:date,.posixPermissions:0o640],ofItemAtPath:archive.path)
+        let plan = try ArchiveEditPlan(source:archive,renames:["Input.txt":"Renamed.txt"]);var metadataReady = false
+        let report = ArchiveEditEngine.execute(plan,progress:{ text in
+            guard text == "Prüfe vollständige Inhalte und Metadaten",let stage = try? FileManager.default.contentsOfDirectory(at:archive.deletingLastPathComponent(),includingPropertiesForKeys:nil).first(where:{$0.lastPathComponent.hasPrefix(".zweicommander-archive-edit-")}),let attributes = try? FileManager.default.attributesOfItem(atPath:stage.path) else { return }
+            metadataReady = attributes[.modificationDate] as? Date == date && (attributes[.posixPermissions] as? NSNumber)?.intValue == 0o640
+        })
+        XCTAssertTrue(metadataReady,"Own metadata changes must precede the frozen verification snapshot")
+        XCTAssertTrue(report.errors.isEmpty,report.errors.joined(separator:" · "))
+        XCTAssertEqual(try FileManager.default.attributesOfItem(atPath:archive.path)[.modificationDate] as? Date,date)
+    }
+    func testArchiveEditPostPublicationParentMoveRetainsAccessibleRecovery() throws {
+        let input = try file("Input.txt","payload")
+        for (index,phase) in ["Prüfe übernommenes Archiv","Archivänderungen übernommen · Original gesichert"].enumerated() {
+            let parent = try folder("Case\(index)/Parent"),moved = root.appendingPathComponent("Case\(index)/Moved"),outside = try folder("Case\(index)/Outside"),archive = parent.appendingPathComponent("Original.zip")
+            let foreign = try file("Case\(index)/Outside/Original.zip","outside archive"),sentinel = try file("Case\(index)/Outside/Sentinel.txt","outside sentinel")
+            try ArchiveService.pack([input],to:archive);let before = try Data(contentsOf:archive),plan = try ArchiveEditPlan(source:archive,renames:["Input.txt":"Renamed.txt"]);var injected = false
+            let report = ArchiveEditEngine.execute(plan,progress:{ text in
+                guard text == phase,!injected else { return }
+                do { try FileManager.default.moveItem(at:parent,to:moved);try FileManager.default.createSymbolicLink(at:parent,withDestinationURL:outside);injected = true } catch { }
+            })
+            XCTAssertTrue(injected);XCTAssertFalse(report.errors.isEmpty);XCTAssertEqual(report.undo.count,1)
+            let current = moved.appendingPathComponent("Original.zip")
+            XCTAssertEqual(report.completed.map { FileSystem.canonical($0).path },[FileSystem.canonical(current).path])
+            if let step = report.undo.first,let backup = step.backup {
+                XCTAssertEqual(FileSystem.canonical(step.current).path,FileSystem.canonical(current).path)
+                XCTAssertEqual(FileSystem.canonical(backup.deletingLastPathComponent()).path,FileSystem.canonical(moved).path)
+                XCTAssertEqual(try Data(contentsOf:backup),before)
+                let history = try TransferHistory(journal:TransferJournal(directory:root.appendingPathComponent("Case\(index)/History")))
+                try history.captureBackups(report.undo);let items = history.inspect();XCTAssertEqual(items.count,1);XCTAssertTrue(items.first?.available == true)
+                if let item = items.first {
+                    XCTAssertEqual(FileSystem.canonical(item.original).path,FileSystem.canonical(current).path)
+                    try history.restore(history.planRestore(item.id));XCTAssertEqual(try Data(contentsOf:current),before)
+                }
+            }
+            XCTAssertEqual(try read(foreign),"outside archive");XCTAssertEqual(try read(sentinel),"outside sentinel")
+        }
+    }
+}
