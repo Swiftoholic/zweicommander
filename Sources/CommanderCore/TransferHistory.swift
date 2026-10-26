@@ -23,13 +23,14 @@ struct PartialCopy: Codable {
 struct SavedBackup: Codable {
     let id: UUID,original: URL,stored: URL,created: Date
     let parent: RenameVersion,version: RenameVersion
+    var mirror:MirrorRemovalReceipt? = nil
 }
 private struct HistoryDocument: Codable {
     var version = 1
     var partials: [PartialCopy] = []
     var backups: [SavedBackup] = []
     func validate() throws {
-        guard version == 1,partials.count <= 200,backups.count <= 2000,
+        guard [1,2].contains(version),version >= 2 || backups.allSatisfy({ $0.mirror == nil }),partials.count <= 200,backups.count <= 2000,
               Set(partials.map(\.id)+backups.map(\.id)).count == partials.count+backups.count else { throw recoveryError("Unbekannte, zu große oder doppelte Wiederherstellungsdaten.") }
         func local(_ url: URL) -> Bool {
             url.isFileURL && (url.host == nil || url.host == "") && url.user == nil && url.password == nil && url.query == nil && url.fragment == nil && url.path.hasPrefix("/") && !url.path.contains("\0") && url.path.utf8.count <= 32768 && url.path == url.standardizedFileURL.path
@@ -49,6 +50,7 @@ private struct HistoryDocument: Codable {
             guard [item.original,item.stored].allSatisfy(local),item.original.deletingLastPathComponent().path == item.stored.deletingLastPathComponent().path,
                   [".zweicommander-backup-",".zweicommander-move-"].contains(where: { item.stored.lastPathComponent.hasPrefix($0) }),
                   item.parent.isDirectory,item.created.timeIntervalSince1970.isFinite else { throw recoveryError("Ungültige Sicherung.") }
+            if let mirror = item.mirror { try mirror.validateShape();guard mirror.original.path == item.original.path,mirror.stored.path == item.stored.path else { throw recoveryError("Entfernungsbeleg passt nicht zur Sicherung.") } }
         }
     }
 }
@@ -115,8 +117,9 @@ public final class TransferHistory: @unchecked Sendable {
             return RecoveryItem(id:item.id,kind:.partial,original:item.target,stored:item.stage,source:item.source,created:item.created,bytes:min(item.totalBytes,amount),totalBytes:item.totalBytes,available:available,note:inUse.contains(item.id) ? "Wird verwendet" : valid ? "Vor Fortsetzen vollständig prüfen" : "Datenträger fehlt oder Teilkopie verändert")
         }
         let backups = snapshot.backups.map { item -> RecoveryItem in
-            let valid = (try? RenameVersion.read(item.stored)).map { item.version.sameAfterRename($0) } == true && (try? RenameVersion.read(item.stored.deletingLastPathComponent())).map { item.parent.sameObject($0) } == true
-            return RecoveryItem(id:item.id,kind:.backup,original:item.original,stored:item.stored,source:nil,created:item.created,bytes:max(0,item.version.size),totalBytes:max(0,item.version.size),available:valid,note:valid ? (item.version.isDirectory ? "Ordnersicherung" : "Sicherung vorhanden") : "Datenträger fehlt, Sicherung verändert oder bereits verwendet")
+            var valid = (try? RenameVersion.read(item.stored)).map { item.version.sameAfterRename($0) } == true && (try? RenameVersion.read(item.stored.deletingLastPathComponent())).map { item.parent.sameObject($0) } == true
+            if valid,let receipt = item.mirror { valid = (try? receipt.anchor().parent(receipt.path)).flatMap { descriptor in defer { close(descriptor) };return (try? FolderMirrorEngine.validateStored(receipt,parent:descriptor)).map { true } } == true }
+            return RecoveryItem(id:item.id,kind:.backup,original:item.original,stored:item.stored,source:nil,created:item.created,bytes:max(0,item.version.size),totalBytes:max(0,item.version.size),available:valid,note:valid ? (item.mirror != nil ? "Entfernungssicherung · ursprünglicher Name muss frei sein" : item.version.isDirectory ? "Ordnersicherung" : "Sicherung vorhanden") : "Datenträger fehlt, Sicherung verändert oder bereits verwendet")
         }
         return (partials+backups).sorted { $0.created > $1.created }
     }
@@ -126,15 +129,21 @@ public final class TransferHistory: @unchecked Sendable {
         guard let item = document.partials.first(where: { $0.id == id }) else { return nil }
         return TransferIntent(sources:[item.source],destination:item.target.deletingLastPathComponent(),kind:item.kind,policy:item.policy,filter:item.filter)
     }
-    func stageBackup(original: URL,stored: URL,version: RenameVersion? = nil) throws -> UUID {
+    func stageBackup(original: URL,stored: URL,version: RenameVersion? = nil,mirror:MirrorRemovalReceipt? = nil) throws -> UUID {
         lock.lock();defer { lock.unlock() }
-        if let old = document.backups.first(where: { $0.stored == stored }) { return old.id }
+        if let index = document.backups.firstIndex(where: { $0.stored == stored }) {
+            if let mirror,document.backups[index].mirror != mirror { var next = document;next.version = 2;next.backups[index].mirror = mirror;try save(next) }
+            return document.backups[index].id
+        }
         let value = try version ?? RenameVersion.read(original)
-        let item = SavedBackup(id:UUID(),original:original.standardizedFileURL,stored:stored.standardizedFileURL,created:Date(),parent:try RenameVersion.read(original.deletingLastPathComponent()),version:value)
-        var next = document;next.backups.append(item);try save(next);return item.id
+        let item = SavedBackup(id:UUID(),original:original.standardizedFileURL,stored:stored.standardizedFileURL,created:Date(),parent:try RenameVersion.read(original.deletingLastPathComponent()),version:value,mirror:mirror)
+        var next = document;if mirror != nil { next.version = 2 };next.backups.append(item);try save(next);return item.id
     }
     public func captureBackups(_ steps: [UndoStep]) throws {
         for step in steps {
+            if let receipt = step.mirrorRemoval,FileSystem.exists(receipt.stored) {
+                _ = try stageBackup(original:receipt.original,stored:receipt.stored,version:receipt.members[""],mirror:receipt);continue
+            }
             guard let stored = step.backup,FileSystem.exists(stored) else { continue }
             _ = try stageBackup(original:step.current,stored:stored,version:RenameVersion.read(stored))
         }
@@ -147,12 +156,18 @@ public final class TransferHistory: @unchecked Sendable {
         guard let backup else { throw recoveryError("Sicherung wurde entfernt.") }
         let fd = try recoveryParent(backup.stored,backup.parent);defer { close(fd) }
         guard try backup.version.sameAfterRename(RenameVersion.read(fd,backup.stored.lastPathComponent)) else { throw recoveryError("Sicherung wurde verändert.") }
+        if let receipt = backup.mirror { try FolderMirrorEngine.validateStored(receipt,parent:fd) }
         let current = FileSystem.exists(backup.original) ? try RenameVersion.read(fd,backup.original.lastPathComponent) : nil
+        if backup.mirror != nil,current != nil { throw recoveryError("Ursprünglicher Name ist wieder belegt. Entfernungs-Sicherung bleibt erhalten.") }
         let item = RecoveryItem(id:backup.id,kind:.backup,original:backup.original,stored:backup.stored,source:nil,created:backup.created,bytes:max(0,backup.version.size),totalBytes:max(0,backup.version.size),available:true,note:"Vorheriger Inhalt wird wiederhergestellt")
         return BackupRestorePlan(item:item,replacesExisting:current != nil,backup:backup,current:current)
     }
     public func restore(_ plan: BackupRestorePlan,token: CancellationToken = .init()) throws {
         try token.check();try checkStorage();let item = plan.backup
+        if let receipt = item.mirror {
+            guard plan.current == nil else { throw recoveryError("Ursprünglicher Name ist wieder belegt. Entfernungs-Sicherung bleibt erhalten.") }
+            try FolderMirrorEngine.restoreRemoval(receipt,token:token);try forgetBackup(item.id);return
+        }
         let fd = try recoveryParent(item.stored,item.parent);defer { close(fd) }
         guard try item.version.sameAfterRename(RenameVersion.read(fd,item.stored.lastPathComponent)) else { throw recoveryError("Sicherung wurde seit der Vorschau verändert.") }
         let current = FileSystem.exists(item.original) ? try RenameVersion.read(fd,item.original.lastPathComponent) : nil
@@ -185,6 +200,7 @@ public final class TransferHistory: @unchecked Sendable {
         let fd = try recoveryParent(stored,parent);defer { close(fd) }
         let current = try RenameVersion.read(fd,stored.lastPathComponent)
         guard partial != nil ? expected.sameObject(current) : expected.sameAfterRename(current) else { throw recoveryError("Dateiobjekt wurde verändert; es bleibt erhalten.") }
+        if let receipt = backup?.mirror { try FolderMirrorEngine.validateStored(receipt,parent:fd) }
         var result: NSURL?
         try FileManager.default.trashItem(at:stored,resultingItemURL:&result)
         lock.lock();defer { lock.unlock() };var next = document;next.partials.removeAll { $0.id == id };next.backups.removeAll { $0.id == id };try save(next)
