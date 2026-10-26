@@ -5,20 +5,20 @@ extension AppDelegate {
     func runPackageIntegrationSmoke(root:URL,prefix:String) {
         Task { @MainActor in
             var checks = 0,failures:[String] = []
-            func check(_ value:Bool,_ name:String) { checks += 1;print("PACKAGE INTEGRATION UI \(value ? "PASS" : "FAIL") \(name)");if !value { failures.append(name);print("PACKAGE INTEGRATION UI CONTEXT active=\(NSApp.isActive) key=\(NSApp.keyWindow?.title ?? "none") front=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "none")") } }
+            @MainActor func check(_ value:Bool,_ name:String) { checks += 1;print("PACKAGE INTEGRATION UI \(value ? "PASS" : "FAIL") \(name)");if !value { failures.append(name);print("PACKAGE INTEGRATION UI CONTEXT active=\(NSApp.isActive) key=\(NSApp.keyWindow?.title ?? "none") front=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "none")") } }
             func require<T>(_ value:T?,_ name:String) -> T { guard let value else { print("PACKAGE INTEGRATION SMOKE FAIL missing "+name);exit(1) };return value }
-            func wait(_ name:String,_ predicate:()->Bool) async {
+            @MainActor func wait(_ name:String,_ predicate:()->Bool) async {
                 for _ in 0..<500 { if predicate() { return };try? await Task.sleep(nanoseconds:30_000_000) }
                 print("PACKAGE INTEGRATION SMOKE FAIL timeout "+name);exit(1)
             }
-            func activate(_ window:NSWindow) async {
+            @MainActor func activate(_ window:NSWindow) async {
                 window.makeKeyAndOrderFront(nil);NSApp.activate(ignoringOtherApps:true)
                 await wait("active window") { NSApp.isActive && window.isKeyWindow }
             }
-            func item(_ id:String) -> NSMenuItem? { NSApp.mainMenu?.items.compactMap(\.submenu).flatMap(\.items).first { $0.representedObject as? String == id } }
+            @MainActor func item(_ id:String) -> NSMenuItem? { NSApp.mainMenu?.items.compactMap(\.submenu).flatMap(\.items).first { $0.representedObject as? String == id } }
             func identity(_ url:URL) -> String { url.deletingLastPathComponent().resolvingSymlinksInPath().appendingPathComponent(url.lastPathComponent).path }
-            func select(_ url:URL) { self.main.left.selectionIndexes = IndexSet(self.main.left.visibleEntries.indices.filter { identity(self.main.left.visibleEntries[$0].url) == identity(url) });self.main.left.focus() }
-            func key(_ window:NSWindow,_ value:String,_ flags:NSEvent.ModifierFlags) -> NSEvent { require(NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:flags,timestamp:0,windowNumber:window.windowNumber,context:nil,characters:value,charactersIgnoringModifiers:value,isARepeat:false,keyCode:0),"native key") }
+            @MainActor func select(_ url:URL) { self.main.left.selectionIndexes = IndexSet(self.main.left.visibleEntries.indices.filter { identity(self.main.left.visibleEntries[$0].url) == identity(url) });self.main.left.focus() }
+            @MainActor func key(_ window:NSWindow,_ value:String,_ flags:NSEvent.ModifierFlags) -> NSEvent { require(NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:flags,timestamp:0,windowNumber:window.windowNumber,context:nil,characters:value,charactersIgnoringModifiers:value,isARepeat:false,keyCode:0),"native key") }
             let shortcuts = Preferences.state.shortcuts,clipboard = NSPasteboard.general.changeCount
             do {
                 await wait("initial lists") { !self.main.left.isLoading && !self.main.right.isLoading }
