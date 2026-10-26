@@ -653,7 +653,10 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         if id == "trash" { item.title = remote == nil ? "In den Papierkorb …" : "Endgültig auf Server löschen …" }
         return onValidateCommand?(id) ?? true
     }
-    @objc func toggleColumn(_ sender: NSMenuItem) { if let c = sender.representedObject as? NSTableColumn, c.identifier.rawValue != "name" { c.isHidden.toggle(); sender.state = c.isHidden ? .off : .on;table.reloadData();rememberTabView() } }
+    @objc func toggleColumn(_ sender: NSMenuItem) {
+        guard let column = sender.representedObject as? NSTableColumn,column.identifier.rawValue != "name" else { return }
+        reloadTablePreservingSelection(change:{ column.isHidden.toggle();sender.state = column.isHidden ? .off : .on });rememberTabView()
+    }
     func numberOfRows(in tableView: NSTableView) -> Int { visibleEntries.count }
     func tableViewSelectionDidChange(_ notification: Notification) { if !syncingSelection { redrawFileFocus();updateStatus() } }
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
