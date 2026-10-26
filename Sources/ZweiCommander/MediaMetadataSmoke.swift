@@ -10,6 +10,16 @@ extension AppDelegate {
             var checks = 0,failures:[String] = []
             @MainActor func check(_ value:Bool,_ name:String) { checks += 1;print("MEDIA METADATA UI \(value ? "PASS" : "FAIL") "+name);if !value { failures.append(name);print("MEDIA METADATA UI CONTEXT active=\(NSApp.isActive) key=\(NSApp.keyWindow?.title ?? "none") front=\(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "none")") } }
             func require<T>(_ value:T?,_ name:String) -> T { guard let value else { print("MEDIA METADATA SMOKE FAIL missing "+name);exit(1) };return value }
+            // Parent aliases and relative/base URL representations denote the same fixture;
+            // never resolve the leaf, so a selected symlink remains a distinct entry.
+            func identity(_ url:URL) -> String { guard url.isFileURL else { return url.absoluteString };let parent = FileSystem.canonical(url.deletingLastPathComponent()).path;return (parent == "/" ? "" : parent)+"/"+url.lastPathComponent }
+            func diagnose(_ actual:[URL],_ expected:[URL],_ name:String) {
+                print("MEDIA METADATA UI IDENTITY "+name+" actual paths="+String(describing:actual.map(\.path))+" expected paths="+String(describing:expected.map(\.path)))
+                print("MEDIA METADATA UI IDENTITY actual normalized="+String(describing:actual.map(identity))+" expected normalized="+String(describing:expected.map(identity)))
+            }
+            func sameOrdered(_ actual:[URL],_ expected:[URL],_ name:String) -> Bool { let matched = actual.map(identity) == expected.map(identity);if !matched { diagnose(actual,expected,name) };return matched }
+            func sameSelection(_ actual:[URL],_ expected:[URL],_ name:String) -> Bool { let matched = actual.count == expected.count && Set(actual.map(identity)) == Set(expected.map(identity));if !matched { diagnose(actual,expected,name) };return matched }
+            func fixtureRow(_ expected:URL,in entries:[FileEntry],_ name:String) -> Int? { let index = entries.firstIndex { identity($0.url) == identity(expected) };if index == nil { diagnose(entries.map(\.url),[expected],name) };return index }
             @MainActor func wait(_ name:String,_ predicate:()->Bool) async { for _ in 0..<500 { if predicate() { return };try? await Task.sleep(nanoseconds:30_000_000) };print("MEDIA METADATA SMOKE FAIL timeout "+name);exit(1) }
             @MainActor func activate(_ window:NSWindow) async { window.makeKeyAndOrderFront(nil);NSApp.activate(ignoringOtherApps:true);await wait("active window") { NSApp.isActive && window.isKeyWindow } }
             @MainActor func key(_ window:NSWindow,_ text:String,_ flags:NSEvent.ModifierFlags) -> NSEvent { require(NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:flags,timestamp:0,windowNumber:window.windowNumber,context:nil,characters:text,charactersIgnoringModifiers:text,isARepeat:false,keyCode:0),"key") }
@@ -44,9 +54,9 @@ extension AppDelegate {
                 await wait("newest identity subscriber") { delivered == [63] }
                 check(subscriberDuration == 2 && delivered == [63],"64 synchronous requests notify the latest subscriber with one bounded callback")
                 check(MediaMetadataField.allCases.allSatisfy { self.main.left.table.tableColumn(withIdentifier:.init($0.rawValue))?.isHidden == true },"all nine optional columns begin hidden")
-                check(self.main.mediaMetadataCommandEnabled && self.main.mediaMetadataURLs == [wave,audio],"command freezes visible order of local regular selections")
+                check(self.main.mediaMetadataCommandEnabled && sameOrdered(self.main.mediaMetadataURLs,[wave,audio],"command selection order"),"command freezes visible order of local regular selections")
                 self.main.showMediaMetadata();let inspector = require(self.main.secondaryWindows.last as? MediaMetadataController,"inspector"),window = require(inspector.window as? WorkflowWindow,"workflow window");await activate(window);await wait("WAV result") { !inspector.isLoading }
-                check(inspector.files == [wave,audio] && inspector.index == 0,"inspector retains a frozen ordered selection")
+                check(sameOrdered(inspector.files,[wave,audio],"inspector selection order") && inspector.index == 0,"inspector retains a frozen ordered selection")
                 check(inspector.metadata?.duration == 2 && inspector.error == nil,"WAV duration is shown from checked headers")
                 check(inspector.rows.contains(where:{ $0.0 == "Album" && $0.1.contains("nicht im Dateikopf") }),"absent tags have an explicit missing-field label")
                 check(!self.main.mediaMetadataCommandEnabled,"inspector does not dispatch commands to the obscured file pane")
@@ -74,19 +84,19 @@ extension AppDelegate {
                 check(blocked.error != nil && blocked.metadata == nil,"symbolic links are refused rather than traversed");blocked.close()
                 self.main.left.refresh();await wait("fresh metadata identities") { !self.main.left.isLoading };await activate(self.main.window!);self.main.left.select([wave]);self.main.window?.makeFirstResponder(self.main.left.table)
                 let pane = self.main.left,column = require(pane.table.tableColumn(withIdentifier:.init("mediaDuration")),"duration column");column.isHidden = false;pane.table.reloadData()
-                let row = require(pane.visibleEntries.firstIndex(where:{ $0.url == wave }),"WAV row"),columnIndex = pane.table.tableColumns.firstIndex(of:column)!
+                let row = require(fixtureRow(wave,in:pane.visibleEntries,"WAV row"),"WAV row"),columnIndex = pane.table.tableColumns.firstIndex(of:column)!
                 @MainActor func currentCell(_ row:Int,_ column:Int) -> FileCellView? { pane.table.view(atColumn:column,row:row,makeIfNecessary:true) as? FileCellView }
                 await wait("asynchronous media cell") { currentCell(row,columnIndex)?.textField?.stringValue == "0:00:02" }
                 check(currentCell(row,columnIndex)?.toolTip?.contains("Dauer") == true,"visible media cells load asynchronously with explanatory help")
-                check(Set(pane.selectedURLs) == [wave],"asynchronous cell updates preserve file selection")
+                check(sameSelection(pane.selectedURLs,[wave],"selected WAV identity"),"asynchronous cell updates preserve file selection")
                 pane.sortKey = "mediaDuration";pane.applyFilter();await wait("metadata sorting") { !pane.isSorting }
-                let waveIndex = require(pane.visibleEntries.firstIndex(where:{ $0.url == wave }),"sorted WAV"),audioIndex = require(pane.visibleEntries.firstIndex(where:{ $0.url == audio }),"sorted audio")
+                let waveIndex = require(fixtureRow(wave,in:pane.visibleEntries,"WAV row"),"sorted WAV"),audioIndex = require(fixtureRow(audio,in:pane.visibleEntries,"audio row"),"sorted audio")
                 check(waveIndex < audioIndex,"metadata duration sorting compares numeric values")
-                check(Set(pane.selectedURLs) == [wave],"asynchronous metadata sorting preserves selected file identities")
+                check(sameSelection(pane.selectedURLs,[wave],"selected WAV identity"),"asynchronous metadata sorting preserves selected file identities")
                 pane.sortKey = "mediaTitle";pane.applyFilter();pane.sortKey = "name";pane.applyFilter();await wait("latest sort") { !pane.isSorting }
                 check(pane.visibleEntries.map(\.name) == FileSystem.sorted(pane.entries).map(\.name),"a later normal sort discards an obsolete metadata sort")
-                let repeated = folder.appendingPathComponent("09-Wiederholt.wav");try wav().write(to:repeated);pane.refresh();await wait("repeated row listing") { !pane.isLoading && pane.visibleEntries.contains(where:{ $0.url == repeated }) }
-                let repeatedRow = require(pane.visibleEntries.firstIndex(where:{ $0.url == repeated }),"repeated row")
+                let repeated = folder.appendingPathComponent("09-Wiederholt.wav");try wav().write(to:repeated);pane.refresh();await wait("repeated row listing") { !pane.isLoading && pane.visibleEntries.contains(where:{ identity($0.url) == identity(repeated) }) }
+                let repeatedRow = require(fixtureRow(repeated,in:pane.visibleEntries,"repeated row"),"repeated row")
                 for field in MediaMetadataField.allCases { pane.table.tableColumn(withIdentifier:.init(field.rawValue))?.isHidden = false }
                 let mediaColumns = pane.table.tableColumns.indices.filter { MediaMetadataField(rawValue:pane.table.tableColumns[$0].identifier.rawValue) != nil }
                 for _ in 0..<8 { pane.table.reloadData();for column in mediaColumns { _ = currentCell(repeatedRow,column) } }
