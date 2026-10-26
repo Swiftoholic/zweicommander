@@ -3,6 +3,12 @@ import CommanderCore
 
 extension MainWindow {
     func archiveCommandEnabled(_ id:String) -> Bool? {
+        if id == "archiveEdit" {
+            guard NSApp.keyWindow === window,!(window?.firstResponder is NSTextView),active.canUseDisplayedEntries,!active.pathField.sessionActive,active.remote == nil else { return false }
+            if let session = active.archive { return session.parent == nil && !FileSystem.isInside(session.catalog.source,cache) }
+            guard active.selectedURLs.count == 1,let entry = active.selectionSeed,entry.isRegularFile,!entry.isSymbolicLink,ArchiveService.isArchive(entry.url) else { return false }
+            return !FileSystem.isInside(entry.url,cache)
+        }
         if NSApp.keyWindow?.firstResponder is NSTextView,["clipboardCopy","clipboardCut","clipboardPaste","undo","selectAll"].contains(id) { return nil }
         if ["pack","extract"].contains(id) {
             guard NSApp.keyWindow === window,active.canUseDisplayedEntries,!active.pathField.sessionActive,active.remote == nil,other.remote == nil,!other.readOnly,other.tab.collection == nil else { return false }
@@ -17,6 +23,7 @@ extension MainWindow {
         return nil
     }
     @discardableResult func handleArchiveCommand(_ id:String) throws -> Bool {
+        if id == "archiveEdit" { if archiveCommandEnabled(id) == true { showArchiveEditor() } else { content.status.stringValue = "Ein lokales Archiv oder eine oberste Archivansicht auswählen. Verschachtelte Archive zunächst als eigene Datei bereitstellen." };return true }
         if archiveCommandEnabled(id) == false { content.status.stringValue = "Die Archivansicht ist schreibgeschützt. Mit F5 oder ⌥F6 in einen lokalen Ordner entpacken.";return true }
         guard let archive = active.archive else { return false }
         switch id {
@@ -43,6 +50,31 @@ extension MainWindow {
             selectionPasteboard.clearContents();selectionPasteboard.setString(text,forType:.string);content.status.stringValue = "Archivadresse kopiert";return true
         default:return false
         }
+    }
+    func showArchiveEditor() {
+        guard archiveCommandEnabled("archiveEdit") == true,let source = active.archive?.catalog.source ?? active.selectedURLs.first else { return }
+        let controller = ArchiveEditController(source:source)
+        controller.onSubmit = { [weak self] plan,start,controller in self?.enqueueArchiveEdit(plan,start:start,controller:controller) }
+        controller.onCancel = { [weak self] in self?.jobs.scheduler.cancel($0) }
+        secondaryWindows.append(controller);controller.showWindow(nil)
+    }
+    @discardableResult func enqueueArchiveEdit(_ plan:ArchiveEditPlan,start:Bool,controller:ArchiveEditController? = nil) -> UUID {
+        let id = jobs.submitReported("Archiv bearbeiten · "+plan.source.lastPathComponent,start:start,notifyQueuedCancellation:true,body:{ token,reporter in
+            ArchiveEditEngine.execute(plan,token:token,progress:{ text in reporter.report(text);DispatchQueue.main.async { [weak controller] in if controller?.isWorking == true { controller?.info.stringValue = text } } })
+        },completion:{ [weak self,weak controller] result in
+            guard let self else { return };controller?.finished(result)
+            switch result {
+            case .success(let report):
+                if !report.undo.isEmpty { self.undoSteps = report.undo;self.renameUndo = nil }
+                self.content.status.stringValue = report.errors.isEmpty ? "Archivänderungen übernommen · Original gesichert" : report.errors.joined(separator:" · ")
+                if report.errors.isEmpty {
+                    var seen = Set<ObjectIdentifier>()
+                    for pane in [self.left,self.right] { for tab in pane.tabs { if let session = tab.archive,session.catalog.source == plan.source,seen.insert(ObjectIdentifier(session)).inserted { self.reloadArchive(session) } } }
+                }
+            case .failure(let error):self.content.status.stringValue = error.localizedDescription
+            };self.refresh()
+        })
+        showOperations(select:id);return id
     }
     func showArchivePack(_ sources:[URL]) {
         let fileExtension = Preferences.state.importedProfile?.defaultArchiveExtension ?? "zip",format = ArchiveFormat.allCases.first { $0.fileExtension == fileExtension } ?? .zip
