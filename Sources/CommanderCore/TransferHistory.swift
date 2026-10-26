@@ -148,6 +148,23 @@ public final class TransferHistory: @unchecked Sendable {
             _ = try stageBackup(original:step.current,stored:stored,version:RenameVersion.read(stored))
         }
     }
+    /// Repair only removal paths whose held parent moved before the operation returned.
+    /// One batch preserves existing IDs and avoids per-file history rewrites on a root move.
+    func relocateMirrorBackups(_ changes:[(previous:URL,receipt:MirrorRemovalReceipt,parent:RenameVersion)]) throws {
+        guard !changes.isEmpty else { return };lock.lock();defer { lock.unlock() }
+        var next = document
+        var indexes:[String:Int] = [:]
+        for (index,item) in next.backups.enumerated() { guard indexes.updateValue(index,forKey:item.stored.path) == nil else { throw recoveryError("Doppelte Sicherungspfade bleiben unverändert erhalten.") } }
+        for change in changes {
+            try change.receipt.validateShape()
+            guard let index = indexes[change.previous.path] else { throw recoveryError("Entfernungsbeleg zum verschobenen Sicherungsordner fehlt.") }
+            let old = next.backups[index]
+            guard let mirror = old.mirror,old.parent.sameObject(change.parent),mirror.members == change.receipt.members,
+                  old.stored.lastPathComponent == change.receipt.stored.lastPathComponent,old.original.lastPathComponent == change.receipt.original.lastPathComponent else { throw recoveryError("Verschobene Sicherung passt nicht zum vorhandenen Entfernungsbeleg.") }
+            next.backups[index] = SavedBackup(id:old.id,original:change.receipt.original.standardizedFileURL,stored:change.receipt.stored.standardizedFileURL,created:old.created,parent:change.parent,version:old.version,mirror:change.receipt)
+        }
+        next.version = 2;try save(next)
+    }
     func forgetBackup(_ id: UUID) throws {
         lock.lock();defer { lock.unlock() };var next = document;next.backups.removeAll { $0.id == id };try save(next)
     }

@@ -171,4 +171,47 @@ extension CoreTests {
         let plan = try mirror(options);XCTAssertTrue(plan.copies.steps.isEmpty);XCTAssertTrue(plan.removals.isEmpty);XCTAssertEqual(Set(plan.retained.map(\.path)),Set(["VisibleName.txt","Folder","Folder/a.txt"]))
         XCTAssertTrue(FolderMirrorEngine.execute(plan).errors.isEmpty);XCTAssertEqual(try read(root.appendingPathComponent("right/VisibleName.txt")),"target");XCTAssertEqual(try read(root.appendingPathComponent("right/Folder/a.txt")),"target child")
     }
+    private func mirrorMovedParentDuringProgress(nested:Bool,final:Bool) throws {
+        try folder(nested ? "left/Common" : "left");let path = nested ? "Common/Extra/data.txt" : "Extra/data.txt";try file("right/"+path,"retained data")
+        let plan = try mirror(),history = try mirrorHistory(),parent = root.appendingPathComponent(nested ? "right/Common" : "right"),moved = root.appendingPathComponent("Moved"),outside = try folder("outside"),name = plan.removals[0].stored.lastPathComponent;var injected = false
+        let report = FolderMirrorEngine.execute(plan,history:history,progress:{ value in
+            guard !injected,value.items.contains(where:{$0.state == .completed}),!final || value.detail.hasPrefix("Spiegelung abgeschlossen") else { return }
+            injected = true;try! FileManager.default.moveItem(at:parent,to:moved);try! FileManager.default.createSymbolicLink(at:parent,withDestinationURL:outside);try! Data("foreign".utf8).write(to:outside.appendingPathComponent(name))
+        })
+        XCTAssertTrue(injected);XCTAssertFalse(report.errors.isEmpty,"A parent moved inside the synchronous progress callback must be reported before execute returns.")
+        guard let step = report.undo.first else { throw CommanderError.message("Entfernungsbeleg fehlt.") }
+        let expectedStored = moved.appendingPathComponent(name),expectedOriginal = moved.appendingPathComponent("Extra")
+        XCTAssertEqual(step.current.path,expectedStored.path);XCTAssertEqual(step.original?.path,expectedOriginal.path)
+        XCTAssertEqual(report.completed.first?.path,expectedOriginal.path);XCTAssertEqual(try read(expectedStored.appendingPathComponent("data.txt")),"retained data")
+        let items = history.inspect();XCTAssertEqual(items.count,1);XCTAssertTrue(items.first?.available == true);XCTAssertEqual(items.first?.stored.path,expectedStored.path)
+        let before = try Data(contentsOf:root.appendingPathComponent("mirror-history/history.json"));try history.captureBackups(report.undo);XCTAssertEqual(try Data(contentsOf:root.appendingPathComponent("mirror-history/history.json")),before)
+        XCTAssertEqual(FileOperations.undo(report.undo),[]);XCTAssertEqual(try read(expectedOriginal.appendingPathComponent("data.txt")),"retained data");XCTAssertEqual(try read(outside.appendingPathComponent(name)),"foreign")
+    }
+    func testMirrorRebasesRootMovedByCompletedProgress() throws { try mirrorMovedParentDuringProgress(nested:false,final:false) }
+    func testMirrorRebasesParentMovedByCompletedProgress() throws { try mirrorMovedParentDuringProgress(nested:true,final:false) }
+    func testMirrorRebasesRootMovedByFinalProgress() throws { try mirrorMovedParentDuringProgress(nested:false,final:true) }
+    func testMirrorParentHandleReservationFailurePrecedesAllMutations() throws {
+        try file("left/New.txt","source")
+        for index in 0..<80 { try folder("left/Folder\(index)");try file("right/Folder\(index)/extra.txt","keep") }
+        let plan = try mirror();XCTAssertEqual(plan.removals.count,80)
+        var old = rlimit();guard getrlimit(RLIMIT_NOFILE,&old) == 0 else { throw CommanderError.message("Dateihandle-Grenze nicht lesbar.") }
+        var limited = old;limited.rlim_cur = min(old.rlim_cur,64)
+        guard setrlimit(RLIMIT_NOFILE,&limited) == 0 else { throw CommanderError.message("Private Testprozess-Grenze nicht setzbar.") }
+        defer { var restore = old;_ = setrlimit(RLIMIT_NOFILE,&restore) }
+        let report = FolderMirrorEngine.execute(plan);XCTAssertFalse(report.errors.isEmpty);XCTAssertTrue(report.undo.isEmpty);XCTAssertTrue(report.completed.isEmpty);XCTAssertFalse(FileSystem.exists(root.appendingPathComponent("right/New.txt")))
+        for index in 0..<80 { XCTAssertEqual(try read(root.appendingPathComponent("right/Folder\(index)/extra.txt")),"keep") }
+    }
+    func testMirrorFinalProgressCanRebaseAnEarlierCompletedParent() throws {
+        try folder("left/A");try folder("left/B");try file("right/A/Extra.txt","a");try file("right/B/Extra.txt","b")
+        let plan = try mirror(),history = try mirrorHistory(),moved = root.appendingPathComponent("Moved"),old = root.appendingPathComponent("right/A"),outside = try folder("outside"),first = plan.removals.first(where:{$0.path == "A/Extra.txt"})!;var injected = false
+        let report = FolderMirrorEngine.execute(plan,history:history,progress:{ value in
+            guard !injected,value.detail.hasPrefix("Spiegelung abgeschlossen") else { return };injected = true;try! FileManager.default.moveItem(at:old,to:moved);try! FileManager.default.createSymbolicLink(at:old,withDestinationURL:outside);try! Data("foreign".utf8).write(to:outside.appendingPathComponent(first.stored.lastPathComponent))
+        })
+        XCTAssertTrue(injected);XCTAssertFalse(report.errors.isEmpty);XCTAssertEqual(report.undo.count,2)
+        let rebased = report.undo.first(where:{$0.current.lastPathComponent == first.stored.lastPathComponent})
+        XCTAssertEqual(rebased?.current.path,moved.appendingPathComponent(first.stored.lastPathComponent).path);XCTAssertEqual(rebased?.original?.path,moved.appendingPathComponent("Extra.txt").path)
+        XCTAssertEqual(history.inspect().count,2);XCTAssertTrue(history.inspect().allSatisfy(\.available))
+        let path = root.appendingPathComponent("mirror-history/history.json"),before = try Data(contentsOf:path);try history.captureBackups(report.undo);XCTAssertEqual(try Data(contentsOf:path),before)
+        XCTAssertEqual(FileOperations.undo(report.undo),[]);XCTAssertEqual(try read(moved.appendingPathComponent("Extra.txt")),"a");XCTAssertEqual(try read(root.appendingPathComponent("right/B/Extra.txt")),"b");XCTAssertEqual(try read(outside.appendingPathComponent(first.stored.lastPathComponent)),"foreign")
+    }
 }
