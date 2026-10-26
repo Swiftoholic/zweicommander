@@ -5,9 +5,21 @@ struct FileListSnapshot {
     let entries: [FileEntry]
     let indexes: [String:Int]
     let totalBytes: Int64
+    let media:[String:MediaMetadata]
     static func make(_ source:[FileEntry],filter:NameFilter,key:String,ascending:Bool,foldersFirst:Bool,token:CancellationToken) throws -> FileListSnapshot {
         try token.check()
-        let sorted = FileSystem.sorted(source.filter { filter.matches($0.name) },key:key,ascending:ascending,foldersFirst:foldersFirst)
+        let matching = source.filter { filter.matches($0.name) };var media:[String:MediaMetadata] = [:]
+        if MediaMetadataField(rawValue:key) != nil {
+            guard matching.count <= 10_000 else { throw CommanderError.message("Mediensortierung: höchstens 10.000 sichtbare Einträge; Liste zunächst filtern.") }
+            for entry in matching {
+                try token.check()
+                guard entry.url.isFileURL,entry.isRegularFile,!entry.isSymbolicLink,MediaMetadataReader.supportedExtensions.contains(entry.fileExtension.lowercased()) else { continue }
+                if let value = try? MediaMetadataReader.read(entry.url,token:token) {
+                    guard value.identity == entry.mediaIdentity else { throw CommanderError.message("Mediendatei seit Einlesen der Liste verändert; aktualisieren.") };media[entry.id] = value
+                }
+            }
+        }
+        try token.check();let sorted = FileSystem.sorted(matching,key:key,ascending:ascending,foldersFirst:foldersFirst,media:media)
         var parents: [String:String] = [:],indexes: [String:Int] = [:],total:Int64 = 0
         indexes.reserveCapacity(sorted.count)
         for (index,entry) in sorted.enumerated() {
@@ -23,6 +35,6 @@ struct FileListSnapshot {
             indexes[(path == "/" ? "/" : path+"/")+entry.name] = index
             if !entry.isDirectory { let sum = total.addingReportingOverflow(entry.size);total = sum.overflow ? Int64.max : sum.partialValue }
         }
-        try token.check();return FileListSnapshot(entries:sorted,indexes:indexes,totalBytes:total)
+        try token.check();return FileListSnapshot(entries:sorted,indexes:indexes,totalBytes:total,media:media)
     }
 }

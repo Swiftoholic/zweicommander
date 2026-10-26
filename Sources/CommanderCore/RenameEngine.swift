@@ -88,7 +88,7 @@ public enum RenameEngine {
                 let parentVersion = try RenameVersion.read(parent)
                 let number = rule.resetPerFolder ? counters[parent.path,default:0] : index
                 counters[parent.path,default:0] += 1
-                let name = try compiled.filename(source,version:version,index:number)
+                let name = try compiled.filename(source,version:version,index:number,token:token)
                 let item = RenameItem(source:source,target:parent.appendingPathComponent(name),version:version,parent:parentVersion)
                 rows.append(RenamePreviewRow(source:url,item:item,error:nil))
             } catch { rows.append(RenamePreviewRow(source:url,item:nil,error:error.localizedDescription)) }

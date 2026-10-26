@@ -47,18 +47,21 @@ public struct FileEntry: Identifiable, Hashable {
     public let modified: Date
     public let kind: String
     public let permissions: Int
+    public let mediaIdentity:MediaMetadataIdentity?
     public var id: String { url.isFileURL ? url.path : url.absoluteString }
     public var fileExtension: String { isDirectory ? "" : url.pathExtension }
     public var attributeText: String {
         [(isDirectory ? "D" : ""),(isSymbolicLink ? "L" : ""),(name.hasPrefix(".") ? "H" : ""),(url.isFileURL && permissions & 0o200 == 0 ? "R" : "")].filter { !$0.isEmpty }.joined(separator:" ")
     }
     public init(remote entry: RemoteEntry,address: URL) {
+        mediaIdentity = nil
         url = address;name = entry.name;isDirectory = entry.isDirectory;isSymbolicLink = entry.isLink
         isRegularFile = !entry.isDirectory && !entry.isLink;isPackage = false;size = entry.size
         modified = entry.modified ?? .distantPast;permissions = entry.permissions ?? 0
         kind = entry.isLink ? "Serververknüpfung" : entry.isDirectory ? "Serverordner" : "Serverdatei"
     }
     public init(archive entry:ArchiveMember,address:URL) {
+        mediaIdentity = nil
         url = address;name = (entry.path as NSString).lastPathComponent;isDirectory = entry.isDirectory;isSymbolicLink = entry.isLink;isRegularFile = entry.isRegularFile;isPackage = false
         size = max(0,entry.size);modified = entry.modified;permissions = entry.permissions
         kind = entry.isLink ? "Archivverknüpfung" : entry.isDirectory ? "Archivordner" : entry.isRegularFile ? "Archivdatei" : "Spezialdatei im Archiv"
@@ -67,7 +70,7 @@ public struct FileEntry: Identifiable, Hashable {
         guard url.isFileURL else { throw CommanderError.message("Serverdateien benötigen den Server-Arbeitsablauf.") }
         let values = try url.resourceValues(forKeys:Self.metadataKeys)
         let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
-        self.url = url
+        self.url = url;mediaIdentity = try? MediaMetadataIdentity(url)
         name = url.lastPathComponent
         isSymbolicLink = values.isSymbolicLink ?? false
         isRegularFile = (attrs[.type] as? FileAttributeType) == .typeRegular
@@ -131,10 +134,17 @@ public enum FileSystem {
         if !batch.isEmpty { onBatch?(batch) }
         return result
     }
-    public static func sorted(_ entries: [FileEntry], key: String = "name", ascending: Bool = true, foldersFirst: Bool = true) -> [FileEntry] {
+    public static func sorted(_ entries: [FileEntry], key: String = "name", ascending: Bool = true, foldersFirst: Bool = true,media:[String:MediaMetadata] = [:]) -> [FileEntry] {
         entries.sorted { a, b in
             if foldersFirst && a.isDirectory != b.isDirectory { return a.isDirectory }
             var comparison: ComparisonResult = .orderedSame
+            if let field = MediaMetadataField(rawValue:key) {
+                let left = media[a.id].flatMap { $0.identity == a.mediaIdentity ? $0 : nil },right = media[b.id].flatMap { $0.identity == b.mediaIdentity ? $0 : nil }
+                let leftText = left.flatMap { field.text($0) },rightText = right.flatMap { field.text($0) }
+                if (leftText == nil) != (rightText == nil) { return leftText != nil }
+                if let l = left.flatMap({ field.number($0) }),let r = right.flatMap({ field.number($0) }) { comparison = l == r ? .orderedSame : l < r ? .orderedAscending : .orderedDescending }
+                else if let l = leftText,let r = rightText { comparison = l.localizedStandardCompare(r) }
+            }
             switch key {
             case "size": comparison = a.size == b.size ? .orderedSame : (a.size < b.size ? .orderedAscending : .orderedDescending)
             case "modified": comparison = a.modified.compare(b.modified)

@@ -111,8 +111,10 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     var importedProfile: SettingsProfile?
     private struct ColumnState { let id: String; let title: String; let width: CGFloat; let hidden: Bool }
     private var beforeImport: (columns: [ColumnState], sort: String, ascending: Bool, tree: Bool, foldersFirst: Bool)?
+    let mediaCache = PaneMediaMetadataCache()
     var sortKey = "name", ascending = true
-    var generation = 0
+    var mediaGeneration = 0
+    var generation = 0 { didSet { mediaGeneration += 1;mediaCache.context(mediaGeneration) } }
     private(set) var isLoading = false
     private(set) var isSorting = false
     private(set) var visibleByteTotal: Int64 = 0
@@ -179,10 +181,10 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         table.style = .plain; table.intercellSpacing = NSSize(width:6,height:0)
         table.target = self; table.doubleAction = #selector(doubleClick)
         table.columnAutoresizingStyle = .noColumnAutoresizing
-        for (id,title,width) in [("name","Name",CGFloat(260)),("ext","Endung",55),("size","Größe",85),("modified","Geändert",155),("kind","Art",130),("attributes","Attribute",80),("permissions","Rechte",65),("path","Ordner",260)] {
+        for (id,title,width) in [("name","Name",CGFloat(260)),("ext","Endung",55),("size","Größe",85),("modified","Geändert",155),("kind","Art",130),("attributes","Attribute",80),("permissions","Rechte",65),("path","Ordner",260)]+MediaMetadataField.allCases.map({ ($0.rawValue,$0.title,CGFloat($0 == .title || $0 == .artist || $0 == .album || $0 == .camera || $0 == .taken ? 180 : 120)) }) {
             let c = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id)); c.title = title; c.width = width; c.minWidth = 40
             c.sortDescriptorPrototype = NSSortDescriptor(key: id, ascending: true)
-            c.isHidden = ["kind","attributes","permissions","path"].contains(id)
+            c.isHidden = ["kind","attributes","permissions","path"].contains(id) || MediaMetadataField(rawValue:id) != nil
             table.addTableColumn(c)
         }
         if !Preferences.testMode { table.autosaveName = "ZweiCommander.columns"; table.autosaveTableColumns = true }
@@ -224,7 +226,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         tabsScroll.documentView = tabsStack; tabsScroll.hasHorizontalScroller = true; tabsScroll.autohidesScrollers = true;tabsScroll.drawsBackground = false
         viewMode.addItems(withTitles:PaneDisplayMode.allCases.map(\.title));viewMode.target = self;viewMode.action = #selector(viewModeChanged)
         viewMode.toolTip = "Darstellung dieses Tabs"
-        sortMode.addItems(withTitles:["Name","Endung","Größe","Geändert","Art","Attribute","Rechte","Ordner"]);sortMode.target = self;sortMode.action = #selector(sortModeChanged)
+        sortMode.addItems(withTitles:["Name","Endung","Größe","Geändert","Art","Attribute","Rechte","Ordner"]+MediaMetadataField.allCases.map(\.title));sortMode.target = self;sortMode.action = #selector(sortModeChanged)
         sortMode.toolTip = "Sortieren nach"
         sortDirection.perform = { [weak self] in self?.sortDirectionChanged() };sortDirection.toolTip = "Sortierrichtung wechseln"
         viewBar.orientation = .horizontal;viewBar.spacing = 7
@@ -539,6 +541,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     }
     var rawSelectedURLs: Set<URL> { Set(selectionIndexes.compactMap { visibleEntries.indices.contains($0) ? visibleEntries[$0].url : nil }) }
     func applyFilter(preserving chosen:Set<URL>? = nil) {
+        mediaGeneration += 1;mediaCache.context(mediaGeneration)
         tab.filter = filterField.stringValue;tab.filterRegex = filterRegex.state == .on
         sortVersion += 1;let version = sortVersion
         sortToken.cancel();sortingQueue.cancelAllOperations();let token = CancellationToken();sortToken = token
@@ -548,6 +551,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
             let publish: (FileListSnapshot)->Void = { [weak self] snapshot in
                 guard let self,self.sortVersion == version,!token.isCancelled else { return }
                 let selected = chosen ?? self.rawSelectedURLs
+                self.mediaCache.context(self.mediaGeneration);self.mediaCache.seed(snapshot.entries.prefix(256).compactMap { snapshot.media[$0.id] })
                 self.visibleEntries = snapshot.entries;self.entryIndexes = snapshot.indexes;self.visibleByteTotal = snapshot.totalBytes
                 self.isSorting = false;self.replacesContents = false
                 self.syncingSelection = true;self.table.reloadData();self.grid.reloadData();self.syncingSelection = false
@@ -558,14 +562,17 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
                 if let focus = self.focusedEntryURL,!self.visibleEntries.contains(where:{ $0.url == focus }) { self.focusedEntryURL = self.selectedURLs.first }
                 self.positionInlineRename();self.updateStatus()
             }
-            if source.count > 1000 {
+            if source.count > 1000 || MediaMetadataField(rawValue:key) != nil {
                 isSorting = true;updateStatus()
                 sortingQueue.addOperation {
-                    guard let snapshot = try? FileListSnapshot.make(source,filter:filter,key:key,ascending:up,foldersFirst:folders,token:token) else { return }
-                    DispatchQueue.main.async { publish(snapshot) }
+                    let result = Result { try FileListSnapshot.make(source,filter:filter,key:key,ascending:up,foldersFirst:folders,token:token) }
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self,self.sortVersion == version,!token.isCancelled else { return }
+                        switch result { case .success(let snapshot):publish(snapshot);case .failure(let error):self.isSorting = false;self.filterError = error.localizedDescription;self.updateStatus() }
+                    }
                 }
             } else { publish(try FileListSnapshot.make(source,filter:filter,key:key,ascending:up,foldersFirst:folders,token:token)) }
-            let keys = ["name","ext","size","modified","kind","attributes","permissions","path"]
+            let keys = ["name","ext","size","modified","kind","attributes","permissions","path"]+MediaMetadataField.allCases.map(\.rawValue)
             sortMode.selectItem(at:keys.firstIndex(of:sortKey) ?? 0);sortDirection.toolTip = ascending ? "Aufsteigend · Klicken für absteigend" : "Absteigend · Klicken für aufsteigend"
         } catch {
             isSorting = false;filterError = "Ungültiger regulärer Ausdruck";filterField.textColor = .systemRed;visibleEntries = [];entryIndexes = [:];visibleByteTotal = 0;table.reloadData();grid.reloadData();selectionIndexes = []
@@ -596,7 +603,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         status.stringValue = prefix+count+" · "+bytes(size)+(freeSpace.map { " · Frei "+bytes($0) } ?? "")
         status.toolTip = status.stringValue+" · \(chosen.count) ausgewählt"
         if isLoading { status.stringValue = "Lese Ordner · \(entries.count) eingelesen …" }
-        else if isSorting { status.stringValue = "Sortiere und filtere \(entries.count) Objekte …" }
+        else if isSorting { status.stringValue = MediaMetadataField(rawValue:sortKey) != nil ? "Lese Mediendaten und sortiere \(entries.count) Objekte …" : "Sortiere und filtere \(entries.count) Objekte …" }
         else if let loadError { status.stringValue = loadError;status.toolTip = loadError }
         else if let filterError { status.stringValue = filterError }
         if let dropHint { status.stringValue = dropHint;status.toolTip = dropHint }
@@ -646,7 +653,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         if id == "trash" { item.title = remote == nil ? "In den Papierkorb …" : "Endgültig auf Server löschen …" }
         return onValidateCommand?(id) ?? true
     }
-    @objc func toggleColumn(_ sender: NSMenuItem) { if let c = sender.representedObject as? NSTableColumn, c.identifier.rawValue != "name" { c.isHidden.toggle(); sender.state = c.isHidden ? .off : .on;rememberTabView() } }
+    @objc func toggleColumn(_ sender: NSMenuItem) { if let c = sender.representedObject as? NSTableColumn, c.identifier.rawValue != "name" { c.isHidden.toggle(); sender.state = c.isHidden ? .off : .on;table.reloadData();rememberTabView() } }
     func numberOfRows(in tableView: NSTableView) -> Int { visibleEntries.count }
     func tableViewSelectionDidChange(_ notification: Notification) { if !syncingSelection { redrawFileFocus();updateStatus() } }
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
@@ -682,7 +689,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
             case "permissions": text.stringValue = !entry.url.isFileURL && entry.permissions == 0 ? "—" : String(format:"%03o",entry.permissions)
             case "attributes": text.stringValue = entry.attributeText;text.toolTip = "macOS: D Ordner, L Verknüpfung, H versteckter Name, R ohne Besitzer-Schreibbit"
             case "path": text.stringValue = entry.url.deletingLastPathComponent().path
-            default: text.stringValue = ""
+            default: if let field = MediaMetadataField(rawValue:id) { configureMediaCell(cell,entry:entry,field:field) } else { text.stringValue = "" }
             }
             text.frame = NSRect(x:2,y:(table.rowHeight-height)/2,width:max(1,tableColumn.width-4),height:height)
         }

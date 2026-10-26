@@ -32,6 +32,7 @@ final class RenameController: NSWindowController,NSWindowDelegate,NSTableViewDat
     private var jobID: UUID?
     private var rows: [UUID:RenamePreviewRow] = [:]
     private var preparation = CancellationToken(),generation = 0,delayed: DispatchWorkItem?
+    private let previewQueue:OperationQueue = { let value = OperationQueue();value.maxConcurrentOperationCount = 1;value.qualityOfService = .userInitiated;return value }()
     private var observer: NSObjectProtocol?
     private var library = RenameProfileLibrary(),profileError: String?,lastError: String?
     private var controls: [NSControl] = []
@@ -54,7 +55,8 @@ final class RenameController: NSWindowController,NSWindowDelegate,NSTableViewDat
             view.frame = NSRect(x:x,y:y,width:width,height:height);root.addSubview(view)
         }
         put(namePane,label("Namensmuster"),15,117,135);put(namePane,pattern,160,115,560)
-        tokens.addItems(withTitles:["Platzhalter einfügen","{name}","{full}","{ext}","{n}","{date}","{parent}","{name:2:5}","{width}","{height}","{taken}"]);tokens.target = self;tokens.action = #selector(insertToken)
+        tokens.addItems(withTitles:["Platzhalter einfügen","{name}","{full}","{ext}","{n}","{date}","{parent}","{name:2:5}","{width}","{height}","{taken}","{title}","{artist}","{album}","{year}","{track}","{duration}","{camera}"]);tokens.target = self;tokens.action = #selector(insertToken)
+        tokens.toolTip = MediaMetadataReader.help+" Metadaten in Dateinamen werden auf 120 UTF-8-Bytes je Feld begrenzt; Pfadtrenner werden durch Bindestriche ersetzt."
         put(namePane,tokens,740,114,270,28)
         put(namePane,separateExtension,15,77,280);put(namePane,extensionPattern,320,77,220)
         put(namePane,label("Ohne Punkt · leer entfernt die Endung",size:11,color:.secondaryLabelColor),560,78,440)
@@ -68,7 +70,7 @@ final class RenameController: NSWindowController,NSWindowDelegate,NSTableViewDat
         dateSource.addItems(withTitles:["Änderungsdatum","Erstellungsdatum"]);put(datePane,dateSource,570,114,235,28);put(datePane,useUTC,825,115,185)
         put(datePane,label("Schreibweise"),15,77,135);letterCase.addItems(withTitles:["Unverändert","kleinbuchstaben","GROSSBUCHSTABEN","Wortanfänge groß"]);put(datePane,letterCase,160,75,390,28)
         caseTarget.addItems(withTitles:["Ganzer Name","Nur Name ohne Endung","Nur Endung"]);put(datePane,caseTarget,570,75,440,28)
-        put(datePane,label("{width}/{height}: Bildabmessungen · {taken}: EXIF-Aufnahmedatum, ohne Zeitzonenumrechnung. Fehlende Bilddaten ergeben einen Zeilenfehler.",size:11,color:.secondaryLabelColor),15,24,995,35)
+        put(datePane,label("{width}/{height}: Auflösung · {taken}: EXIF-Zeit · {title}/{artist}/{album}/{year}/{track}/{camera}: Medienfelder · {duration}: gerundete Sekunden. Fehlende Werte: Zeilenfehler.",size:11,color:.secondaryLabelColor),15,24,995,35)
         for (title,pane) in [("Name und Zähler",namePane),("Suchen und Ersetzen",replacePane),("Datum und Schreibweise",datePane)] { let item = NSTabViewItem();item.label = title;item.view = pane;settingsTabs.addTabViewItem(item) }
         settingsTabs.tabViewType = .noTabsNoBorder;settingsTabs.delegate = self
         for (index,button) in settingsButtons.enumerated() {
@@ -101,7 +103,7 @@ final class RenameController: NSWindowController,NSWindowDelegate,NSTableViewDat
         refreshProfiles();prepare();w.center()
     }
     required init?(coder: NSCoder) { fatalError() }
-    deinit { preparation.cancel();delayed?.cancel();if let observer { NotificationCenter.default.removeObserver(observer) } }
+    deinit { preparation.cancel();previewQueue.cancelAllOperations();delayed?.cancel();if let observer { NotificationCenter.default.removeObserver(observer) } }
     func rule() throws -> RenameRule {
         guard let start = Int(start.stringValue.trimmingCharacters(in:.whitespaces)),let step = Int(step.stringValue.trimmingCharacters(in:.whitespaces)),let digits = Int(digits.stringValue.trimmingCharacters(in:.whitespaces)) else { throw CommanderError.message("Start, Schritt und Stellen als ganze Zahlen eingeben.") }
         var value = RenameRule();value.pattern = pattern.stringValue;value.extensionPattern = separateExtension.state == .on ? extensionPattern.stringValue : nil
@@ -124,14 +126,14 @@ final class RenameController: NSWindowController,NSWindowDelegate,NSTableViewDat
         invalidate();updateProfileState();info.stringValue = "Vorschau wird aktualisiert …"
         let work = DispatchWorkItem { [weak self] in self?.prepare() };delayed = work;DispatchQueue.main.asyncAfter(deadline:.now()+0.2,execute:work)
     }
-    private func invalidate() { delayed?.cancel();preparation.cancel();generation += 1;preview = nil;rows = [:];apply.isEnabled = false;table.reloadData() }
+    private func invalidate() { delayed?.cancel();preparation.cancel();previewQueue.cancelAllOperations();generation += 1;preview = nil;rows = [:];apply.isEnabled = false;table.reloadData() }
     func prepare() {
         guard !isWorking else { return };invalidate();extensionPattern.isEnabled = separateExtension.state == .on
         lastError = nil;report.isEnabled = false;info.textColor = .secondaryLabelColor
         do {
             let rule = try rule(),selected = choices.filter(\.enabled),token = CancellationToken(),generation = self.generation
             preparation = token;info.stringValue = "Prüfe \(selected.count) Objekte …";updateProfileState()
-            DispatchQueue.global(qos:.userInitiated).async { [weak self] in
+            previewQueue.addOperation { [weak self] in
                 let result = Result { try RenameEngine.plan(selected.map(\.url),rule:rule,token:token) }
                 DispatchQueue.main.async {
                     guard let self,self.generation == generation,!self.isWorking else { return }
@@ -198,6 +200,7 @@ final class RenameController: NSWindowController,NSWindowDelegate,NSTableViewDat
     }
     func cancelOrClose() { if isWorking,let id = jobID { onCancel?(id) } else { close() } }
     func windowShouldClose(_ sender: NSWindow) -> Bool { !isWorking }
+    func windowWillClose(_ notification:Notification) { invalidate() }
     private func updateSettingsButtons() {
         let index = settingsTabs.selectedTabViewItem.map { settingsTabs.indexOfTabViewItem($0) } ?? 0
         for (offset,button) in settingsButtons.enumerated() { button.state = offset == index ? .on : .off }

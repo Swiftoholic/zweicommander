@@ -1,5 +1,4 @@
 import Foundation
-import ImageIO
 
 public enum RenameTextTarget: String, Codable, CaseIterable { case full, name, fileExtension }
 public enum RenameDateSource: String, Codable, CaseIterable { case modified, created }
@@ -38,6 +37,11 @@ public struct RenameRule: Codable, Equatable {
         dateFormat = try c.decodeIfPresent(String.self,forKey:.dateFormat) ?? dateFormat;dateSource = try c.decodeIfPresent(RenameDateSource.self,forKey:.dateSource) ?? dateSource
         useUTC = try c.decodeIfPresent(Bool.self,forKey:.useUTC) ?? useUTC
     }
+    var needsMediaProfileVersion:Bool {
+        let names = (try? NameTemplate(pattern).tokens) ?? []
+        let extensions = extensionPattern.flatMap { try? NameTemplate($0).tokens } ?? []
+        return !names.union(extensions).isDisjoint(with:["title","artist","album","year","track","duration","camera"])
+    }
     public func validate() throws { _ = try CompiledRenameRule(self) }
 }
 
@@ -50,7 +54,7 @@ private struct NameTemplate {
     var tokens: Set<String> = []
     init(_ pattern: String) throws {
         let characters = Array(pattern);var index = 0,literal = ""
-        func invalid() -> CommanderError { .message("Ungültiger Platzhalter. Erlaubt: {name}, {full}, {ext}, {n}, {date}, {parent}, {width}, {height}, {taken}; Ausschnitte z. B. {name:2:5}. Klammern mit {{ und }} schreiben.") }
+        func invalid() -> CommanderError { .message("Ungültiger Platzhalter. Erlaubt: {name}, {full}, {ext}, {n}, {date}, {parent}, {width}, {height}, {taken}, {title}, {artist}, {album}, {year}, {track}, {duration}, {camera}; Ausschnitte z. B. {name:2:5}. Klammern mit {{ und }} schreiben.") }
         while index < characters.count {
             let c = characters[index]
             if c == "{" || c == "}" {
@@ -58,7 +62,7 @@ private struct NameTemplate {
                 guard c == "{",let end = characters[(index+1)...].firstIndex(of:"}") else { throw invalid() }
                 if !literal.isEmpty { parts.append(.literal(literal));literal = "" }
                 let value = String(characters[(index+1)..<end]),pieces = value.split(separator:":",omittingEmptySubsequences:false).map(String.init)
-                guard let token = pieces.first,["name","full","ext","n","date","parent","width","height","taken"].contains(token),pieces.count <= 3 else { throw invalid() }
+                guard let token = pieces.first,["name","full","ext","n","date","parent","width","height","taken","title","artist","album","year","track","duration","camera"].contains(token),pieces.count <= 3 else { throw invalid() }
                 var start: Int?,length: Int?
                 if pieces.count > 1 {
                     guard ["name","full","ext"].contains(token),let number = Int(pieces[1]),number > 0,number <= 4096 else { throw invalid() };start = number-1
@@ -100,7 +104,7 @@ struct CompiledRenameRule {
         }
         expression = rule.regex && !rule.search.isEmpty ? try NSRegularExpression(pattern:rule.search,options:rule.ignoreCase ? [.caseInsensitive] : []) : nil
     }
-    func filename(_ source: URL,version: RenameVersion,index: Int) throws -> String {
+    func filename(_ source: URL,version: RenameVersion,index: Int,token:CancellationToken = .init()) throws -> String {
         let full = source.lastPathComponent,isDirectory = version.isDirectory
         let extensionName = isDirectory ? "" : source.pathExtension
         let stem = extensionName.isEmpty ? full : source.deletingPathExtension().lastPathComponent
@@ -113,22 +117,14 @@ struct CompiledRenameRule {
                       "n":String(format:"%0*lld",rule.digits,Int64(counter.partialValue)),
                       "date":format.string(from:rule.dateSource == .modified ? version.modified : version.created)]
         let tokens = name.tokens.union(ext?.tokens ?? [])
-        if !tokens.isDisjoint(with:["width","height","taken"]) {
-            guard version.isRegularFile,version.size <= 64*1024*1024,
-                  let image = CGImageSourceCreateWithURL(source as CFURL,[kCGImageSourceShouldCache:false] as CFDictionary),
-                  let properties = CGImageSourceCopyPropertiesAtIndex(image,0,[kCGImageSourceShouldCache:false] as CFDictionary) as? [CFString:Any] else {
-                throw CommanderError.message("Bilddaten fehlen: eine reguläre Bilddatei bis 64 MiB wird benötigt; Verknüpfungen werden nicht gelesen.")
-            }
-            if tokens.contains("width") || tokens.contains("height") {
-                guard let width = properties[kCGImagePropertyPixelWidth] as? NSNumber,let height = properties[kCGImagePropertyPixelHeight] as? NSNumber,
-                      width.intValue > 0,height.intValue > 0 else { throw CommanderError.message("Bildabmessungen fehlen.") }
-                values["width"] = width.stringValue;values["height"] = height.stringValue
-            }
-            if tokens.contains("taken") {
-                let exif = properties[kCGImagePropertyExifDictionary] as? [CFString:Any]
-                let parser = DateFormatter();parser.locale = Locale(identifier:"en_US_POSIX");parser.calendar = Calendar(identifier:.gregorian);parser.timeZone = TimeZone(secondsFromGMT:0);parser.dateFormat = "yyyy:MM:dd HH:mm:ss";parser.isLenient = false
-                guard let text = exif?[kCGImagePropertyExifDateTimeOriginal] as? String,let date = parser.date(from:text),parser.string(from:date) == text else { throw CommanderError.message("EXIF-Aufnahmedatum fehlt oder ist ungültig.") }
-                format.timeZone = TimeZone(secondsFromGMT:0);values["taken"] = format.string(from:date)
+        let mediaTokens = tokens.intersection(["width","height","taken","title","artist","album","year","track","duration","camera"])
+        if !mediaTokens.isEmpty {
+            guard version.isRegularFile else { throw CommanderError.message("Mediendaten benötigen eine reguläre Datei ohne Verknüpfung.") }
+            let media = try MediaMetadataReader.read(source,token:token)
+            guard try RenameVersion.read(source) == version else { throw CommanderError.message("Mediendatei seit Beginn der Vorschau verändert.") }
+            for field in mediaTokens {
+                if field == "taken" { guard let date = media.taken else { throw CommanderError.message("EXIF-Aufnahmedatum fehlt oder ist ungültig.") };format.timeZone = TimeZone(secondsFromGMT:0);values[field] = format.string(from:date) }
+                else { values[field] = try media.renameValue(field,dateFormatter:format) }
             }
         }
         var result = name.render(values)

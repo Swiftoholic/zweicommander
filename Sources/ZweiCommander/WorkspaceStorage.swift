@@ -19,8 +19,9 @@ extension Preferences {
 
 extension PaneView {
     var viewSettings: FolderViewSettings {
-        FolderViewSettings(display:displayMode,sortKey:sortKey,ascending:ascending,foldersFirst:foldersFirst,treeVisible:treeVisible,
-                           columns:table.tableColumns.map { ViewColumn(id:$0.identifier.rawValue,width:Double($0.width),hidden:$0.isHidden) })
+        let extended = MediaMetadataField(rawValue:sortKey) != nil || table.tableColumns.contains { MediaMetadataField(rawValue:$0.identifier.rawValue) != nil && !$0.isHidden }
+        return FolderViewSettings(display:displayMode,sortKey:sortKey,ascending:ascending,foldersFirst:foldersFirst,treeVisible:treeVisible,
+                                  columns:table.tableColumns.filter { extended || MediaMetadataField(rawValue:$0.identifier.rawValue) == nil }.map { ViewColumn(id:$0.identifier.rawValue,width:Double($0.width),hidden:$0.isHidden) })
     }
     func applyView(_ value: FolderViewSettings) {
         guard (try? value.validate()) != nil else { return }
@@ -30,6 +31,8 @@ extension PaneView {
         if let columns = value.columns {
             // A folder rule must not change the global AppKit column autosave.
             table.autosaveTableColumns = false
+            let savedIDs = Set(columns.map(\.id))
+            for column in table.tableColumns where MediaMetadataField(rawValue:column.identifier.rawValue) != nil && !savedIDs.contains(column.identifier.rawValue) { column.isHidden = true }
             for (index,saved) in columns.enumerated() {
                 guard let old = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == saved.id }) else { continue }
                 table.moveColumn(old,toColumn:index);let c = table.tableColumns[index];c.width = CGFloat(saved.width);c.isHidden = saved.hidden
@@ -58,7 +61,7 @@ extension PaneView {
     func rememberTabView() { guard !changingView else { return };tab.view = viewSettings;tab.sessionViewPinned = true;onState?() }
     @objc func viewModeChanged() { changeDisplay(PaneDisplayMode.allCases[viewMode.indexOfSelectedItem]) }
     @objc func sortModeChanged() {
-        let keys = ["name","ext","size","modified","kind","attributes","permissions","path"]
+        let keys = ["name","ext","size","modified","kind","attributes","permissions","path"]+MediaMetadataField.allCases.map(\.rawValue)
         sortKey = keys[sortMode.indexOfSelectedItem];table.sortDescriptors = [NSSortDescriptor(key:sortKey,ascending:ascending)];applyFilter();rememberTabView()
     }
     @objc func sortDirectionChanged() { ascending.toggle();table.sortDescriptors = [NSSortDescriptor(key:sortKey,ascending:ascending)];applyFilter();rememberTabView() }

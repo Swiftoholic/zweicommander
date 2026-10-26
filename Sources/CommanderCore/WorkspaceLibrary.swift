@@ -16,7 +16,8 @@ public struct ViewColumn: Codable, Equatable {
 }
 
 public struct FolderViewSettings: Codable, Equatable {
-    public static let columnIDs: Set<String> = ["name","ext","size","modified","kind","attributes","permissions","path"]
+    public static let baseColumnIDs:Set<String> = ["name","ext","size","modified","kind","attributes","permissions","path"]
+    public static let columnIDs:Set<String> = baseColumnIDs.union(MediaMetadataField.allCases.map(\.rawValue))
     public var display: PaneDisplayMode
     public var sortKey: String
     public var ascending: Bool
@@ -29,7 +30,7 @@ public struct FolderViewSettings: Codable, Equatable {
     public func validate() throws {
         guard Self.columnIDs.contains(sortKey) else { throw CommanderError.message("Unbekannte Sortierspalte.") }
         if let columns {
-            guard columns.count == Self.columnIDs.count,Set(columns.map(\.id)) == Self.columnIDs,
+            guard columns.count >= Self.baseColumnIDs.count,columns.count <= Self.columnIDs.count,Set(columns.map(\.id)).count == columns.count,Set(columns.map(\.id)).isSubset(of:Self.columnIDs),Self.baseColumnIDs.isSubset(of:Set(columns.map(\.id))),
                   columns.allSatisfy({ $0.width.isFinite && (40...2000).contains($0.width) }),
                   columns.first(where: { $0.id == "name" })?.hidden == false else {
                 throw CommanderError.message("Ungültige Spalten der Ordneransicht.")
