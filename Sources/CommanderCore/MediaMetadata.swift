@@ -26,7 +26,12 @@ public struct MediaMetadata: Equatable {
             let value = CharacterSet.controlCharacters.contains(scalar) || CharacterSet(charactersIn:"\u{202A}\u{202B}\u{202C}\u{202D}\u{202E}\u{2066}\u{2067}\u{2068}\u{2069}").contains(scalar) ? " " : String(scalar)
             guard bytes+value.utf8.count <= limit else { break };output += value;bytes += value.utf8.count
         }
-        let result = output.precomposedStringWithCanonicalMapping.trimmingCharacters(in:.whitespacesAndNewlines);return result.isEmpty ? nil : result
+        // Canonical composition can also expand UTF-8, so enforce the byte cap again.
+        var normalized = "",normalizedBytes = 0
+        for scalar in output.precomposedStringWithCanonicalMapping.unicodeScalars {
+            let value = String(scalar);guard normalizedBytes+value.utf8.count <= limit else { break };normalized += value;normalizedBytes += value.utf8.count
+        }
+        let result = normalized.trimmingCharacters(in:.whitespacesAndNewlines);return result.isEmpty ? nil : result
     }
     public static func filenameComponent(_ text:String) throws -> String {
         guard let text = boundedText(text) else { throw CommanderError.message("Das Metadatenfeld enthält keinen verwendbaren Dateinamen.") }
