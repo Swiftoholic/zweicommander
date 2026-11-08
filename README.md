@@ -150,7 +150,7 @@ Im Archivdialog: **Cmd+L** Ziel bearbeiten, **Cmd+Shift+L** Ziel wählen, **Cmd+
 
 Passwörter werden in sicheren Eingabefeldern erfasst und nur für die Sitzung beziehungsweise den Auftrag im Speicher gehalten. Verschlüsselte ZIP-Dateien sind mit falschem und richtigem Passwort geprüft; weitere Verschlüsselungsvarianten hängen von der Systembibliothek ab. Ein geändertes Archiv sperrt alte Einträge; **Cmd+R** liest es neu ein und setzt nicht mehr vorhandene interne Ordner zurück. Archivtabs und temporäre Dateien werden nicht als normale Sitzungstabs oder Layoutprofile gespeichert. Die Textpfadkopie nennt Archiv und Mitglied. Für die Dateizwischenablage und Ziehen in andere Apps zuerst entpacken.
 
-Vorhandene Archive bearbeiten, Verschlüsselung beim Schreiben, RAR-Schreiben und vollständige ACL-/Resource-Fork-/Metadatenübernahme sind nicht enthalten. Geschwindigkeits- und Codec-Matrix sowie sehr große Container benötigen weitere Praxisprüfungen.
+Verschlüsselung beim Schreiben, RAR-Schreiben und vollständige ACL-/Resource-Fork-/Metadatenübernahme sind nicht enthalten. Bestehende Archive lassen sich über den folgenden Editor bearbeiten. Geschwindigkeits- und Codec-Matrix sowie sehr große Container benötigen weitere Praxisprüfungen.
 
 ## Bestehende Archive bearbeiten
 

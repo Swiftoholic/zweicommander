@@ -1,22 +1,68 @@
-ZweiCommander 0.26.0 (Build 27) — Kandidatenprüfung am 26. Oktober 2026
+ZweiCommander 0.26.0 (Build 27) — Abschlussprüfung am 8. November 2026
 
-Bisheriges Ergebnis
+Ergebnis
 - 535/535 gemeinsame Dateikern- und Integrationstests bestanden.
+- 1518/1518 native Oberflächenprüfungen in 49 Durchläufen am universellen
+  Release-Build bestanden. Kein Fall wurde ausgelassen. Die Gruppen umfassen
+  24 Fälle/529 Prüfungen und 25 Fälle/989 Prüfungen für aktive Fenster.
+  Unterbrochene Fokus-/Clipboardläufe wurden nicht als bestanden gezählt.
+- Neue native Prüfbereiche: 44 Spiegelung, 39 Archivbearbeitung,
+  42 Medieninformationen/-spalten und 26 gemeinsame Menü-/Fensterabläufe.
 - 9/9 zusätzliche echte SSH/SFTP-Prüfungen bestanden; Testschlüssel entfernt.
-- Drei getrennte Funktionszweige zusammengeführt; unabhängige Quellenprüfungen
-  führten zu zusätzlichen Regressionen für Speichergrenzen, Archivversiegelung,
-  verschobene Elternordner, Wiederherstellung und asynchrone Metadatenzellen.
+- Universeller Release-Build x86_64/arm64, Ziel macOS 13, ohne Compilerwarnungen;
+  lokale Ad-hoc-Signatur streng geprüft. Unveränderte eingefrorene Eingaben.
+- Installierte App bytegleich zur geprüften Ausgabe; regulärer Start erfolgreich.
+  Bestehende Tabs, Favoriten, Darstellung, Kürzel, Profile, letzte Anordnung,
+  Journal und Wiederherstellungsablage gegen den Stand vor dem Upgrade geprüft.
+- Öffentlicher Quellstand und Release-Binärdatei auf die geprüften persönlichen
+  Angaben kontrolliert. Private Konfigurationen, Medien, Referenzmaterial und
+  Laufzeitprotokolle sind keine Bestandteile der Veröffentlichung.
 
-Vor der Veröffentlichung noch ausstehend
-- Universeller Release-Build mit Prüfung von Binärdatei, Signatur und Quellen.
-- Alle 1518 registrierten nativen Oberflächenprüfungen in 49 Durchläufen am
-  unveränderten Release-Build; 24 Fälle/529 Prüfungen ohne Vordergrundanforderung
-  sowie 25 Fälle/989 Prüfungen für aktive Fenster.
-- Upgradeprüfung gegen den privat gesicherten Zustand einschließlich Profilen,
-  Journal und Wiederherstellungsablage; anschließend Veröffentlichung.
+Ordnerspiegelung, Archivbearbeitung und Medieninformationen
+33 neue Spiegelungskernprüfungen prüfen beide Richtungen, Filter und versteckte
+Gegenstücke, vollständige Baumbelege, Quellenänderungen, Links, Abbruch nach
+Kopierfehlern, Wiederherstellung ohne Überschreiben, belegte Namen, geänderte
+Sicherungen, v1/v2-Historien und Fehler beim Speichern. Nachträglich verschobene
+Wurzeln/Eltern während Fortschrittsrückrufen liefern zugängliche tatsächliche
+Belegpfade und einen angehaltenen Lauf; Historieneinträge behalten ihre IDs.
+Ordnerhandles werden vor den ersten Änderungen reserviert; Ressourcenfehler
+führen vor dem Kopieren zum Abbruch. Keine automatische Gesamtrücksetzung,
+keine dauerhafte Spiegelbeziehung und keine Rücknahme angelegter Kopierordner.
 
-Die folgenden Abschnitte beschreiben die geprüften bisherigen Bereiche und
-Grenzen. Sie ersetzen die oben noch ausstehende Release-Gesamtprüfung nicht.
+36 neue Archivkernprüfungen prüfen ZIP/7z/TAR-GZip, Hinzufügen/Umbenennen/Entfernen,
+Inhalte und unterstützte Metadaten, Ersetzungssicherung und Rücknahme,
+Pfadkollisionen, Quelle/Ergänzungen/Elternwechsel, Abbruch und Veröffentlichungs-
+fehler. Codec-/Dictionarygrenzen gelten auch vor dem ursprünglichen nativen
+7z-Leser. Gültige bekannte ZIP-Extra-IDs dürfen keine opaque Nutzreste verbergen;
+TAR-PAX/GNU-/7z-Zusätze werden konservativ geprüft. Eltern-Snapshots bleiben
+linear statt je Ergänzung quadratisch zu wachsen. Früh während Verifikation
+veränderte gleiche Stage-Inodes werden abgewiesen; eigene Metadatenänderungen
+liegen vor dem verifizierten Snapshot, Version und SHA binden die Veröffentlichung.
+Nach Veröffentlichung verschobene Eltern behalten zugängliche Rücknahmebelege,
+auch über die Historie. TAR-GZip normalisiert gegebenenfalls äußere Hülldaten;
+die Schlussbestätigung weist darauf hin. Keine universelle Hüllenerhaltung.
+
+40 neue Medienkernprüfungen prüfen Bild/EXIF, ID3v2.3/v2.4/v1, WAV und MP4/MOV,
+Byte-/Struktur-/Zeitgrenzen, Unicode, veraltete Dateien, Links/Spezialdateien,
+ID3-Flags/Footer, Video-Rotation, Sparse-8-GiB-MDAT, Dateinamentokens und
+Profilversionen. Hinweise sind dedupliziert und auf 32 mal 512 UTF-8-Bytes begrenzt.
+Sechs zusätzliche isolierte Cacheprüfungen bedienen neuesten Abonnenten,
+Closure-Lebensdauer, Cachehit, Generation und neue/veraltete Identitäten.
+Die nativen Medienprüfungen bedienen tatsächliche Spaltentoggles und aktuelle
+Zellen, einschließlich acht Neuladungen aller neun Spalten, Auswahl/Fokus,
+asynchrone numerische Sortierung, Inspector-Navigation, Abbruch und Umbenennung.
+Alte Acht-Spalten-Sitzungen und v1-Profile werden beim normalen Start nicht
+umgeschrieben. Bilder bis 64 MiB, Header bis 8 MiB/20.000 Schritte; der einzelne
+ImageIO-Aufruf ist nicht mitten im Aufruf abbrechbar. Keine Medienwiedergabe.
+
+Gemeinsame native Abläufe prüfen Standard-/eigene/deaktivierte Kürzel,
+Kollisionen mit vorhandenen Belegungen, echte Menüs, Texteingabe und verdeckte
+Dateiseiten. Native Sheets respektieren eine schließverhindernde Delegation und
+lassen sich nach Freigabe einschließlich laufender Neuprüfung schließen.
+Quelldaten, persönliche Einstellungen und allgemeine Zwischenablage bleiben
+bei erfolgreichen vollständigen Prüfungen erhalten. Alle Testdaten sind künstlich.
+
+Die folgenden Abschnitte ergänzen bisherige Prüfbereiche und deren Grenzen.
 
 Testsystem
 Intel-Mac, macOS 26.7.1, Swift 6.3.3. Apple Silicon und ältere macOS-Versionen
@@ -24,9 +70,9 @@ wurden kompiliert, aber nicht zur Laufzeit geprüft. Keine Developer-ID-Signatur
 oder Notarisierung.
 
 Start
-Der Release-Build startete für die nativen Prüfungen aus dem Ausgabeordner.
-Die installierte App startete anschließend regulär aus Programme; vorhandener
-Sitzungsstand und Profile wurden gegen den Stand vor dem Upgrade verglichen.
+Alle nativen Release-Prüfungen starteten aus dem Ausgabeordner. Die installierte
+App startete anschließend regulär aus Programme; vorhandener Zustand und
+Profile einschließlich Wiederherstellungsdaten wurden vor/nachher verglichen.
 
 Dateivergleich, erweiterte Suche und seitenweise Vorschau
 Drei getrennte Funktionszweige wurden zunächst einzeln gebaut und mit
@@ -243,8 +289,9 @@ sperren alte Einträge; Neu-Einlesen setzt entfernte interne Ordner zurück.
 Helle und dunkle Entpackfenster werden als lokale Bilder kontrolliert,
 einschließlich gerenderter Spaltentitel.
 
-Grenzen: keine Änderung bestehender Archive, kein verschlüsseltes Schreiben,
-keine vollständige Metadatenmatrix.
+Grenzen: Die Archivtabs bleiben schreibgeschützt; Änderungen bestehender Archive
+erfolgen im gesonderten Editor. Kein verschlüsseltes Schreiben und keine
+vollständige Metadatenmatrix.
 Bis zu 100.000 Einträge/Quellobjekte, 100 GB Entpackung und 512 MiB je
 geöffnetem Mitglied; zehn verschachtelte Archive, 500 Vorschauzeilen je Seite.
 Archivsitzungen, Passwörter und Aufträge sind nicht dauerhaft gespeichert.
@@ -578,8 +625,9 @@ Datentypen bleiben unverändert. Löschen wird abgebrochen und bestätigt. Nativ
 Fensterbilder von Vergleich und Plan wurden lokal gerendert und visuell geprüft.
 
 Grenzen: Vorgemerkte Synchronisationen sind nicht dauerhaft gespeichert.
-Keine Löschspiegelung, automatische Gesamtrücksetzung oder dauerhafte Zweiwege-
-Beziehung. Ordner erhalten nur die POSIX-Rechte der Quelle; keine vollständige
+Zusätzliche Zielobjekte lassen sich über den gesonderten Spiegelplan mit
+Entfernungsvorschau sichern. Keine automatische Gesamtrücksetzung oder dauerhafte
+Zweiwege-Beziehung. Ordner erhalten nur die POSIX-Rechte der Quelle; keine vollständige
 Ordner-Metadaten- oder ACL-Übernahme. Laufende externe Änderungen können den
 Auftrag anhalten; die Prüfungen stellen keine unveränderliche Dateisystemansicht
 oder vollständige Matrix konkurrierender Schreibzugriffe dar.
