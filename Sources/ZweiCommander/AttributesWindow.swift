@@ -132,7 +132,7 @@ final class AttributesController:NSWindowController,NSWindowDelegate,NSTableView
     func undoChanges() {
         guard undo.isEnabled,!receipts.isEmpty else { return };generation += 1;token.cancel();token = CancellationToken();let token = token,receipts = receipts,generation = generation;isWorking = true;updateActions();info.stringValue = "Unveränderte Objekte werden für die Rücknahme geprüft …"
         worker.async { [weak self] in let report = AttributeEngine.undo(receipts,token:token);DispatchQueue.main.async {
-            guard let self,!self.closed,self.generation == generation else { return };self.isWorking = false;let restored = Set(report.completed.map(\.path));self.receipts.removeAll { restored.contains($0.source.path) };self.onAfterMutation?()
+            guard let self,!self.closed,self.generation == generation else { return };self.isWorking = false;self.receipts = report.receipts;self.onAfterMutation?()
             self.result.stringValue = "\(report.completed.count) Eigenschaften zurückgenommen · \(report.errors.count) Fehler"+(report.errors.first.map { "\n"+$0 } ?? "");self.result.toolTip = report.errors.joined(separator:"\n");self.result.textColor = report.errors.isEmpty ? .secondaryLabelColor : .systemRed;self.plan = nil;self.rows = [];self.table.reloadData();self.summary.stringValue = "Rücknahme beendet · \(self.receipts.count) Belege verbleiben";self.info.stringValue = "Für einen weiteren Änderungsplan erneut prüfen.";self.updateActions()
         } }
     }
