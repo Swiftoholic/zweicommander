@@ -5,11 +5,15 @@ public final class RemoteProfileStore {
     private let lock = NSLock()
     private let readData: () throws -> Data?,writeData: (Data) throws -> Void
     private let passwords: RemotePasswordStore
-    public init(passwords: RemotePasswordStore,read: @escaping () throws -> Data?,write: @escaping (Data) throws -> Void) { self.passwords = passwords;readData = read;writeData = write }
+    private let mutationGate: () throws -> (() -> Void)
+    public init(passwords: RemotePasswordStore,read: @escaping () throws -> Data?,write: @escaping (Data) throws -> Void,mutationGate: @escaping () throws -> (() -> Void) = { {} }) {
+        self.passwords = passwords;readData = read;writeData = write;self.mutationGate = mutationGate
+    }
     private func load() throws -> RemoteProfileLibrary { if let data = try readData() { return try RemoteProfileLibrary(data:data) };return RemoteProfileLibrary() }
     public func library() throws -> RemoteProfileLibrary { lock.lock();defer { lock.unlock() };return try load() }
     private func restore(_ value: String?,_ account: String) throws { if let value { try passwords.save(value,account:account) } else { try passwords.remove(account:account) } }
     @discardableResult public func save(name: String,connection: RemoteConnection,path: String,remember: Bool,password: String?,replacing old: RemoteProfile? = nil) throws -> RemoteProfile {
+        let finishMutation = try mutationGate();defer { finishMutation() }
         lock.lock();defer { lock.unlock() }
         if let password { _ = try connection.authenticated(password) }
         var library = try load();let previous = library
@@ -36,6 +40,7 @@ public final class RemoteProfileStore {
         }
     }
     public func remove(_ profile: RemoteProfile) throws {
+        let finishMutation = try mutationGate();defer { finishMutation() }
         lock.lock();defer { lock.unlock() };var library = try load()
         guard library.profile(profile.id) == profile else { throw CommanderError.message("Verbindungsprofil wurde inzwischen verändert.") }
         _ = try library.remove(profile.id);let data = try library.encoded()

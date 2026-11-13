@@ -445,6 +445,10 @@ func XCTAssertThrowsError<T>(_ expression: @autoclosure () throws -> T, file: St
 }
 
 let tests: [(String, (CoreTests) throws -> Void)] = [
+    ("testRemoteProfileMutationGateRefusalPrecedesCredentialAccess", { try $0.testRemoteProfileMutationGateRefusalPrecedesCredentialAccess() }),
+    ("testRemoteProfileMutationGateCoversCredentialAndMetadataSave", { try $0.testRemoteProfileMutationGateCoversCredentialAndMetadataSave() }),
+    ("testRemoteProfileMutationGateCoversRemoveFailureAndCredentialRollback", { try $0.testRemoteProfileMutationGateCoversRemoveFailureAndCredentialRollback() }),
+    ("testRemoteProfileMutationGateReleasesAfterValidationFailure", { try $0.testRemoteProfileMutationGateReleasesAfterValidationFailure() }),
     ("testLaunchEmptyRequestDoesNotInventTargets", { try $0.testLaunchEmptyRequestDoesNotInventTargets() }),
     ("testLaunchTwoDirectoriesAndExplicitActiveSide", { try $0.testLaunchTwoDirectoriesAndExplicitActiveSide() }),
     ("testLaunchPositionalFileSelectsItInItsParent", { try $0.testLaunchPositionalFileSelectsItInItsParent() }),
