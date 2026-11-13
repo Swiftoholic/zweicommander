@@ -28,11 +28,12 @@ private final class AttributeContext {
     let plan:AttributePlan
     var parents:[String:AttributeParent] = [:]
     var retained:[String:AttributeRetainedFile] = [:]
+    var pinned:[String:AttributeRetainedFile] = [:]
     let observed:[String:AttributeObservation]
     init(_ plan:AttributePlan) throws {
         self.plan = plan;observed = Dictionary(uniqueKeysWithValues:plan.observations.map { ($0.source.path,$0) })
-        // Reserve root-parent handles before any mutation; descendants are opened
-        // one at a time, so a 10,000-row preview does not retain 10,000 descriptors.
+        // Root parents and selected inode handles are reserved before any mutation.
+        // Native descriptor limits can reject a large plan without partial changes.
         for root in plan.roots {
             let key = root.source.deletingLastPathComponent().path
             if parents[key] == nil { parents[key] = try AttributeParent(root.anchors) }
@@ -78,12 +79,17 @@ private final class AttributeContext {
             }
         }
     }
-    func reserveRestrictiveRows(_ token:CancellationToken) throws {
-        guard plan.rule.permissions != nil else { return }
+    func reserveRows(_ token:CancellationToken) throws {
+        let restrictedParents = plan.selectedRows.filter { $0.before.isDirectory && ($0.after?.permissions ?? $0.before.permissions) & 0o500 != 0o500 }.map(\.source.path)
         for row in plan.selectedRows {
-            try token.check();guard let mode = row.after?.permissions,mode & 0o400 == 0 || row.before.isDirectory && mode & 0o500 != 0o500 else { continue }
+            try token.check()
             let fd = try open(root:row.root,relative:row.relative)
-            do { guard try AttributeSnapshot.read(fd).version == row.before.version else { throw attributeError("Objekt wurde vor Reservierung des Rücknahmebelegs verändert.") };retained[row.id] = AttributeRetainedFile(fd) }
+            do {
+                guard try AttributeSnapshot.read(fd).version == row.before.version else { throw attributeError("Objekt wurde vor Reservierung des Rücknahmebelegs verändert.") }
+                let held = AttributeRetainedFile(fd);pinned[row.id] = held
+                let mode = row.after?.permissions ?? row.before.permissions
+                if mode & 0o400 == 0 || row.before.isDirectory && mode & 0o500 != 0o500 || restrictedParents.contains(where:{row.source.path.hasPrefix($0+"/")}) { retained[row.id] = held }
+            }
             catch { close(fd);throw error }
         }
     }
@@ -97,43 +103,43 @@ public enum AttributeEngine {
     public static func execute(_ plan:AttributePlan,token:CancellationToken = .init(),progress:@escaping (TransferProgress)->Void = { _ in }) -> AttributeReport {
         let rows = plan.selectedRows.sorted { lhs,rhs in let l = lhs.source.pathComponents.count,r = rhs.source.pathComponents.count;return l == r ? lhs.source.path < rhs.source.path : l > r }
         var report = AttributeReport(),items = plan.initialItems,detail = "Prüfe Eigenschaftsplan …"
-        var context:AttributeContext?,tracked:[(receipt:Int,completed:Int?,row:AttributeRow)] = [],relocations:[String:URL] = [:],recoveryIssue:String?
+        var context:AttributeContext?,tracked:[(receipt:Int,completed:Int?,row:AttributeRow)] = [],recoveryIssue:String?
         let indexes = Dictionary(uniqueKeysWithValues:plan.selectedRows.enumerated().map { ($0.element.id,$0.offset) })
-        func relocate(_ source:URL) -> URL {
-            guard let prefix = relocations.keys.filter({source.path == $0 || source.path.hasPrefix($0+"/")}).max(by:{$0.count < $1.count}),let actual = relocations[prefix] else { return source }
-            let suffix = String(source.path.dropFirst(prefix.count));return suffix.isEmpty ? actual : actual.appendingPathComponent(String(suffix.dropFirst()))
-        }
-        func reconcile(_ fd:Int32? = nil,_ row:AttributeRow? = nil) {
-            for (original,parent) in context?.parents ?? [:] {
-                if let actual = try? parent.path(),actual.path != original { relocations[original] = actual }
+        func reconcile() {
+            // Each completed inode remains pinned until the final callback returns.
+            // A later row's callback can rename or unlink an earlier completed leaf.
+            let restrictedParents = tracked.compactMap { entry -> String? in
+                let receipt = report.receipts[entry.receipt]
+                guard receipt.after.isDirectory,receipt.after.permissions & 0o500 != 0o500,
+                      let held = context?.pinned[entry.row.id],let current = try? AttributeSnapshot.read(held.fd),current.version == receipt.after.version else { return nil }
+                return try? attributeActualPath(held.fd).path
             }
-            if let fd,let row,let actual = try? attributeActualPath(fd),actual.path != row.source.path { relocations[row.source.path] = actual }
             for entry in tracked {
-                let old = report.receipts[entry.receipt],source = relocate(entry.row.source)
-                let moved = source.path != old.source.path
-                if let current = try? AttributeSnapshot.read(source) {
+                let old = report.receipts[entry.receipt]
+                do {
+                    guard let held = context?.pinned[entry.row.id] else { throw attributeError("Dateihandle für einen abgeschlossenen Schritt fehlt.") }
+                    let source = try attributeLinkedPath(held.fd,restrictedParents:restrictedParents),current = try AttributeSnapshot.read(held.fd)
                     if current.version != old.after.version { recoveryIssue = "Ein bereits geändertes Objekt wurde während des Auftrags nochmals verändert: "+source.path }
-                }
-                if moved {
-                    let anchors = (try? attributeAnchors(source.deletingLastPathComponent())) ?? old.anchors
-                    // Relocating a receipt must never reseal its target version.
-                    // Renaming a leaf changes ctime, but a concurrent write can do
-                    // that too. Such a leaf therefore requires a new user review.
-                    report.receipts[entry.receipt] = AttributeReceipt(source:source,before:old.before,after:old.after,anchors:anchors,retained:old.retained)
-                    if let completed = entry.completed { report.completed[completed] = source }
-                    recoveryIssue = "Ein Objekt oder Elternordner wurde während des Auftrags verschoben. Änderungen und Rücknahmebelege am tatsächlichen Ort prüfen: "+source.path
-                }
+                    if source.path != old.source.path {
+                        let anchors = (try? attributeAnchors(source.deletingLastPathComponent())) ?? old.anchors
+                        // Relocation changes paths only, never the post-operation seal.
+                        report.receipts[entry.receipt] = AttributeReceipt(source:source,before:old.before,after:old.after,anchors:anchors,retained:old.retained)
+                        if let completed = entry.completed { report.completed[completed] = source }
+                        recoveryIssue = "Ein Objekt oder Elternordner wurde während des Auftrags verschoben. Änderungen und Rücknahmebelege am tatsächlichen Ort prüfen: "+source.path
+                    }
+                } catch { recoveryIssue = "Abgeschlossener Schritt nicht mehr eindeutig verfügbar: "+old.source.path+" · "+error.localizedDescription }
             }
         }
         func emit() { let done = items.filter { $0.state == .completed }.count;progress(TransferProgress(detail:detail,bytes:0,totalBytes:0,measuredBytes:false,fraction:items.isEmpty ? nil : Double(done)/Double(items.count),items:items));reconcile() }
         emit()
         do {
             try token.check();try plan.rule.validate();guard !rows.isEmpty else { throw attributeError("Keine Eigenschaftsänderung ausgewählt.") }
-            let active = try AttributeContext(plan);context = active;try active.validateAll(token);try active.reserveRestrictiveRows(token)
+            let active = try AttributeContext(plan);context = active;try active.validateAll(token);try active.reserveRows(token)
             report.skipped = plan.rows.filter { !$0.selected }.map(\.source)
             for row in rows {
                 try token.check();let index = indexes[row.id]!;items[index].state = .running;detail = "Eigenschaften ändern · "+row.source.lastPathComponent;emit()
-                let retained = active.retained[row.id],fd = try retained?.fd ?? active.open(root:row.root,relative:row.relative);defer { if retained == nil { close(fd) } }
+                if let recoveryIssue { throw attributeError(recoveryIssue) }
+                guard let pinned = active.pinned[row.id] else { throw attributeError("Vorab reservierter Objekthandle fehlt.") };let retained = active.retained[row.id],fd = pinned.fd
                 let before = try AttributeSnapshot.read(fd)
                 guard before.version == row.before.version,before.isRegularFile || before.isDirectory,let desired = row.after else { throw attributeError("Objekt wurde seit der Vorschau geändert: "+row.source.path) }
                 if plan.rule.accessed.isChanged,before.isRegularFile,before.accessed != row.before.accessed { throw attributeError("Zugriffszeit wurde inzwischen geändert: "+row.source.path) }
@@ -147,7 +153,7 @@ public enum AttributeEngine {
                     try active.validatePath(row,after)
                     let anchors = try attributeAnchors(row.source.deletingLastPathComponent())
                     tracked.append((report.receipts.count,report.completed.count,row));report.completed.append(row.source);report.receipts.append(AttributeReceipt(source:row.source,before:before,after:after,anchors:anchors,retained:retained));recorded = true
-                    items[index].state = .completed;items[index].message = "Eigenschaften geändert";emit();reconcile(fd,row)
+                    items[index].state = .completed;items[index].message = "Eigenschaften geändert";emit()
                     if let recoveryIssue { throw attributeError(recoveryIssue) }
                 } catch {
                     // A syscall may have applied an earlier field before a later one failed.
@@ -170,27 +176,78 @@ public enum AttributeEngine {
     }
     public static func undo(_ receipts:[AttributeReceipt],token:CancellationToken = .init(),progress:@escaping (TransferProgress)->Void = { _ in }) -> AttributeReport {
         var report = AttributeReport()
-        // Restore parent permissions before their children; each row remains guarded
-        // by its own post-change inode/version. A conflict never authorizes a restore.
         let rows = receipts.sorted { $0.source.pathComponents.count < $1.source.pathComponents.count }
+        report.receipts = rows
+        var pinned:[Int:AttributeRetainedFile] = [:],restored:[(row:Int,completed:Int,seal:AttributeSnapshot)] = [],callbackIssue = false,conflicts = Dictionary(uniqueKeysWithValues:rows.enumerated().map { ($0.offset,$0.element) })
+        func error(_ text:String) { if !report.errors.contains(text) { report.errors.append(text) } }
+        func restrictedParents() -> [String] {
+            rows.indices.compactMap { index in
+                let row = rows[index]
+                guard row.after.isDirectory,row.after.permissions & 0o500 != 0o500,let fd = pinned[index]?.fd,
+                      let current = try? AttributeSnapshot.read(fd),current.version == row.after.version else { return nil }
+                return try? attributeActualPath(fd).path
+            }
+        }
+        func reconcile() {
+            let restricted = restrictedParents()
+            for entry in restored {
+                do {
+                    guard let fd = pinned[entry.row]?.fd else { throw attributeError("Rücknahmehandle fehlt.") }
+                    let source = try attributeLinkedPath(fd,restrictedParents:restricted),current = try AttributeSnapshot.read(fd)
+                    let changed = current.version != entry.seal.version,moved = source.path != rows[entry.row].source.path
+                    if changed { callbackIssue = true;error("Ein zurückgenommenes Objekt wurde während der Rücknahme nochmals verändert: "+source.path) }
+                    if source.path != report.completed[entry.completed].path { report.completed[entry.completed] = source;callbackIssue = true;error("Ein zurückgenommenes Objekt wurde während der Rücknahme verschoben. Tatsächlichen Ort prüfen: "+source.path) }
+                    if changed || moved {
+                        let old = rows[entry.row],anchors = (try? attributeAnchors(source.deletingLastPathComponent())) ?? old.anchors
+                        conflicts[entry.row] = AttributeReceipt(source:source,before:old.before,after:old.after,anchors:anchors,retained:old.retained)
+                    } else { conflicts.removeValue(forKey:entry.row) }
+                } catch let failure { callbackIssue = true;if conflicts[entry.row] == nil { conflicts[entry.row] = rows[entry.row] };error("Zurückgenommenes Objekt nicht mehr eindeutig verfügbar: "+rows[entry.row].source.path+" · "+failure.localizedDescription) }
+            }
+        }
+        // Pin all still-valid objects before the first restore. Descendants made
+        // inaccessible by this operation already have retained session handles.
+        // Resource exhaustion aborts before any metadata is restored.
         for (index,row) in rows.enumerated() {
+            do {
+                try token.check()
+                if let held = row.retained { pinned[index] = held }
+                else {
+                    try attributeValidateAnchors(row.anchors)
+                    let parent = try attributeOpenAnchors(try attributeAnchors(row.source.deletingLastPathComponent()));defer { close(parent) }
+                    let fd = openat(parent,row.source.lastPathComponent,O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK)
+                    guard fd >= 0 else {
+                        if errno == EMFILE || errno == ENFILE { error("Nicht genug Dateihandles für eine vollständig geprüfte Rücknahme. Es wurde nichts zurückgenommen.");return report }
+                        throw attributeError("Objekt für eine sichere Rücknahme nicht lesbar: "+row.source.path)
+                    }
+                    pinned[index] = AttributeRetainedFile(fd)
+                }
+                guard let fd = pinned[index]?.fd,try AttributeSnapshot.read(fd).version == row.after.version else { pinned.removeValue(forKey:index);throw attributeError("Objekt wurde nach der Änderung verändert; keine Rücknahme: "+row.source.path) }
+            } catch let failure {
+                if let system = failure as? AttributeSystemError,system.code == EMFILE || system.code == ENFILE { error("Nicht genug Dateihandles für eine vollständig geprüfte Rücknahme. Es wurde nichts zurückgenommen.");return report }
+                error(failure.localizedDescription);if token.isCancelled { return report }
+            }
+        }
+        for (index,row) in rows.enumerated() {
+            guard let fd = pinned[index]?.fd else { continue }
             do {
                 try token.check();try attributeValidateAnchors(row.anchors)
                 let parentAnchors = try attributeAnchors(row.source.deletingLastPathComponent()),parent = try attributeOpenAnchors(parentAnchors);defer { close(parent) }
-                let retained = row.retained,fd = retained?.fd ?? openat(parent,row.source.lastPathComponent,O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK);guard fd >= 0 else { throw attributeError("Objekt für eine sichere Rücknahme nicht lesbar: "+row.source.path) };defer { if retained == nil { close(fd) } }
                 let before = try AttributeSnapshot.read(fd)
                 guard before.version == row.after.version,try AttributeSnapshot.read(parent,row.source.lastPathComponent).version == row.after.version,
-                      try attributeActualPath(fd).path == row.source.path,
+                      try attributeLinkedPath(fd,restrictedParents:restrictedParents()).path == row.source.path,
                       row.before.accessed == row.after.accessed || before.accessed == row.after.accessed else { throw attributeError("Objekt wurde nach der Änderung verändert; keine Rücknahme: "+row.source.path) }
                 let old = AttributeValues(row.before)
                 try apply(fd,before:before,desired:old,permissions:row.before.permissions != row.after.permissions,created:row.before.created != row.after.created,modified:row.before.modified != row.after.modified,accessed:row.before.accessed != row.after.accessed)
                 let after = try AttributeSnapshot.read(fd)
                 guard after.version.sameObject(row.before.version),after.permissions == row.before.permissions,after.created == row.before.created,after.modified == row.before.modified,
                       row.before.accessed == row.after.accessed || after.accessed == row.before.accessed else { throw attributeError("Rücknahme konnte nicht vollständig bestätigt werden: "+row.source.path) }
-                report.completed.append(row.source)
+                restored.append((index,report.completed.count,after));report.completed.append(row.source)
                 progress(TransferProgress(detail:"Eigenschaften zurückgenommen · "+row.source.lastPathComponent,bytes:0,totalBytes:0,measuredBytes:false,fraction:Double(index+1)/Double(rows.count),items:[]))
-            } catch { report.errors.append(error.localizedDescription);if token.isCancelled { break } }
+                reconcile();if callbackIssue { break }
+            } catch let failure { error(failure.localizedDescription);if token.isCancelled { break } }
         }
+        progress(TransferProgress(detail:report.errors.isEmpty ? "Rücknahme abgeschlossen" : "Rücknahme beendet · Belege prüfen",bytes:0,totalBytes:0,measuredBytes:false,fraction:rows.isEmpty ? nil : Double(report.completed.count)/Double(rows.count),items:[]));reconcile()
+        report.receipts = conflicts.keys.sorted().compactMap { conflicts[$0] }
         return report
     }
     private static func apply(_ fd:Int32,before:AttributeSnapshot,desired:AttributeValues,permissions:Bool,created:Bool,modified:Bool,accessed:Bool) throws {
@@ -240,3 +297,16 @@ func attributeChildren(_ fd:Int32) throws -> [String] {
     guard errno == 0 else { throw attributeFailure("Ordnerinhalt") };return result.sorted()
 }
 private func attributeActualPath(_ fd:Int32) throws -> URL { var path = [CChar](repeating:0,count:Int(MAXPATHLEN));guard fcntl(fd,F_GETPATH,&path) == 0 else { throw attributeFailure("Aktueller Objektpfad") };return URL(fileURLWithPath:String(cString:path)) }
+private func attributeLinkedPath(_ fd:Int32,restrictedParents:[String]) throws -> URL {
+    var value = stat();guard fstat(fd,&value) == 0 else { throw attributeFailure("Objektbeleg") }
+    guard value.st_nlink > 0 else { throw attributeError("Objekt wurde gelöscht oder durch einen anderen Eintrag ersetzt.") }
+    let source = try attributeActualPath(fd);var named = stat()
+    if lstat(source.path,&named) == 0 { guard RenameVersion(named).sameObject(RenameVersion(value)) else { throw attributeError("Der tatsächliche Objektpfad gehört inzwischen zu einem anderen Eintrag.") } }
+    else {
+        // Own directory permission changes can intentionally remove search access.
+        // The pinned live vnode plus an unchanged restricted ancestor is still a
+        // valid receipt; ENOENT/other failures are never treated as success.
+        guard errno == EACCES,restrictedParents.contains(where:{source.path.hasPrefix($0+"/")}) else { throw attributeFailure("Tatsächlicher Objektpfad nicht verfügbar") }
+    }
+    return source
+}

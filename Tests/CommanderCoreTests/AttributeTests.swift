@@ -209,4 +209,36 @@ extension CoreTests {
         } })
         XCTAssertTrue(changed);XCTAssertFalse(report.errors.isEmpty);XCTAssertEqual(report.receipts.map(\.source),[attributeURL(moved)]);XCTAssertFalse(AttributeEngine.undo(report.receipts).errors.isEmpty);XCTAssertEqual(try read(moved),"new!");XCTAssertEqual(try attributeStat(moved).st_mode & 0o777,0o600)
     }
+    func testAttributeEarlierCompletedLeafMoveOnLaterCallbackIsReportedAndRebased() throws {
+        let a = try file("a.txt","A"),b = try file("b.txt","B"),moved = root.appendingPathComponent("Moved-A.txt"),plan = try AttributePlan.prepare(sources:[a,b],rule:attributeRule(mode:0o600));var renamed = false
+        let report = AttributeEngine.execute(plan,progress:{ value in if !renamed,value.detail == "Eigenschaften ändern · b.txt" { renamed = true;try! FileManager.default.moveItem(at:a,to:moved) } })
+        XCTAssertTrue(renamed);XCTAssertFalse(report.errors.isEmpty);XCTAssertEqual(report.completed,[attributeURL(moved)]);XCTAssertEqual(report.receipts.map(\.source),[attributeURL(moved)]);XCTAssertEqual(try attributeStat(b).st_mode & 0o777,0o644)
+        XCTAssertFalse(AttributeEngine.undo(report.receipts).errors.isEmpty);XCTAssertEqual(try attributeStat(moved).st_mode & 0o777,0o600);XCTAssertEqual(try read(moved),"A")
+    }
+    func testAttributeCompletedLeafDeletionProducesConflictInsteadOfSuccess() throws {
+        let source = try file("a.txt","keep"),plan = try AttributePlan.prepare(sources:[source],rule:attributeRule(mode:0o600));var deleted = false
+        let report = AttributeEngine.execute(plan,progress:{ value in if !deleted,value.items.contains(where:{$0.state == .completed}) { deleted = true;try! FileManager.default.removeItem(at:source) } })
+        XCTAssertTrue(deleted);XCTAssertFalse(report.errors.isEmpty);XCTAssertEqual(report.receipts.count,1);XCTAssertFalse(FileSystem.exists(source));XCTAssertFalse(AttributeEngine.undo(report.receipts).errors.isEmpty)
+    }
+    func testAttributeFinalCallbackDeletionCannotReturnSuccess() throws {
+        let source = try file("a.txt","keep"),plan = try AttributePlan.prepare(sources:[source],rule:attributeRule(mode:0o600));var deleted = false
+        let report = AttributeEngine.execute(plan,progress:{ value in if !deleted,value.detail == "Eigenschaftsänderungen abgeschlossen" { deleted = true;try! FileManager.default.removeItem(at:source) } })
+        XCTAssertTrue(deleted);XCTAssertFalse(report.errors.isEmpty);XCTAssertEqual(report.receipts.count,1);XCTAssertFalse(FileSystem.exists(source))
+    }
+    func testAttributeUndoFinalCallbackMoveReturnsActualCompletedPathAndConflict() throws {
+        let source = try file("a.txt","keep"),moved = root.appendingPathComponent("Restored-Moved.txt"),report = AttributeEngine.execute(try AttributePlan.prepare(sources:[source],rule:attributeRule(mode:0o600)));var renamed = false
+        let undone = AttributeEngine.undo(report.receipts,progress:{ value in if !renamed,value.detail == "Rücknahme abgeschlossen" { renamed = true;try! FileManager.default.moveItem(at:source,to:moved) } })
+        XCTAssertTrue(renamed);XCTAssertFalse(undone.errors.isEmpty);XCTAssertEqual(undone.completed,[attributeURL(moved)]);XCTAssertFalse(FileSystem.exists(source));XCTAssertEqual(try attributeStat(moved).st_mode & 0o777,0o644);XCTAssertEqual(try read(moved),"keep")
+    }
+    func testAttributeUndoCompletedLeafDeletionProducesConflict() throws {
+        let source = try file("a.txt","keep"),report = AttributeEngine.execute(try AttributePlan.prepare(sources:[source],rule:attributeRule(mode:0o600)));var deleted = false
+        let undone = AttributeEngine.undo(report.receipts,progress:{ value in if !deleted,value.detail.hasPrefix("Eigenschaften zurückgenommen ·") { deleted = true;try! FileManager.default.removeItem(at:source) } })
+        XCTAssertTrue(deleted);XCTAssertFalse(undone.errors.isEmpty);XCTAssertFalse(FileSystem.exists(source))
+    }
+    func testAttributeRecursiveReadOnlyModeRetainsDescendantUndoAfterReturn() throws {
+        let directory = try folder("Tree"),sub = try folder("Tree/Sub"),child = try file("Tree/Sub/a.txt","keep");defer { _ = chmod(directory.path,0o755);_ = chmod(sub.path,0o755);_ = chmod(child.path,0o644) }
+        let report = AttributeEngine.execute(try AttributePlan.prepare(sources:[directory],rule:attributeRule(mode:0o400,recursive:true)))
+        XCTAssertTrue(report.errors.isEmpty,report.errors.joined(separator:"\n"));XCTAssertEqual(report.receipts.count,3)
+        let undone = AttributeEngine.undo(report.receipts);XCTAssertTrue(undone.errors.isEmpty,undone.errors.joined(separator:"\n"));XCTAssertEqual(undone.completed.count,3);XCTAssertEqual(try attributeStat(directory).st_mode & 0o777,0o755);XCTAssertEqual(try attributeStat(sub).st_mode & 0o777,0o755);XCTAssertEqual(try attributeStat(child).st_mode & 0o777,0o644);XCTAssertEqual(try read(child),"keep")
+    }
 }
