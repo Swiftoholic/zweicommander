@@ -148,7 +148,7 @@ extension CoreTests {
         let a = try toolFile("First"),b = try toolFile("Fail"),c = try toolFile("Last"),log = root.appendingPathComponent("Log"),executable = try script("Runner","if [ \"$1\" = Fail ]; then /usr/bin/printf 'failure details'; exit 7; fi\n/usr/bin/printf '%s\\n' \"$1\" >> \"$2\"")
         var value = ExternalTool(title:"Partial",target:executable.path,arguments:["{name}",log.path]);value.perSelection = true
         let result = try ExternalToolPlanner.execute(ExternalToolPlanner.prepare(value,context:context([a,b,c])))
-        XCTAssertEqual(result.completed,1);XCTAssertEqual(result.planned,3);XCTAssertFalse(result.succeeded);XCTAssertTrue(result.error?.contains("7") == true);XCTAssertTrue(result.error?.contains("failure details") == true);XCTAssertEqual(try read(log),"First\n")
+        XCTAssertEqual(result.completed,1);XCTAssertEqual(result.planned,3);XCTAssertFalse(result.succeeded);XCTAssertTrue(result.error?.contains("7") == true);XCTAssertTrue(result.output.contains("failure details"));XCTAssertEqual(try read(log),"First\n")
     }
     func testExternalToolsOwnFirstFileChangesDoNotInvalidateIndependentLaterCalls() throws {
         let a = try toolFile("A"),b = try toolFile("B"),executable = try script("Runner","/usr/bin/printf changed >> \"$1\"")
@@ -242,5 +242,44 @@ extension CoreTests {
         let executable = try script("Runner","if [ -e /dev/fd/\"$1\" ]; then /usr/bin/printf leaked; else /usr/bin/printf closed; fi")
         let plan = try ExternalToolPlanner.prepare(ExternalTool(title:"Descriptor check",target:executable.path,arguments:[String(inherited)]),context:context())
         let result = try ExternalToolPlanner.execute(plan);XCTAssertTrue(result.succeeded);XCTAssertTrue(result.output.contains("closed"));XCTAssertFalse(result.output.contains("leaked"))
+    }
+    func testExternalToolsWaitForInheritedOutputAfterDirectChildExit() throws {
+        let executable = try script("Runner","(/bin/sleep 0.2; /usr/bin/printf 'late descendant output') &\nexit 0"),plan = try ExternalToolPlanner.prepare(ExternalTool(title:"Late output",target:executable.path),context:context()),started = Date()
+        let result = try ExternalToolPlanner.execute(plan)
+        XCTAssertTrue(result.succeeded);XCTAssertTrue(result.output.contains("late descendant output"));XCTAssertTrue(Date().timeIntervalSince(started) >= 0.15)
+    }
+    func testExternalToolsBoundLateDescendantOutputAndStopItsProcessGroup() throws {
+        let marker = root.appendingPathComponent("Wrote 64 MiB"),executable = try script("Runner","(/bin/sleep 0.2; /bin/dd if=/dev/zero bs=1048576 count=64 2>/dev/null; /usr/bin/touch \"$1\") &\nexit 0")
+        var value = ExternalTool(title:"Bound output",target:executable.path,arguments:[marker.path]);value.timeoutSeconds = 20
+        let result = try ExternalToolPlanner.execute(ExternalToolPlanner.prepare(value,context:context()));Thread.sleep(forTimeInterval:0.2)
+        XCTAssertFalse(result.succeeded);XCTAssertEqual(result.completed,0);XCTAssertTrue(result.error?.contains("32 MiB") == true);XCTAssertTrue(result.output.utf8.count <= 4*1024*1024+100);XCTAssertTrue((result.error?.utf8.count ?? 0) < 200);XCTAssertFalse(FileSystem.exists(marker))
+    }
+    func testExternalToolsHeldCapturePipeStillHonorsTimeoutAfterParentExit() throws {
+        let executable = try script("Runner","(/bin/sleep 5) &\nexit 0");var value = ExternalTool(title:"Held output",target:executable.path);value.timeoutSeconds = 1
+        let started = Date(),result = try ExternalToolPlanner.execute(ExternalToolPlanner.prepare(value,context:context()))
+        XCTAssertFalse(result.succeeded);XCTAssertEqual(result.completed,0);XCTAssertTrue(result.error?.contains("Zeitlimit") == true);XCTAssertTrue(Date().timeIntervalSince(started) < 3)
+    }
+    func testExternalToolsHeldCapturePipeCanBeCancelledAfterParentExit() throws {
+        let marker = root.appendingPathComponent("Child escaped"),executable = try script("Runner","(/bin/sleep 1; /usr/bin/touch \"$1\") &\nexit 0"),token = CancellationToken(),plan = try ExternalToolPlanner.prepare(ExternalTool(title:"Cancel orphan",target:executable.path,arguments:[marker.path]),context:context())
+        DispatchQueue.global().asyncAfter(deadline:.now()+0.2) { token.cancel() }
+        let result = try ExternalToolPlanner.execute(plan,token:token);Thread.sleep(forTimeInterval:1.1)
+        XCTAssertTrue(result.cancelled);XCTAssertEqual(result.completed,0);XCTAssertFalse(FileSystem.exists(marker))
+    }
+    func testExternalToolsExplicitlyRedirectedBackgroundWorkDoesNotHoldCapture() throws {
+        let marker = root.appendingPathComponent("Redirected child finished"),executable = try script("Runner","(/bin/sleep 1; /usr/bin/touch \"$1\") >/dev/null 2>&1 &\nexit 0")
+        let result = try ExternalToolPlanner.execute(ExternalToolPlanner.prepare(ExternalTool(title:"Redirected background",target:executable.path,arguments:[marker.path]),context:context()))
+        XCTAssertTrue(result.succeeded);XCTAssertFalse(FileSystem.exists(marker));Thread.sleep(forTimeInterval:1.2);XCTAssertTrue(FileSystem.exists(marker))
+    }
+    func testExternalToolsClosedCaptureDoesNotMaskLaterDirectChildFailure() throws {
+        let executable = try script("Runner","exec >/dev/null 2>&1\n/bin/sleep 0.2\nexit 7"),started = Date()
+        let result = try ExternalToolPlanner.execute(ExternalToolPlanner.prepare(ExternalTool(title:"Closed capture",target:executable.path),context:context()))
+        XCTAssertFalse(result.succeeded);XCTAssertEqual(result.completed,0);XCTAssertTrue(result.error?.contains("7") == true);XCTAssertTrue(Date().timeIntervalSince(started) >= 0.15)
+    }
+    func testExternalToolsDetachedCaptureWriterCannotRetainUnboundedOutputOrHang() throws {
+        let pidFile = root.appendingPathComponent("Detached child pid"),executable = try script("Runner","/usr/bin/python3 -c 'import os,sys,time; os.setsid(); open(sys.argv[1],\"w\").write(str(os.getpid())); time.sleep(30)' \"$1\" &\nexit 0")
+        var value = ExternalTool(title:"Detached capture",target:executable.path,arguments:[pidFile.path]);value.timeoutSeconds = 1
+        let started = Date(),result = try ExternalToolPlanner.execute(ExternalToolPlanner.prepare(value,context:context()))
+        if let pid = Int32(try read(pidFile)),getpgid(pid) == pid { defer { kill(pid,SIGKILL) };XCTAssertFalse(result.succeeded);XCTAssertTrue(result.error?.contains("Zeitlimit") == true);XCTAssertTrue(Date().timeIntervalSince(started) < 4) }
+        else { throw CommanderError.message("Detached fixture process did not report its identity") }
     }
 }

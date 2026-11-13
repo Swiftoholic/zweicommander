@@ -131,7 +131,14 @@ public enum ExternalToolPlanner {
                 let text = try ExternalToolProcess.run(plan,invocation:index,token:token)
                 completed += 1;output += "AUFRUF \(index+1)\n"+text+"\n";progress(completed,plan.invocations.count)
                 if output.utf8.count > 4_194_304 { output = String(decoding:output.utf8.prefix(4_194_304),as:UTF8.self)+"\n[Gesamtausgabe auf 4 MiB begrenzt]" }
-            } catch let failure { cancelled = token.isCancelled;error = failure.localizedDescription;break }
+            } catch let failure {
+                cancelled = token.isCancelled;error = failure.localizedDescription
+                if let captured = failure as? ExternalToolProcessFailure {
+                    output += "AUFRUF \(index+1)\n"+captured.output+"\n"
+                    if output.utf8.count > 4_194_304 { output = String(decoding:output.utf8.prefix(4_194_304),as:UTF8.self)+"\n[Gesamtausgabe auf 4 MiB begrenzt]" }
+                }
+                break
+            }
         }
         return ExternalToolExecutionResult(completed:completed,planned:plan.invocations.count,cancelled:cancelled,output:output,error:error)
     }
