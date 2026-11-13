@@ -445,6 +445,23 @@ func XCTAssertThrowsError<T>(_ expression: @autoclosure () throws -> T, file: St
 }
 
 let tests: [(String, (CoreTests) throws -> Void)] = [
+    ("testLaunchEmptyRequestDoesNotInventTargets", { try $0.testLaunchEmptyRequestDoesNotInventTargets() }),
+    ("testLaunchTwoDirectoriesAndExplicitActiveSide", { try $0.testLaunchTwoDirectoriesAndExplicitActiveSide() }),
+    ("testLaunchPositionalFileSelectsItInItsParent", { try $0.testLaunchPositionalFileSelectsItInItsParent() }),
+    ("testLaunchRelativePathsAndExplicitSelection", { try $0.testLaunchRelativePathsAndExplicitSelection() }),
+    ("testLaunchTwoPositionalPathsAndMixedRightOption", { try $0.testLaunchTwoPositionalPathsAndMixedRightOption() }),
+    ("testLaunchLocalFileURLsAndUnicodePercentEscapes", { try $0.testLaunchLocalFileURLsAndUnicodePercentEscapes() }),
+    ("testLaunchRejectsRemoteCredentialAndQueryURLs", { try $0.testLaunchRejectsRemoteCredentialAndQueryURLs() }),
+    ("testLaunchRejectsMissingDuplicateUnknownOrAmbiguousOptions", { try $0.testLaunchRejectsMissingDuplicateUnknownOrAmbiguousOptions() }),
+    ("testLaunchSelectionCannotEscapeChosenFolder", { try $0.testLaunchSelectionCannotEscapeChosenFolder() }),
+    ("testLaunchSelectsDanglingLinkWithoutFollowingIt", { try $0.testLaunchSelectsDanglingLinkWithoutFollowingIt() }),
+    ("testLaunchDetectsReplacedFileBeforeApplyingEitherSide", { try $0.testLaunchDetectsReplacedFileBeforeApplyingEitherSide() }),
+    ("testLaunchDetectsChangedSelectedFileButAllowsUnrelatedDirectoryActivity", { try $0.testLaunchDetectsChangedSelectedFileButAllowsUnrelatedDirectoryActivity() }),
+    ("testLaunchDetectsReplacedDirectory", { try $0.testLaunchDetectsReplacedDirectory() }),
+    ("testLaunchRejectsSpecialTargetsAndOversizedArguments", { try $0.testLaunchRejectsSpecialTargetsAndOversizedArguments() }),
+    ("testLaunchLiteralDashFilenameAndFinderProcessSerialNumber", { try $0.testLaunchLiteralDashFilenameAndFinderProcessSerialNumber() }),
+    ("testLaunchHomeAndActiveOnlyRequests", { try $0.testLaunchHomeAndActiveOnlyRequests() }),
+    ("testLaunchLegacyImportArgumentsDoNotBecomeNavigationTargets", { try $0.testLaunchLegacyImportArgumentsDoNotBecomeNavigationTargets() }),
     ("testArchiveWriterUsesPrivateStagingAndPrivateFinalFile", { try $0.testArchiveWriterUsesPrivateStagingAndPrivateFinalFile() }),
     ("testArchiveWriterRejectsSourceReplacedWithPipeBeforeOpen", { try $0.testArchiveWriterRejectsSourceReplacedWithPipeBeforeOpen() }),
     ("testArchiveWorkflowsRejectForeignFileHostsAndVirtualAddresses", { try $0.testArchiveWorkflowsRejectForeignFileHostsAndVirtualAddresses() }),

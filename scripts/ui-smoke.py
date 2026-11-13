@@ -234,7 +234,10 @@ def fixtures(base):
     for target in (mirror, archive_edit, media_metadata, package_integration):
         for side in ("Links", "Rechts"):
             (target / side).mkdir(parents=True)
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive, archive_merge, file_diff, advanced_search, viewer, tools_integration, mirror, archive_edit, media_metadata, package_integration
+    launch = base / "launch"
+    for side in ("Links", "Rechts"):
+        (launch / side).mkdir(parents=True)
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive, archive_merge, file_diff, advanced_search, viewer, tools_integration, mirror, archive_edit, media_metadata, package_integration, launch
 
 
 def main():
@@ -312,9 +315,10 @@ def main():
             ("archive-edit", "--archive-edit-smoke", roots[28], str(prefix), "ARCHIVE EDIT UI PASS ", "ARCHIVE EDIT SMOKE PASS 39 checks", 39),
             ("media-metadata", "--media-metadata-smoke", roots[29], str(prefix), "MEDIA METADATA UI PASS ", "MEDIA METADATA SMOKE PASS 42 checks", 42),
             ("package-integration", "--package-integration-smoke", roots[30], str(prefix), "PACKAGE INTEGRATION UI PASS ", "PACKAGE INTEGRATION SMOKE PASS 26 checks", 26),
+            ("launch", "--launch-smoke", roots[31], str(prefix), "LAUNCH UI PASS ", "LAUNCH SMOKE PASS 24 checks", 24),
         ]
         if args.skip_foreground:
-            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload", "archive", "archive-merge", "file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration"}
+            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload", "archive", "archive-merge", "file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration", "launch"}
             skipped = [case for case in cases if case[0] in foreground]
             cases = [case for case in cases if case[0] not in foreground]
             print("Ausgelassen: " + ", ".join(case[0] for case in skipped) + " · " + str(sum(case[-1] for case in skipped)) + " Vordergrundprüfungen offen", flush=True)
@@ -405,7 +409,7 @@ def main():
                     command += ["--wait-for-foreground"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
-                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=240 if name in {"file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration"} else 180 if name in {"archive", "archive-merge"} or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
+                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=240 if name in {"file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration", "launch"} else 180 if name in {"archive", "archive-merge"} or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
                     except subprocess.TimeoutExpired:
                         raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
                 output = (args.results / (name + ".log")).read_text(encoding="utf-8")

@@ -3,6 +3,7 @@ import CommanderCore
 
 final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
     var main:MainWindow!
+    var startupRequest: LaunchRequest?
     static let menuDefinitions:[(String,[(String,String,String)])] = [
         ("Datei",[("Öffnen","open","cmd+o"),("Ordner in neuem Tab öffnen","openInNewTab","cmd+return"),("Ordner auf anderer Seite öffnen","openInOther","cmd+option+return"),("Ordner in neuem Tab auf anderer Seite","openInOtherTab","cmd+option+o"),("Vorschau","preview","F3"),("Mit TextEdit bearbeiten","edit","F4"),("Neuer Ordner …","newFolder","F7"),("Neue Datei …","newFile","shift+F4"),("—","",""),("Kopieren …","copy","F5"),("Verschieben …","move","F6"),("Umbenennen …","rename","F2"),("Mehrfachumbenennen …","batchRename","cmd+shift+m"),("In den Papierkorb …","trash","F8"),("—","",""),("Archiv erstellen …","pack","option+F5"),("Archiv bearbeiten …","archiveEdit","cmd+shift+e"),("Archiv entpacken …","extract","option+F6"),("Zum Archivcontainer","archiveContainer","cmd+option+up"),("Archivpasswort …","archivePassword",""),("Symbolische Verknüpfung …","symlink",""),("Eigenschaften","properties","cmd+i"),("Medieninformationen …","mediaMetadata","cmd+option+i"),("Rechte und Datum …","attributes","")]),
         ("Bearbeiten",[("Rückgängig","undo","cmd+z"),("Ausschneiden","clipboardCut","cmd+x"),("Kopieren","clipboardCopy","cmd+c"),("Einfügen …","clipboardPaste","cmd+v"),("—","",""),("Namen kopieren","copyNames","cmd+option+c"),("Namen ohne Endung kopieren","copyStems","cmd+option+shift+c"),("Vollständige Pfade kopieren","copyPath","cmd+shift+c"),("Datei-URLs kopieren","copyURLs",""),("Als Shell-Argumente kopieren","copyShellPaths",""),("Als Tabelle kopieren","copySelectionTable",""),("—","",""),("Alles auswählen","selectAll","cmd+a")]),
@@ -17,39 +18,41 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
     ]
     func applicationDidFinishLaunching(_ notification:Notification) {
         let args = CommandLine.arguments
-        let smoke = args.firstIndex(of:"--smoke-test")
-        let operationsSmoke = args.firstIndex(of:"--operations-smoke")
-        let filtersSmoke = args.firstIndex(of:"--filters-smoke")
-        let mergeSmoke = args.firstIndex(of:"--merge-smoke")
-        let profilesSmoke = args.firstIndex(of:"--profiles-smoke")
-        let journalSmoke = args.firstIndex(of:"--journal-smoke")
-        let ageSmoke = args.firstIndex(of:"--age-smoke")
-        let workspaceSmoke = args.firstIndex(of:"--workspace-smoke")
-        let renameSmoke = args.firstIndex(of:"--rename-smoke")
-        let searchSmoke = args.firstIndex(of:"--search-smoke")
-        let appearanceSmoke = args.firstIndex(of:"--appearance-smoke")
-        let uxSmoke = args.firstIndex(of:"--ux-smoke")
-        let railSmoke = args.firstIndex(of:"--rail-smoke")
-        let navigationSmoke = args.firstIndex(of:"--navigation-smoke")
-        let fileUXSmoke = args.firstIndex(of:"--file-ux-smoke")
-        let recoverySmoke = args.firstIndex(of:"--recovery-smoke")
-        let remoteSmoke = args.firstIndex(of:"--remote-smoke")
-        let serverPaneSmoke = args.firstIndex(of:"--server-pane-smoke")
-        let selectionSmoke = args.firstIndex(of:"--selection-smoke")
-        let tabsSmoke = args.firstIndex(of:"--tabs-smoke")
-        let layoutSmoke = args.firstIndex(of:"--layout-smoke")
-        let archiveSmoke = args.firstIndex(of:"--archive-smoke")
-        let archiveMergeSmoke = args.firstIndex(of:"--archive-merge-smoke")
-        let fileDiffSmoke = args.firstIndex(of:"--file-diff-smoke")
-        let advancedSearchSmoke = args.firstIndex(of:"--advanced-search-smoke")
-        let viewerSmoke = args.firstIndex(of:"--viewer-smoke")
-        let toolsIntegrationSmoke = args.firstIndex(of:"--tools-integration-smoke")
-        let mirrorSmoke = args.firstIndex(of:"--mirror-smoke")
-        let archiveEditSmoke = args.firstIndex(of:"--archive-edit-smoke")
-        let mediaMetadataSmoke = args.firstIndex(of:"--media-metadata-smoke")
-        let packageIntegrationSmoke = args.firstIndex(of:"--package-integration-smoke")
-        let compareSmoke = args.firstIndex(of:"--compare-smoke")
-        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke,serverPaneSmoke,selectionSmoke,tabsSmoke,layoutSmoke,archiveSmoke,archiveMergeSmoke,fileDiffSmoke,advancedSearchSmoke,viewerSmoke,toolsIntegrationSmoke,mirrorSmoke,archiveEditSmoke,mediaMetadataSmoke,packageIntegrationSmoke].compactMap { $0 }.first
+        func testFlag(_ flag: String) -> Int? { args.count > 1 && args[1] == flag ? 1 : nil }
+        let smoke = testFlag("--smoke-test")
+        let operationsSmoke = testFlag("--operations-smoke")
+        let filtersSmoke = testFlag("--filters-smoke")
+        let mergeSmoke = testFlag("--merge-smoke")
+        let profilesSmoke = testFlag("--profiles-smoke")
+        let journalSmoke = testFlag("--journal-smoke")
+        let ageSmoke = testFlag("--age-smoke")
+        let workspaceSmoke = testFlag("--workspace-smoke")
+        let renameSmoke = testFlag("--rename-smoke")
+        let searchSmoke = testFlag("--search-smoke")
+        let appearanceSmoke = testFlag("--appearance-smoke")
+        let uxSmoke = testFlag("--ux-smoke")
+        let railSmoke = testFlag("--rail-smoke")
+        let navigationSmoke = testFlag("--navigation-smoke")
+        let fileUXSmoke = testFlag("--file-ux-smoke")
+        let recoverySmoke = testFlag("--recovery-smoke")
+        let remoteSmoke = testFlag("--remote-smoke")
+        let serverPaneSmoke = testFlag("--server-pane-smoke")
+        let selectionSmoke = testFlag("--selection-smoke")
+        let tabsSmoke = testFlag("--tabs-smoke")
+        let layoutSmoke = testFlag("--layout-smoke")
+        let archiveSmoke = testFlag("--archive-smoke")
+        let archiveMergeSmoke = testFlag("--archive-merge-smoke")
+        let fileDiffSmoke = testFlag("--file-diff-smoke")
+        let advancedSearchSmoke = testFlag("--advanced-search-smoke")
+        let viewerSmoke = testFlag("--viewer-smoke")
+        let toolsIntegrationSmoke = testFlag("--tools-integration-smoke")
+        let mirrorSmoke = testFlag("--mirror-smoke")
+        let archiveEditSmoke = testFlag("--archive-edit-smoke")
+        let mediaMetadataSmoke = testFlag("--media-metadata-smoke")
+        let packageIntegrationSmoke = testFlag("--package-integration-smoke")
+        let launchSmoke = testFlag("--launch-smoke")
+        let compareSmoke = testFlag("--compare-smoke")
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke,serverPaneSmoke,selectionSmoke,tabsSmoke,layoutSmoke,archiveSmoke,archiveMergeSmoke,fileDiffSmoke,advancedSearchSmoke,viewerSmoke,toolsIntegrationSmoke,mirrorSmoke,archiveEditSmoke,mediaMetadataSmoke,packageIntegrationSmoke,launchSmoke].compactMap { $0 }.first
         Preferences.testMode = testIndex != nil
         if Preferences.testMode { setvbuf(stdout,nil,_IOLBF,0) }
         if Preferences.testMode { Preferences.state = SavedState() }
@@ -99,7 +102,14 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         main = MainWindow(startLeft:restoringWorkspace || restoringLayout ? nil : root?.appendingPathComponent("Links"),startRight:restoringWorkspace || restoringLayout ? nil : root?.appendingPathComponent("Rechts"))
         main.onRebuildMenus = { [weak self] in self?.buildMenus(); self?.main.updateFunctionLabels() }
         buildMenus(); main.showWindow(nil); main.active.focus()
+        if !Preferences.testMode, let request = startupRequest {
+            do { try main.applyLaunchRequest(request) }
+            catch { showFailure(error) }
+        }
         NSApp.activate(ignoringOtherApps:true)
+        if let launchSmoke,args.indices.contains(launchSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runLaunchSmoke(root:root,prefix:args[launchSmoke+2]) }
+        }
         if let mirrorSmoke,args.indices.contains(mirrorSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runMirrorSmoke(root:root,prefix:args[mirrorSmoke+2]) }
         }
@@ -394,8 +404,16 @@ if let index = CommandLine.arguments.firstIndex(of:"--inspect-binary"),CommandLi
     do { print(try BinaryInspector.describe(URL(fileURLWithPath:CommandLine.arguments[index+1])) ?? "Kein PE-/Mach-O-Binärformat.");exit(0) }
     catch { fputs(error.localizedDescription+"\n",stderr);exit(2) }
 }
+let launchArguments = Array(CommandLine.arguments.dropFirst())
+if launchArguments == ["--help"] { print(LaunchRequest.usage);exit(0) }
+if launchArguments == ["--version"] { print(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "0.26.0");exit(0) }
+let internalTestFlags: Set<String> = ["--advanced-search-smoke","--age-smoke","--appearance-smoke","--archive-edit-smoke","--archive-merge-smoke","--archive-smoke","--compare-smoke","--file-diff-smoke","--file-ux-smoke","--filters-smoke","--journal-smoke","--launch-smoke","--layout-smoke","--media-metadata-smoke","--merge-smoke","--mirror-smoke","--navigation-smoke","--operations-smoke","--package-integration-smoke","--profiles-smoke","--rail-smoke","--recovery-smoke","--remote-smoke","--rename-smoke","--search-smoke","--selection-smoke","--server-pane-smoke","--smoke-test","--tabs-smoke","--tools-integration-smoke","--ux-smoke","--viewer-smoke","--workspace-smoke"]
+let launchRequest: LaunchRequest?
+do { launchRequest = launchArguments.first.map(internalTestFlags.contains) == true ? nil : try LaunchRequest.parse(launchArguments) }
+catch { fputs("Start fehlgeschlagen: \(error.localizedDescription)\nHilfe: --help\n",stderr);exit(2) }
 let app = NSApplication.shared
 app.setActivationPolicy(.regular)
 let delegate = AppDelegate()
+delegate.startupRequest = launchRequest
 app.delegate = delegate
 app.run()
