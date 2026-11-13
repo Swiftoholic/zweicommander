@@ -7,7 +7,8 @@ extension AppDelegate {
             var checks = 0,failures:[String] = []
             let suite = "local.zweicommander.tests."+UUID().uuidString
             guard let testDefaults = UserDefaults(suiteName:suite) else { print("SETTINGS BACKUP SMOKE FAIL temporary defaults");exit(1) }
-            @MainActor func cleanup() { testDefaults.removePersistentDomain(forName:suite);_ = testDefaults.synchronize() }
+            let originalWorkspaceDefaults = Preferences.workspaceTestDefaults
+            @MainActor func cleanup() { Preferences.workspaceTestDefaults = originalWorkspaceDefaults;testDefaults.removePersistentDomain(forName:suite);_ = testDefaults.synchronize() }
             @MainActor func check(_ value:Bool,_ name:String) { checks += 1;print("SETTINGS BACKUP UI \(value ? "PASS" : "FAIL") "+name);if !value { failures.append(name);print("SETTINGS BACKUP UI CONTEXT active=\(NSApp.isActive) key=\(NSApp.keyWindow?.title ?? "none")") } }
             @MainActor func require<T>(_ value:T?,_ name:String) -> T { guard let value else { print("SETTINGS BACKUP SMOKE FAIL missing "+name);cleanup();exit(1) };return value }
             @MainActor func wait(_ name:String,_ predicate:()->Bool) async { for _ in 0..<500 { if predicate() { return };try? await Task.sleep(nanoseconds:30_000_000) };print("SETTINGS BACKUP SMOKE FAIL timeout "+name);cleanup();exit(1) }
@@ -16,6 +17,49 @@ extension AppDelegate {
             @MainActor func capture(_ window:NSWindow,_ name:String) throws { let view = require(window.contentView,"view");view.layoutSubtreeIfNeeded();view.displayIfNeeded();let bitmap = require(view.bitmapImageRepForCachingDisplay(in:view.bounds),"bitmap");view.cacheDisplay(in:view.bounds,to:bitmap);try require(bitmap.representation(using:.png,properties:[:]),"PNG").write(to:URL(fileURLWithPath:prefix+"-Einstellungssicherung-"+name+".png")) }
             do {
                 let personal = UserDefaults.standard.persistentDomain(forName:"local.zweicommander.app") ?? [:],clipboard = NSPasteboard.general.changeCount,passwords = Preferences.remoteTestPasswords.values
+                // Reproduce an old session whose views still inherit native table-column autosave.
+                let legacyLeft = root.appendingPathComponent("Links"),legacyRight = root.appendingPathComponent("Rechts"),inactiveFolder = legacyLeft.appendingPathComponent("Inaktiver Tab")
+                try FileManager.default.createDirectory(at:inactiveFolder,withIntermediateDirectories:false)
+                var legacyState = SavedState()
+                legacyState.left = [SavedTab(path:legacyLeft.path,title:nil,locked:false,view:nil,selected:nil),SavedTab(path:inactiveFolder.path,title:nil,locked:false,view:nil,selected:nil)]
+                legacyState.right = [SavedTab(path:legacyRight.path,title:nil,locked:false,view:nil,selected:nil)]
+                let legacyBytes = try JSONEncoder().encode(legacyState)
+                testDefaults.setPersistentDomain([SettingsBackupStores.state:legacyBytes],forName:suite);Preferences.workspaceTestDefaults = testDefaults
+                let inheritedPane = PaneView(url:legacyLeft,savedTabs:legacyState.left),inheritedRight = PaneView(url:legacyRight,savedTabs:legacyState.right)
+                inheritedPane.changingView = true
+                let nameColumn = require(inheritedPane.table.tableColumn(withIdentifier:.init("name")),"legacy name column"),sizeIndex = require(inheritedPane.table.tableColumns.firstIndex(where:{ $0.identifier.rawValue == "size" }),"legacy size column")
+                nameColumn.width = 347;inheritedPane.table.tableColumn(withIdentifier:.init("ext"))?.isHidden = true;inheritedPane.table.tableColumn(withIdentifier:.init("path"))?.isHidden = false;inheritedPane.table.moveColumn(sizeIndex,toColumn:0)
+                inheritedPane.changingView = false;inheritedPane.initializeView();inheritedRight.initializeView()
+                check(inheritedPane.tabs.allSatisfy { $0.view == nil } && nameColumn.width == 347 && inheritedPane.table.tableColumns[0].identifier.rawValue == "size","legacy fixture has two nil-view tabs and a customized actual native table")
+                let currentView = inheritedPane.viewSettings
+                let legacyStorage = SettingsBackupStorage(defaults:testDefaults,domainName:suite,rollbackDirectory:root.appendingPathComponent("Legacy-Sicherungen"),requiresRestart:false,stateSnapshot:{ try SettingsBackupViewSnapshot.capture(legacyState,left:inheritedPane,right:inheritedRight,vertical:true) })
+                let legacyExport = try legacyStorage.exportDocument(),snapshot = require(legacyExport.stores[SettingsBackupStores.state].flatMap(Preferences.decode),"legacy view snapshot")
+                check(snapshot.left.count == 2 && snapshot.left.allSatisfy { $0.view == currentView },"explicit export captures current and inactive inherited column layouts")
+                check(inheritedPane.tabs.allSatisfy { $0.view == nil && !$0.sessionViewPinned },"snapshot export does not pin or rewrite any live legacy tab")
+                check(testDefaults.data(forKey:SettingsBackupStores.state) == legacyBytes,"explicit view snapshot leaves the original persisted legacy state unchanged")
+                check(snapshot.left.allSatisfy { $0.view?.columns?.count == 8 },"legacy eight-column snapshots do not add optional metadata columns")
+                let restored = PaneView(url:legacyLeft,savedTabs:snapshot.left);restored.initializeView()
+                check(restored.table.tableColumn(withIdentifier:.init("name"))?.width == 347 && restored.table.tableColumn(withIdentifier:.init("ext"))?.isHidden == true && restored.table.tableColumn(withIdentifier:.init("path"))?.isHidden == false && restored.table.tableColumns[0].identifier.rawValue == "size","a fresh native pane restores exported widths visibility and column order")
+                restored.selectTab(restored.tabs[1].id)
+                check(restored.table.tableColumn(withIdentifier:.init("name"))?.width == 347 && restored.table.tableColumns[0].identifier.rawValue == "size","an inactive inherited tab restores the same native columns after activation")
+                var rules = WorkspaceLibrary(),automatic = currentView
+                if let index = automatic.columns?.firstIndex(where:{ $0.id == "name" }) { automatic.columns?[index].width = 212 }
+                try rules.remember(automatic,folder:inactiveFolder,includeSubfolders:false);testDefaults.set(try rules.encoded(),forKey:Preferences.workspaceKey);restored.restoreTabView()
+                check(!restored.tab.sessionViewPinned && restored.table.tableColumn(withIdentifier:.init("name"))?.width == 212,"restored legacy fallback remains unpinned and allows a matching automatic view")
+                if let index = automatic.columns?.firstIndex(where:{ $0.id == "name" }) { automatic.columns?[index].width = 104 }
+                try rules.remember(automatic,folder:inactiveFolder,includeSubfolders:false);testDefaults.set(try rules.encoded(),forKey:Preferences.workspaceKey);restored.restoreTabView()
+                check(restored.table.tableColumn(withIdentifier:.init("name"))?.width == 104,"later automatic rule edits still change the restored view")
+                testDefaults.set(try WorkspaceLibrary().encoded(),forKey:Preferences.workspaceKey);restored.restoreTabView()
+                check(restored.table.tableColumn(withIdentifier:.init("name"))?.width == 347,"removing an automatic rule reveals the preserved inherited column fallback")
+                let specialOnly = PaneView(url:legacyLeft);specialOnly.initializeView();specialOnly.defaultView = currentView;specialOnly.tab.archiveRoot = legacyLeft
+                let fallbackTabs = try SettingsBackupViewSnapshot.tabs(in:specialOnly,fallbackFolder:legacyRight)
+                check(fallbackTabs.count == 1 && fallbackTabs[0].path == legacyRight.path && fallbackTabs[0].view == currentView && specialOnly.tab.archiveRoot == legacyLeft,"a special-only pane exports its normal local restart fallback without cache or archive paths")
+                let completeState = require(legacyExport.stores[SettingsBackupStores.state],"complete snapshot bytes")+Data("\n".utf8)
+                testDefaults.set(completeState,forKey:SettingsBackupStores.state)
+                check(try legacyStorage.exportDocument().stores[SettingsBackupStores.state] == completeState,"already complete equivalent state keeps its exact original encoding")
+                var futureState = try SettingsBackupJSON.object(legacyBytes);futureState["futureState"] = true;testDefaults.set(try JSONSerialization.data(withJSONObject:futureState),forKey:SettingsBackupStores.state)
+                do { _ = try legacyStorage.exportDocument();check(false,"current corrupt or future state fails before a UI snapshot can replace it") } catch { check(true,"current corrupt or future state fails before a UI snapshot can replace it") }
+                Preferences.workspaceTestDefaults = originalWorkspaceDefaults
                 var state = SavedState();state.left = [SavedTab(path:root.appendingPathComponent("Links").path,title:"Synthetischer Tab",locked:false,view:FolderViewSettings(),selected:nil)];state.right = [SavedTab(path:root.appendingPathComponent("Rechts").path,title:nil,locked:false,view:nil,selected:nil)]
                 let encoder = JSONEncoder(),stateData = try encoder.encode(state)
                 let stores:[String:Data] = [SettingsBackupStores.state:stateData,SettingsBackupStores.beforeImport:stateData,"ZweiCommander.appearance.v1":try encoder.encode(AppearanceSettings()),"ZweiCommander.toolbar.v1":try encoder.encode(ToolbarSettings()),"ZweiCommander.workspace.v1":try WorkspaceLibrary().encoded(),"ZweiCommander.copyProfiles.v1":try CopyProfileLibrary().encoded(),"ZweiCommander.renameProfiles.v1":try RenameProfileLibrary().encoded(),"ZweiCommander.searchProfiles.v1":try SearchProfileLibrary().encoded(),"ZweiCommander.compareProfiles.v1":try CompareProfileLibrary().encoded(),"ZweiCommander.remoteProfiles.v1":try RemoteProfileLibrary().encoded(),"ZweiCommander.tabGroups.v1":try TabGroupLibrary().encoded(),"ZweiCommander.layouts.v1":try LayoutLibrary().encoded(),"ZweiCommander.lastLayout.v1":try WorkspaceLayout().encoded(),SettingsBackupStores.tools:Data(#"{"version":1,"tools":[]}"#.utf8)]

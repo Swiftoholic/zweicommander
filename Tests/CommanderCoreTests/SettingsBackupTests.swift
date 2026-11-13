@@ -222,4 +222,13 @@ extension CoreTests {
         }
     }
 
+    func testSettingsBackupAcceptsNativeImportFontAndSchemaOutputs() throws {
+        for size in ["0","6","9","11","18","48","72","-1","not-a-number"] {
+            let profile = try INISettingsImport.parse(main:Data(("[Form]\nFileListFont_Name=System\nFileListFont_Size="+size+"\n").utf8))
+            var state = try SettingsBackupJSON.object(backupState());state["importedProfile"] = try JSONSerialization.jsonObject(with:JSONEncoder().encode(profile))
+            let raw = try JSONSerialization.data(withJSONObject:state),backup = try SettingsBackupDocument(stores:[SettingsBackupStores.state:raw])
+            XCTAssertEqual(backup.stores[SettingsBackupStores.state],raw);XCTAssertEqual(profile.schemaVersion,1);XCTAssertTrue((11...24).contains(profile.fontSize))
+        }
+    }
+
 }

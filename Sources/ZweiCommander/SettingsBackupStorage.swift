@@ -33,8 +33,9 @@ final class SettingsBackupStorage {
     }
     static var onRestartRequested:(()->Void)?
     let domain:SettingsBackupDefaultsDomain,rollbackDirectory:URL,requiresRestart:Bool
-    init(defaults:UserDefaults = .standard,domainName:String = "local.zweicommander.app",rollbackDirectory:URL? = nil,requiresRestart:Bool = true) {
-        domain = SettingsBackupDefaultsDomain(defaults,domainName);self.requiresRestart = requiresRestart
+    let stateSnapshot:(()throws->Data)?
+    init(defaults:UserDefaults = .standard,domainName:String = "local.zweicommander.app",rollbackDirectory:URL? = nil,requiresRestart:Bool = true,stateSnapshot:(()throws->Data)? = nil) {
+        domain = SettingsBackupDefaultsDomain(defaults,domainName);self.requiresRestart = requiresRestart;self.stateSnapshot = stateSnapshot
         self.rollbackDirectory = rollbackDirectory ?? FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("ZweiCommander/SettingsBackups",isDirectory:true)
     }
     static func validate(_ key:String,_ data:Data) throws {
@@ -48,7 +49,12 @@ final class SettingsBackupStorage {
         Self.mutationLock.lock();defer { Self.mutationLock.unlock() }
         let snapshot = try SettingsBackupCurrentSnapshot(domain:domain.readDomain())
         guard snapshot.invalidKeys.isEmpty else { throw CommanderError.message("Ein gespeicherter Einstellungsbereich ist nicht lesbar. Die Sicherung wurde nicht erstellt: "+snapshot.invalidKeys.sorted().compactMap { SettingsBackupStores.titles[$0] }.joined(separator:", ")) }
-        return try SettingsBackupDocument(stores:snapshot.payloads,validator:Self.validate)
+        let original = try SettingsBackupDocument(stores:snapshot.payloads,validator:Self.validate)
+        guard let stateSnapshot else { return original }
+        let current = try stateSnapshot();try Self.validate(SettingsBackupStores.state,current)
+        if let previous = original.stores[SettingsBackupStores.state],SettingsBackupViewSnapshot.semanticallyEqual(previous,current) { return original }
+        var stores = original.stores;stores[SettingsBackupStores.state] = current
+        return try SettingsBackupDocument(stores:stores,createdAt:original.createdAt,validator:Self.validate)
     }
     func read(_ url:URL,token:CancellationToken = .init()) throws -> SettingsBackupDocument { try SettingsBackupDocument.decode(SettingsBackupFile.read(url,token:token),validator:Self.validate) }
     func prepare(_ document:SettingsBackupDocument) throws -> SettingsBackupRestorePlan {
@@ -88,7 +94,10 @@ extension MainWindow {
         guard !SettingsBackupStorage.persistenceSuspended else { SettingsBackupStorage.onRestartRequested?();return }
         guard canTerminate,pendingWork == 0 else { content.status.stringValue = "Laufende Vorgänge vor der Einstellungswiederherstellung abschließen.";return }
         saveState()
-        let controller = SettingsBackupController(storage:SettingsBackupStorage(),canRestore:{ [weak self] in
+        let storage = SettingsBackupStorage(stateSnapshot:{ [weak self] in
+            guard let self else { throw CommanderError.message("Das Dateifenster ist nicht mehr verfügbar.") };return try self.captureSettingsBackupState()
+        })
+        let controller = SettingsBackupController(storage:storage,canRestore:{ [weak self] in
             guard let self else { return false };return self.canTerminate && self.pendingWork == 0 && !self.left.pathField.sessionActive && !self.right.pathField.sessionActive && !self.left.inlineRename.isEditing && !self.right.inlineRename.isEditing
         })
         controller.onApplied = { [weak self] _ in self?.pendingLayoutSave?.cancel();self?.layoutPersistenceReady = false;self?.content.status.stringValue = "Einstellungen wiederhergestellt. Jetzt neu starten." }
