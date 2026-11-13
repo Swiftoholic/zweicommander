@@ -111,14 +111,15 @@ public enum AttributeEngine {
             for entry in tracked {
                 let old = report.receipts[entry.receipt],source = relocate(entry.row.source)
                 let moved = source.path != old.source.path
-                var after = old.after
                 if let current = try? AttributeSnapshot.read(source) {
-                    if moved,current.version.sameAfterRename(old.after.version),!plan.rule.accessed.isChanged || current.accessed == old.after.accessed { after = current }
-                    else if current.version != old.after.version { recoveryIssue = "Ein bereits geändertes Objekt wurde während des Auftrags nochmals verändert: "+source.path }
+                    if current.version != old.after.version { recoveryIssue = "Ein bereits geändertes Objekt wurde während des Auftrags nochmals verändert: "+source.path }
                 }
                 if moved {
                     let anchors = (try? attributeAnchors(source.deletingLastPathComponent())) ?? old.anchors
-                    report.receipts[entry.receipt] = AttributeReceipt(source:source,before:old.before,after:after,anchors:anchors,retained:old.retained)
+                    // Relocating a receipt must never reseal its target version.
+                    // Renaming a leaf changes ctime, but a concurrent write can do
+                    // that too. Such a leaf therefore requires a new user review.
+                    report.receipts[entry.receipt] = AttributeReceipt(source:source,before:old.before,after:old.after,anchors:anchors,retained:old.retained)
                     if let completed = entry.completed { report.completed[completed] = source }
                     recoveryIssue = "Ein Objekt oder Elternordner wurde während des Auftrags verschoben. Änderungen und Rücknahmebelege am tatsächlichen Ort prüfen: "+source.path
                 }

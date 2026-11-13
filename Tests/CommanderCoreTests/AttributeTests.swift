@@ -175,7 +175,7 @@ extension CoreTests {
     func testAttributeCompletedRootDirectoryMoveRebasesAllChildReceipts() throws {
         let directory = try folder("Selected"),child = try file("Selected/a.txt","A"),plan = try AttributePlan.prepare(sources:[directory],rule:attributeRule(mode:0o700,recursive:true));var moved = false
         let report = AttributeEngine.execute(plan,progress:{ value in if !moved,value.items.allSatisfy({$0.state == .completed}) { moved = true;try! FileManager.default.moveItem(at:directory,to:self.root.appendingPathComponent("Moved")) } })
-        XCTAssertTrue(moved);XCTAssertFalse(report.errors.isEmpty);XCTAssertEqual(Set(report.receipts.map { $0.source.path }),Set([attributeURL(root.appendingPathComponent("Moved")).path,attributeURL(root.appendingPathComponent("Moved/a.txt")).path]));XCTAssertFalse(FileSystem.exists(child));let undo = AttributeEngine.undo(report.receipts);XCTAssertTrue(undo.errors.isEmpty,undo.errors.joined(separator:"\n"));XCTAssertEqual(try attributeStat(root.appendingPathComponent("Moved/a.txt")).st_mode & 0o777,0o644)
+        XCTAssertTrue(moved);XCTAssertFalse(report.errors.isEmpty);XCTAssertEqual(Set(report.receipts.map { $0.source.path }),Set([attributeURL(root.appendingPathComponent("Moved")).path,attributeURL(root.appendingPathComponent("Moved/a.txt")).path]));XCTAssertFalse(FileSystem.exists(child));let undo = AttributeEngine.undo(report.receipts);XCTAssertEqual(undo.errors.count,1);XCTAssertEqual(undo.completed,[attributeURL(root.appendingPathComponent("Moved/a.txt"))]);XCTAssertEqual(try attributeStat(root.appendingPathComponent("Moved")).st_mode & 0o777,0o700);XCTAssertEqual(try attributeStat(root.appendingPathComponent("Moved/a.txt")).st_mode & 0o777,0o644)
     }
     func testAttributeExternalWriteAfterCompletedCallbackDoesNotAcquireFreshUndoSeal() throws {
         let source = try file("a.txt","old!"),plan = try AttributePlan.prepare(sources:[source],rule:attributeRule(mode:0o600));var changed = false
@@ -200,5 +200,13 @@ extension CoreTests {
         let fd = open(source.path,O_RDONLY);guard fd >= 0 else { throw CommanderError.message("Testdatei nicht lesbar") };defer { close(fd) }
         var list = attrlist();list.bitmapcount = UInt16(ATTR_BIT_MAP_COUNT);list.commonattr = attrgroup_t(ATTR_CMN_ACCTIME);var access = timespec(tv_sec:1_400_000_100,tv_nsec:0);XCTAssertEqual(fsetattrlist(fd,&list,&access,MemoryLayout<timespec>.size,0),0)
         let undone = AttributeEngine.undo(report.receipts);XCTAssertFalse(undone.errors.isEmpty);XCTAssertEqual(try attributeStat(source).st_atimespec.tv_sec,1_400_000_100)
+    }
+    func testAttributeLeafMoveWithSameSizeRestoredMtimeEditCannotResealUndo() throws {
+        let source = try file("a.txt","old!");try FileManager.default.setAttributes([.modificationDate:Date(timeIntervalSince1970:1_700_000_000)],ofItemAtPath:source.path)
+        let moved = root.appendingPathComponent("Renamed.txt"),plan = try AttributePlan.prepare(sources:[source],rule:attributeRule(mode:0o600));var changed = false
+        let report = AttributeEngine.execute(plan,progress:{ value in if !changed,value.items.contains(where:{$0.state == .completed}) {
+            changed = true;try! Data("new!".utf8).write(to:source);try! FileManager.default.setAttributes([.modificationDate:Date(timeIntervalSince1970:1_700_000_000)],ofItemAtPath:source.path);try! FileManager.default.moveItem(at:source,to:moved)
+        } })
+        XCTAssertTrue(changed);XCTAssertFalse(report.errors.isEmpty);XCTAssertEqual(report.receipts.map(\.source),[attributeURL(moved)]);XCTAssertFalse(AttributeEngine.undo(report.receipts).errors.isEmpty);XCTAssertEqual(try read(moved),"new!");XCTAssertEqual(try attributeStat(moved).st_mode & 0o777,0o600)
     }
 }
