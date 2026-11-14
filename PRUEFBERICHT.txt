@@ -1,21 +1,130 @@
-ZweiCommander 0.27.0 (Build 28) — Kandidatenprüfung am 14. November 2026
+ZweiCommander 0.27.0 (Build 28) — geprüft am 14. November 2026
 
-Zwischenstand
-- 709 gemeinsame Kernprüfungen in einem vollständigen Durchlauf bestanden.
-  Der zusätzliche aktuelle Startadressentest ist gezielt bestanden; die finale
-  gemeinsame Registrierung umfasst 710 Prüfungen.
-- Eigenschaftsänderungen, vollständige Sicherung, eigene Werkzeuge und native
-  Startübergabe sind zusammengeführt. Gezielte native Fensterprüfungen bestehen.
-- Die echte Neustartprüfung beendet den alten Prozess, öffnet die isolierte
-  Auftrags-/Wiederherstellungsablage neu und prüft normale CLI-Übergaben.
+Ergebnis
+- 745/745 gemeinsame Dateikern- und Integrationstests bestanden.
+- 9/9 zusätzliche native SSH/SFTP-Prüfungen bestanden; erzeugte Schlüssel entfernt.
+- 1870/1870 native Oberflächenprüfungen in 58 Durchläufen bestanden.
+  Alle 33 Vordergrundfälle mit 1286 Prüfungen und die übrigen 25 Fälle mit
+  584 Prüfungen wurden am selben universellen Release-Binärstand ausgeführt.
+  Keine Fälle vertagt oder als übersprungen gezählt.
+- Intel- und Apple-Silicon-Build ohne Compilerwarnungen; Mindestversion macOS 13.
+  Laufzeitprüfung ausschließlich auf dem unten genannten Intel-Mac.
+- Reguläre Installation und normaler Neustart ohne Testmodus geprüft.
+  Der alte Prozess endet vor dem neuen Start; eine einzige neue Instanz öffnet
+  die Auftragsablage erfolgreich. Vorhandene Einstellungen, Profile, Tabs,
+  Anordnung, Auftrags- und Wiederherstellungsdaten bleiben erhalten.
+- Öffentliche Quellen, neue Historie, App-Umfang, Signatur und beide Archive
+  getrennt geprüft. Keine privaten Konfigurationsdateien oder Testprotokolle
+  gehören zum öffentlichen Quellstand.
 
-Noch vor Veröffentlichung
-- Quellen einfrieren, universellen Build und alle 55 Fälle/1762 native Prüfungen
-  am gleichen fertigen Binärstand ausführen; 710 Kern- und neun SSH-Prüfungen.
-- Normale Installation, Zustandserhalt und weiterer normaler Neustart ohne
-  Testmodus; anschließend öffentliche Quellen und Archive prüfen.
+Rechte und Zeitstempel
+44 neue Kerntests prüfen rekursive Auswahl, Filter, POSIX 0000–7777,
+Erstellungs-/Änderungs-/Zugriffszeit, lokale/UTC-Zeitpunkte, ungültige oder
+mehrdeutige Sommerzeitangaben und relative Sekunden mit Nanosekunden.
+Beobachtete Eltern und Objekte werden vor Beginn neu geprüft; benötigte
+Dateideskriptoren werden vor der ersten Änderung reserviert. Verknüpfungen,
+Spezialdateien und bereits nicht lesbare Quellen bleiben gesperrt.
+Unabhängige Gegenprüfungen und Regressionen verfolgen umbenannte Eltern,
+gelöschte Blätter sowie fremde Metadatenänderungen während und nach der
+Ausführung. Rücknahme verwendet unveränderte Objektversionen; nicht gelöste
+Konflikte behalten ihre Belege. Einschränkende eigene Rechte lassen sich
+über gehaltene Deskriptoren zurücknehmen. Schließen gibt die Belege frei.
 
-Die folgenden Abschnitte ergänzen bisherige Prüfbereiche und deren Grenzen.
+47 native Prüfungen bedienen Filter, Vorschau, Zeilenwahl, Zeitfelder,
+Menükürzel, Vormerken, Queue, Abbruch und tatsächliche Metadatenrücknahme.
+Dateiinhalte bleiben erhalten. Fertige Fenster halten keine Ausführungs-
+berichte mit offenen Belegen; ein absichtlich weiter referenziertes,
+geschlossenes Fenster gibt alle Rücknahmedeskriptoren frei.
+Hell-/Dunkeldarstellung und sichtbare Metadaten wurden lokal geprüft.
+Grenzen: bis zu 10.000 beobachtete Objekte, keine Owner-/Group-/ACL-Änderung,
+keine dauerhafte oder vollständige Gesamtrücksetzung.
+
+Vollständige eigene Einstellungssicherung
+37 neue Kerntests prüfen alle 14 Bereiche, Versions-/Feldprüfung,
+doppelte JSON-Schlüssel, Größen-/Tiefengrenzen, fehlende Bereiche,
+Ersetzungsvorschau, vorherigen Stand und geänderte Zielstände.
+Legacy-Spalten älterer Tabs werden nur beim ausdrücklich angeforderten
+Export erfasst; normale Starts schreiben sie nicht um.
+57 native Prüfungen bedienen vollständigen Export, Dateiauswahl, Abbruch,
+Vorschau, Wiederherstellung, beschädigte/neue Daten und lokale Rücksicherungen.
+27 weitere native Prüfungen prüfen gemeinsam alle normalen Einstellungs-
+schreiber und die Sperre nach Wiederherstellung. Vier Kerntests prüfen,
+dass Serverprofiländerungen einschließlich Zugangsdaten unter derselben
+Schreibsperre bleiben und bei Ablehnung keine Zugangsdaten verändern.
+
+48 native Neustartprüfungen beenden tatsächlich den vorherigen App-Prozess,
+laden den wiederhergestellten privaten Testbereich und öffnen eine eigene
+Auftrags-/Wiederherstellungsablage im Folgeprozess. Gespeicherte Aufträge
+werden erneut geprüft und ausdrücklich gestartet. Normale zweite Aufrufe
+übergeben Navigation an diesen Prozess, auch mit wörtlichen Dateinamen wie
+--import-settings nach --. Ein leerer Aufruf öffnet ein geschlossenes
+Hauptfenster wieder. Eine zusätzliche reguläre Installation und ein weiterer
+Neustart ohne Testmodus prüfen den echten vorhandenen Benutzungsstand.
+Grenzen: 48 MiB Sicherungsdatei und 32 MiB Einstellungsdaten; Sicherungen
+enthalten lokale Pfade, Serverprofile und eigene Werkzeugargumente.
+Schlüsselbundinhalte, Schlüsseldateien und Auftrags-/Sicherungsnutzdaten
+sind ausgeschlossen. Vor-/Nachprüfungen ersetzen keine exklusive Sperre
+gegen fremde Prozesse, die denselben Einstellungsbereich beschreiben.
+
+Eigene Werkzeuge und Prozessausführung
+47 neue Werkzeug-Kerntests prüfen Definitionen, Kategorien/Reihenfolge,
+neun Kürzelplätze, Parameterlisten, leere Argumente, Unicode, Sonderzeichen,
+Listenplatzhalter, Einzelaufrufe, Auswahl-/Definitionswechsel und Grenzen.
+Echte Prozesse erhalten exakte UTF-8-Argumente ohne automatische Shell-
+Auswertung. 18 weitere Prozessprüfungen prüfen binäre/Unicode-Standardeingabe,
+mehrere MiB mit gleichzeitiger Ausgabe, EOF, früh endende Leser, volle Pipes,
+Abbruch, Zeitlimit und geerbte Ausgabeschreiber. Der Kindprozess bleibt bis
+zum Ende der Erfassung unter Kontrolle; ein später weiter schreibender
+Nachkomme kann die Ausgabelimits nicht durch frühes Elternende umgehen.
+Diese Erfassung wird auch für bestehende lokale Programmaufrufe verwendet.
+
+37 native Prüfungen bedienen Verwaltung, Kategorien, Reihenfolge, Slots,
+Toolbar/Überlauf, Vorschau, geänderte Auswahl, Vormerken, Queue und Abbruch.
+App-Aufrufe über NSWorkspace werden an der Schnittstelle geprüft; der
+Programmdatei-Ausführer startet echte Kindprozesse. macOS verwaltet den
+Arbeitsordner und die Argumentdarstellung von App-Bundles.
+Grenzen: 100 Werkzeuge, 1000 Auswahlobjekte, 100 Einzelaufrufe, 1024 Argumente
+und 128 KiB Argumenttext je Aufruf; 4 MiB behaltene und 32 MiB erfasste Ausgabe.
+Ein Hintergrundprogramm muss geerbte Ein-/Ausgabe selbst umleiten.
+
+Normale Startanfragen
+25 Kerntests prüfen linke/rechte Ziele, direkte Auswahl, aktive Seite,
+relative Pfade, ~, lokale Datei-URLs, wörtliche Optionen nach -- und die
+streng begrenzte Navigationsadresse. Unbekannte Werte, fremde Datei-URL-
+Adressen, doppelte Parameter und Import-/Programmoptionen über URL bleiben
+gesperrt. 28 native Prüfungen bedienen den tatsächlichen Fensterkontext,
+Tabsperren, neue Tabs, direkte Markierung, aktive und ausgeblendete Seiten,
+offene Eingaben sowie getrennte Ziele bei verknüpfter Navigation.
+Hilfe, Version und fehlerhafte Argumente werden zusätzlich ohne GUI-Start
+am fertigen Binärstand geprüft.
+
+Die folgenden Abschnitte ergänzen die übrigen Prüfbereiche und ihre Grenzen.
+
+Weitere Korrekturen aus dem aktuellen Funktionsabgleich
+22 Kernfälle prüfen verlustfreien Sitzungserhalt mit unbekannten JSON-Feldern,
+sehr großen zukünftigen Zahlen, gültigen und ungültigen optionalen Ansichten,
+Tabsperren, Filtern, Spaltenzuordnung und expliziten Benutzeränderungen.
+Nicht lesbare erforderliche Daten bleiben gegen automatisches Überschreiben
+geschützt. 55 native Prüfungen bedienen den tatsächlichen Hauptfenster-
+Autosave, doppelte Pfade, Tabtausch, Schließen/Wiederöffnen, Kopieren und
+ausdrückliche Ansichts-/INI-Änderungen. Unklare Vor-Import-Zuordnungen werden
+vor Änderungen gemeldet; Wiederherstellung von Ansichten rollt heutige
+Sperr-, Filter- oder Auswahlwerte nicht unbeabsichtigt zurück.
+
+13 weitere Kernfälle prüfen frische Ordnerbaumzweige, fehlende und nicht
+lesbare Ordner, echte 0000-/0400-Rechte, Reparatur, neue/umbenannte/entfernte
+Kinder sowie verknüpfte Eltern-/Unterordnersprünge. 32 native Prüfungen
+bedienen Fehlermeldungen mit Retry/Enter, Aktualisierung, direkten Verlauf,
+Zurück/Vorwärts und Tabsperren. Nicht lokale oder besondere Gegenseiten
+bleiben bei verknüpfter Navigation erhalten.
+
+20 native Prüfungen halten echte Queue-Aufträge vor kontrollierten Grenzen
+an. Verspätete flache Ansichten dürfen weder andere Tabs/Ordner noch neuere
+Pfad-/Namenseingaben oder geschützte Arbeitsfenster verändern. Normale
+Listenaktualisierung bleibt möglich. Eine tatsächlich akzeptierte laufende
+Abbruchanforderung nach dem Scan veröffentlicht keine Sammlung; ausstehende
+Fehler öffnen keine fremden Dialoge. Ein Ergebnis in der ursprünglichen
+Seite übernimmt nicht den Tastaturfokus einer inzwischen aktiven Gegenseite.
 
 Testsystem
 Intel-Mac, macOS 26.7.1, Swift 6.3.3. Apple Silicon und ältere macOS-Versionen
@@ -23,9 +132,16 @@ wurden kompiliert, aber nicht zur Laufzeit geprüft. Keine Developer-ID-Signatur
 oder Notarisierung.
 
 Start
-Alle nativen Release-Prüfungen starteten aus dem Ausgabeordner. Die installierte
-App startete anschließend regulär aus Programme; vorhandener Zustand und
-Profile einschließlich Wiederherstellungsdaten wurden vor/nachher verglichen.
+Die vollständige native Release-Serie lief aus der regulären Installation in
+Programme. Diese App ist bytegleich mit dem Paket. Danach wurden Start und
+Neustart ohne Testmodus sowie vorhandene Einstellungen, Profile, Auftrags- und
+Wiederherstellungsdaten geprüft.
+
+Ein zusätzlicher LaunchServices-Neustart aus einem Arbeitsordner blieb auf
+diesem Testsystem vor dem App-Delegate in AppKit/Metal stehen. Die bytegleiche
+App aus Programme bestand die Neustartprüfung. Der konkrete blockierte Pfad
+und die Ursache sind nicht bestimmt; ein Start aus jedem beliebigen Ordner
+wird damit nicht als geprüft zugesagt.
 
 Dateivergleich, erweiterte Suche und seitenweise Vorschau
 Drei getrennte Funktionszweige wurden zunächst einzeln gebaut und mit
