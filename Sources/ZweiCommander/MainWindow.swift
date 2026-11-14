@@ -392,12 +392,10 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         buildToolbar();refreshLocations();content.needsLayout = true
     }
     func followNavigation(_ pane:PaneView,from old:URL,to new:URL) {
-        saveState(); guard linked,!usesServerPanes else { return }
+        saveState();guard linked,!usesServerPanes,pane.archive == nil,pane.tab.archiveRoot == nil,pane.tab.collection == nil else { return }
         let target = pane === left ? right : left
-        let candidate:URL
-        if new.deletingLastPathComponent() == old { candidate = target.currentURL.appendingPathComponent(new.lastPathComponent) }
-        else if old.deletingLastPathComponent() == new { candidate = target.currentURL.deletingLastPathComponent() }
-        else { return }
+        guard target.archive == nil,target.tab.archiveRoot == nil,target.tab.collection == nil,
+              let candidate = FolderNavigation.linkedDestination(from:old,to:new,opposite:target.currentURL) else { return }
         if FileSystem.isDirectory(candidate) { target.navigate(candidate,linked:true); pane.focus() }
     }
     func renameInline(_ item:RenameItem,in pane:PaneView?,request:UUID) {

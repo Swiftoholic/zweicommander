@@ -37,6 +37,7 @@ final class PathEditor: NSTextField {
     var directoryValidator: ((URL,CancellationToken)throws->Void)?
     var onCancel: (()->Void)?
     var onChoose: ((URL)->Void)?
+    var onHistoryChoose: ((URL)->Void)?
     var recentFolders: [URL] = []
     var showHiddenFolders = false
     private(set) var baseURL = URL(fileURLWithPath:"/")
@@ -52,7 +53,7 @@ final class PathEditor: NSTextField {
         super.init(frame:frame)
         setAccessibilityLabel("Ordneradresse")
         placeholderString = "Ordnerpfad · Tab ergänzt"
-        dropdown.onChoose = { [weak self] item in self?.open(item.url) }
+        dropdown.onChoose = { [weak self] item in self?.open(item.url,history:item.history) }
         dropdown.onDismiss = { [weak self] in self?.invalidateQuery() }
         toolTip = "Ordneradresse · ⌘L\nAbsolute oder relative Pfade, ~ und file://-Adressen. ↓ zeigt Vorschläge, Tab ergänzt, Enter öffnet."
         setAccessibilityHelp(toolTip)
@@ -138,7 +139,7 @@ final class PathEditor: NSTextField {
         guard sessionActive else { return }
         do { open(try resolve(stringValue,base:baseURL)) } catch { showError(error.localizedDescription) }
     }
-    private func open(_ url:URL) {
+    private func open(_ url:URL,history:Bool = false) {
         guard sessionActive else { return }
         invalidateQuery();dropdown.close();let request = generation,text = stringValue
         isQuerying = true
@@ -160,7 +161,10 @@ final class PathEditor: NSTextField {
             DispatchQueue.main.async {
                 guard let self,self.sessionActive,self.generation == request,self.stringValue == text,self.window?.isVisible == true else { return }
                 self.isQuerying = false
-                switch result { case .success(let value): self.onChoose?(value);case .failure(let error): self.showError(error.localizedDescription) }
+                switch result {
+                case .success(let value):if history,let choose = self.onHistoryChoose { choose(value) } else { self.onChoose?(value) }
+                case .failure(let error):self.showError(error.localizedDescription)
+                }
             }
         }
     }

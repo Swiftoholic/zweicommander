@@ -1156,7 +1156,20 @@ let tests: [(String, (CoreTests) throws -> Void)] = [
     ("testMirrorRebasesParentMovedByCompletedProgress", { try $0.testMirrorRebasesParentMovedByCompletedProgress() }),
     ("testMirrorRebasesRootMovedByFinalProgress", { try $0.testMirrorRebasesRootMovedByFinalProgress() }),
     ("testMirrorParentHandleReservationFailurePrecedesAllMutations", { try $0.testMirrorParentHandleReservationFailurePrecedesAllMutations() }),
-    ("testMirrorFinalProgressCanRebaseAnEarlierCompletedParent", { try $0.testMirrorFinalProgressCanRebaseAnEarlierCompletedParent() })
+    ("testMirrorFinalProgressCanRebaseAnEarlierCompletedParent", { try $0.testMirrorFinalProgressCanRebaseAnEarlierCompletedParent() }),
+    ("testFolderTreeReadExposesOnlyVisibleOrdinaryDirectories", { try $0.testFolderTreeReadExposesOnlyVisibleOrdinaryDirectories() }),
+    ("testFolderTreeMissingAndFileBranchesThrowInsteadOfAppearingEmpty", { try $0.testFolderTreeMissingAndFileBranchesThrowInsteadOfAppearingEmpty() }),
+    ("testFolderTreeUnreadableBranchCanBeRetriedAfterPermissionsRestore", { try $0.testFolderTreeUnreadableBranchCanBeRetriedAfterPermissionsRestore() }),
+    ("testFolderTreeFreshReadSeesCreatedRenamedAndRemovedChildren", { try $0.testFolderTreeFreshReadSeesCreatedRenamedAndRemovedChildren() }),
+    ("testFolderTreeReadableButNonSearchableBranchCannotMasqueradeAsEmpty", { try $0.testFolderTreeReadableButNonSearchableBranchCannotMasqueradeAsEmpty() }),
+    ("testFolderTreeRejectedRootLinkNeverTraversesItsTarget", { try $0.testFolderTreeRejectedRootLinkNeverTraversesItsTarget() }),
+    ("testFolderTreeCancelledReadLeavesDirectoryUnchanged", { try $0.testFolderTreeCancelledReadLeavesDirectoryUnchanged() }),
+    ("testLinkedNavigationDescendsMultipleUnicodeComponents", { try $0.testLinkedNavigationDescendsMultipleUnicodeComponents() }),
+    ("testLinkedNavigationAscendsExactNumberOfComponents", { try $0.testLinkedNavigationAscendsExactNumberOfComponents() }),
+    ("testLinkedNavigationRefusesUnrelatedAndSameLocations", { try $0.testLinkedNavigationRefusesUnrelatedAndSameLocations() }),
+    ("testLinkedNavigationDoesNotClampAboveOppositeFilesystemRoot", { try $0.testLinkedNavigationDoesNotClampAboveOppositeFilesystemRoot() }),
+    ("testLinkedNavigationRejectsRemoteAndArchiveContexts", { try $0.testLinkedNavigationRejectsRemoteAndArchiveContexts() }),
+    ("testLinkedNavigationNormalizesDotsWithoutFollowingDiskAliases", { try $0.testLinkedNavigationNormalizesDotsWithoutFollowingDiskAliases() })
 ]
 var failed = 0
 let testFilter = CommandLine.arguments.firstIndex(of:"--filter").flatMap { CommandLine.arguments.indices.contains($0+1) ? CommandLine.arguments[$0+1] : nil }
