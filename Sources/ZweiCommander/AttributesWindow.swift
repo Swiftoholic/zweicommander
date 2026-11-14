@@ -124,7 +124,7 @@ final class AttributesController:NSWindowController,NSWindowDelegate,NSTableView
         jobID = id;isWorking = true;info.textColor = .secondaryLabelColor;info.stringValue = immediately ? "Auftrag gestartet · fertige Änderungen bleiben bei Abbruch erhalten." : "Auftrag vorgemerkt · Änderungen gelten erst beim Start.";updateActions()
     }
     func finished(_ report:AttributeReport) {
-        guard !closed else { return };jobID = nil;isWorking = false;lastReport = report;receipts = report.receipts;onAfterMutation?()
+        guard !closed else { return };jobID = nil;isWorking = false;var summaryReport = report;summaryReport.receipts = [];lastReport = summaryReport;receipts = report.receipts;onAfterMutation?()
         result.stringValue = "\(report.completed.count) abgeschlossen · \(report.skipped.count) ausgelassen · \(report.errors.count) Fehler"+(report.errors.first.map { "\n"+$0 } ?? "");result.toolTip = report.errors.joined(separator:"\n");result.textColor = report.errors.isEmpty ? .secondaryLabelColor : .systemRed
         skipped = [];plan = nil;info.stringValue = "Auftrag beendet · Für weitere Änderungen erneut prüfen.";summary.stringValue = "\(report.completed.count) abgeschlossen · letzte geprüfte Vorschau";table.reloadData();updateActions()
     }
@@ -154,7 +154,7 @@ final class AttributesController:NSWindowController,NSWindowDelegate,NSTableView
     override func cancelOperation(_ sender:Any?) { cancelWork() }
     override func close() { guard !isWorking else { cancelWork();return };stop();super.close() }
     func windowWillClose(_ notification:Notification) { stop() }
-    private func stop() { closed = true;generation += 1;token.cancel();editWork?.cancel();editWork = nil;plan = nil;receipts = [];onSubmit = nil;onCancel = nil;onAfterMutation = nil }
+    private func stop() { closed = true;generation += 1;token.cancel();editWork?.cancel();editWork = nil;plan = nil;receipts = [];lastReport?.receipts = [];onSubmit = nil;onCancel = nil;onAfterMutation = nil }
     func numberOfRows(in tableView:NSTableView) -> Int { rows.count }
     func tableView(_ tableView:NSTableView,viewFor column:NSTableColumn?,row:Int) -> NSView? {
         guard rows.indices.contains(row) else { return nil };let value = rows[row]

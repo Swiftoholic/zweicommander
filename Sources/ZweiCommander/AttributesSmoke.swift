@@ -1,5 +1,6 @@
 import AppKit
 import CommanderCore
+import Darwin
 
 extension AppDelegate {
     func runAttributesSmoke(root:URL,prefix:String) {
@@ -13,6 +14,24 @@ extension AppDelegate {
             @MainActor func key(_ window:NSWindow,_ text:String,_ flags:NSEvent.ModifierFlags = []) -> NSEvent { require(NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:flags,timestamp:0,windowNumber:window.windowNumber,context:nil,characters:text,charactersIgnoringModifiers:text,isARepeat:false,keyCode:0),"key") }
             @MainActor func capture(_ window:NSWindow,_ name:String) throws { let view = require(window.contentView,"content");view.layoutSubtreeIfNeeded();view.displayIfNeeded();let image = require(view.bitmapImageRepForCachingDisplay(in:view.bounds),"bitmap");view.cacheDisplay(in:view.bounds,to:image);try require(image.representation(using:.png,properties:[:]),"PNG").write(to:URL(fileURLWithPath:prefix+"-Rechte-Zeitstempel-"+name+".png")) }
             @MainActor func toggle(_ editor:AttributesController,_ name:String) { guard let index = editor.rows.firstIndex(where:{$0.source.lastPathComponent == name}) else { print("ATTRIBUTES SMOKE FAIL missing row "+name);exit(1) };let button = NSButton();button.tag = index;editor.toggleRow(button) }
+            func handles(_ source:URL) throws -> Int {
+                var expected = stat();guard lstat(source.path,&expected) == 0 else { throw CommanderError.message("FD-Lebensdauerprüfung: Quelldatei fehlt.") }
+                let needed = proc_pidinfo(getpid(),PROC_PIDLISTFDS,0,nil,0)
+                guard needed > 0 else { throw CommanderError.message("FD-Lebensdauerprüfung: Prozessliste nicht lesbar.") }
+                var entries = [proc_fdinfo](repeating:proc_fdinfo(),count:Int(needed)/MemoryLayout<proc_fdinfo>.stride+64)
+                let used = entries.withUnsafeMutableBytes { proc_pidinfo(getpid(),PROC_PIDLISTFDS,0,$0.baseAddress,Int32($0.count)) }
+                guard used > 0,Int(used) < entries.count*MemoryLayout<proc_fdinfo>.stride else { throw CommanderError.message("FD-Lebensdauerprüfung: Prozessliste unvollständig.") }
+                return entries.prefix(Int(used)/MemoryLayout<proc_fdinfo>.stride).filter { entry in var value = stat();return fstat(entry.proc_fd,&value) == 0 && value.st_dev == expected.st_dev && value.st_ino == expected.st_ino }.count
+            }
+            @MainActor func queuedRestricted(_ source:URL) async throws -> AttributesController {
+                self.main.active.navigate(source.deletingLastPathComponent());self.main.active.refresh()
+                await wait("FD fixture listing") { !self.main.active.isLoading && self.main.active.canUseDisplayedEntries && self.main.active.visibleEntries.contains(where:{$0.name == source.lastPathComponent}) }
+                await activate(self.main.window!);let entry = require(self.main.active.visibleEntries.first(where:{$0.name == source.lastPathComponent}),"FD fixture entry");self.main.active.select([entry.url]);self.main.active.focus();self.main.attributes()
+                let controller = require(self.main.secondaryWindows.last as? AttributesController,"FD fixture controller");await ready(controller)
+                controller.permissions.stringValue = "0000";controller.prepare();await ready(controller);controller.submit(true);await ready(controller)
+                guard controller.lastReport?.errors.isEmpty == true,controller.receipts.count == 1 else { throw CommanderError.message("FD-Lebensdauerprüfung: Teständerung in Warteschlange fehlgeschlagen.") }
+                return controller
+            }
             do {
                 await wait("initial lists") { !self.main.left.isLoading && !self.main.right.isLoading }
                 let links = root.appendingPathComponent("Links"),tree = links.appendingPathComponent("AttrTree"),a = tree.appendingPathComponent("A.txt"),b = tree.appendingPathComponent("B.txt"),ignored = tree.appendingPathComponent("Keep.bin"),cached = tree.appendingPathComponent("Cache/C.txt"),alias = tree.appendingPathComponent("Alias.txt")
@@ -91,6 +110,17 @@ extension AppDelegate {
                 check(!editor.start.isEnabled && editor.receipts.isEmpty,"cancelled queue result cannot retain an executable plan or fabricate undo receipts")
                 editor.prepare();editor.close();try? await Task.sleep(nanoseconds:180_000_000)
                 check(editor.closed && !window.isVisible && editor.plan == nil,"closing cancels preparation and cannot publish a late plan")
+                let lifetime = root.appendingPathComponent("FDLifetime"),undoFile = lifetime.appendingPathComponent("Undo.txt"),closeFile = lifetime.appendingPathComponent("Close.txt")
+                try FileManager.default.createDirectory(at:lifetime,withIntermediateDirectories:true);try Data("undo lifetime".utf8).write(to:undoFile);try Data("close lifetime".utf8).write(to:closeFile)
+                let undoEditor = try await queuedRestricted(undoFile)
+                check(try handles(undoFile) == 1 && undoEditor.lastReport?.receipts.isEmpty == true && undoEditor.lastReport?.completed.count == 1,"summary report retains no descriptors beyond the single live undo receipt")
+                undoEditor.undoChanges();await ready(undoEditor);await wait("released undone metadata descriptor") { (try? handles(undoFile)) == 0 }
+                check(try handles(undoFile) == 0 && undoEditor.receipts.isEmpty && undoEditor.lastReport?.completed.count == 1,"fully undone batch releases its actual file descriptor while preserving summary fields")
+                undoEditor.close()
+                let closeEditor = try await queuedRestricted(closeFile)
+                check(try handles(closeFile) == 1 && closeEditor.receipts.count == 1,"restrictive file retains exactly one descriptor before workspace close")
+                closeEditor.close();await wait("released closed metadata descriptor") { (try? handles(closeFile)) == 0 }
+                check(try handles(closeFile) == 0 && closeEditor.closed && self.main.secondaryWindows.contains(where:{$0 === closeEditor}),"closed controller retained by the main window releases all receipt descriptors")
                 check(NSPasteboard.general.changeCount == clipboard,"attributes workflow leaves the general clipboard untouched")
                 check((saved as NSDictionary).isEqual(to:UserDefaults.standard.persistentDomain(forName:"local.zweicommander.app") ?? [:]),"attributes workflow does not persist personal settings")
                 print("ATTRIBUTES SMOKE \(failures.isEmpty ? "PASS" : "FAIL") \(checks) checks");fflush(stdout);exit(failures.isEmpty ? 0 : 1)
