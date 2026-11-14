@@ -111,6 +111,8 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     var active: PaneView
     var other: PaneView { active === left ? right : left }
     let jobs: JobQueue
+    private var latestJobStatus = "Bereit"
+    private var renderedSessionNotice:String?
     var secondaryWindows: [NSWindowController] = []
     var undoSteps: [UndoStep] = []
     var renameUndo: [RenameItem]?
@@ -207,7 +209,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         content.commandGo.perform = { [weak self] in self?.commandEntered() }
         content.terminal.perform = { [weak self] in self?.openTerminal() }
         jobs.onStatus = { [weak self] text,done in
-            guard let self else { return }; self.content.status.stringValue = text
+            guard let self else { return };self.refreshSessionPersistenceStatus(jobText:text)
             let active = self.jobs.active
             self.content.cancel.isHidden = active == nil;self.content.pause.isHidden = active == nil && self.jobs.pending == 0
             self.content.pause.title = active.map { [.paused,.pausing].contains($0.state) ? "Fortsetzen" : "Pause" } ?? (self.jobs.scheduler.isHeld && self.jobs.pending > 0 ? "Fortsetzen" : "Pause")
@@ -234,7 +236,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         content.onLayoutChange = { [weak self] in self?.scheduleLayoutSave() }
         if startLeft == nil && startRight == nil { restoreLastLayout() }
         layoutPersistenceReady = true
-        if let notice = Preferences.sessionPersistenceNotice { content.status.stringValue = notice;content.status.toolTip = notice }
+        refreshSessionPersistenceStatus()
     }
     required init?(coder:NSCoder) { fatalError() }
     func buildToolbar() {
@@ -373,10 +375,25 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         else if let id = UUID(uuidString:value) { do { try openFavorite(id) } catch { showFailure(error) } }
     }
     func setActive(_ pane:PaneView) { active = pane; left.isActive = pane === left; right.isActive = pane === right; window?.subtitle = (pane === left ? "Links" : "Rechts")+" · "+pane.locationText;updateChromeState() }
+    private func refreshSessionPersistenceStatus(jobText:String? = nil) {
+        if let jobText { latestJobStatus = jobText }
+        let notice = SettingsBackupStorage.restartPending ? "Einstellungen wiederhergestellt. Jetzt neu starten." : Preferences.sessionPersistenceNotice
+        if let notice {
+            let idle = latestJobStatus == "Bereit"
+            content.status.stringValue = idle ? notice : latestJobStatus+" · "+notice
+            content.status.toolTip = idle ? notice : latestJobStatus+"\n\n"+notice
+        } else if jobText != nil || renderedSessionNotice != nil {
+            // A successful recovery must clear the warning on the next queue update.
+            // An ordinary save without a warning leaves other action messages intact.
+            content.status.stringValue = latestJobStatus
+            content.status.toolTip = latestJobStatus == "Bereit" ? nil : latestJobStatus
+        }
+        renderedSessionNotice = notice
+    }
     func saveState() {
         guard !isApplyingWorkspace,!SettingsBackupStorage.persistenceSuspended else { return }
         Preferences.state.left = left.savedTabs;Preferences.state.right = right.savedTabs;Preferences.state.vertical = content.split.isVertical;Preferences.save()
-        if let notice = Preferences.sessionPersistenceNotice { content.status.stringValue = notice;content.status.toolTip = notice }
+        refreshSessionPersistenceStatus()
         if layoutPersistenceReady {
             do { try Preferences.saveLastLayout(layoutState);layoutPersistenceError = nil } catch { layoutPersistenceError = error.localizedDescription;content.status.stringValue = error.localizedDescription }
         }
