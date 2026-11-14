@@ -10,6 +10,15 @@ extension AppDelegate {
             func require<T>(_ value:T?,_ name:String) -> T { guard let value else { print("TREE HISTORY SMOKE FAIL missing "+name);exit(1) };return value }
             @MainActor func wait(_ name:String,_ predicate:()->Bool) async {
                 for _ in 0..<350 { if predicate() { return };try? await Task.sleep(nanoseconds:40_000_000) }
+                let tree = self.main.left.tree
+                print("TREE HISTORY DIAGNOSTIC hidden=\(tree.isHidden) frame=\(tree.frame) rows=\(tree.outline.numberOfRows)")
+                for branch in tree.roots {
+                    print("TREE HISTORY DIAGNOSTIC root=\(branch.url.absoluteString) row=\(tree.outline.row(forItem:branch)) expanded=\(tree.outline.isItemExpanded(branch)) loading=\(branch.loading) revision=\(branch.generation) children=\(branch.children?.count ?? -1) error=\(branch.error ?? "none")")
+                    for child in branch.children ?? [] { print("TREE HISTORY DIAGNOSTIC child=\(child.url.absoluteString) row=\(tree.outline.row(forItem:child)) loading=\(child.loading) children=\(child.children?.count ?? -1) error=\(child.error ?? "none")") }
+                }
+                let pane = self.main.left
+                print("TREE HISTORY DIAGNOSTIC active=\(NSApp.isActive) key=\(self.main.window?.isKeyWindow == true) location=\(pane.currentURL.absoluteString) position=\(pane.tab.position) editing=\(pane.pathField.sessionActive) querying=\(pane.pathField.isQuerying) popup=\(pane.pathField.dropdown.isVisible) validation=\(pane.pathField.validationMessage ?? "none")")
+                print("TREE HISTORY DIAGNOSTIC history=\(pane.tab.history.map(\.absoluteString)) suggestions=\(pane.pathField.suggestions.map { $0.url.absoluteString+" history=\($0.history)" })")
                 print("TREE HISTORY SMOKE FAIL timeout "+name);exit(1)
             }
             let main = self.main!,left = main.left,right = main.right,window = require(main.window,"window"),boardChange = NSPasteboard.general.changeCount
@@ -26,17 +35,23 @@ extension AppDelegate {
                 for folder in [ld,rd,growing,locked.appendingPathComponent("Child")] { try FileManager.default.createDirectory(at:folder,withIntermediateDirectories:true) }
                 defer { chmod(locked.path,0o700);try? FileManager.default.removeItem(at:fixture) }
                 window.makeKeyAndOrderFront(nil);NSApp.activate(ignoringOtherApps:true)
+                await wait("active tree window") { NSApp.isActive && window.isKeyWindow }
                 main.linked = false;left.navigate(l);right.navigate(r);await settle()
                 left.tree.roots = [TreeNode(branches)];left.treeVisible = true;main.content.layoutSubtreeIfNeeded()
                 let tree = left.tree,branch = tree.roots[0]
                 tree.outline.expandItem(branch)
                 await wait("root tree") { !branch.loading && branch.children?.count == 2 }
                 check(branch.error == nil && tree.outline.isItemExpanded(branch),"ordinary branch expands without an error")
+                let settledRevision = branch.generation;try await Task.sleep(nanoseconds:250_000_000)
+                check(!branch.loading && branch.generation == settledRevision,"completed tree read stays idle instead of reloading through expansion callbacks")
                 let growNode = require(branch.children?.first { $0.url == growing },"growing branch"),lockedNode = require(branch.children?.first { $0.url == locked },"locked branch")
                 tree.outline.expandItem(growNode)
                 await wait("empty branch") { !growNode.loading && growNode.children?.isEmpty == true }
                 let empty = tree.outline.view(atColumn:0,row:tree.outline.row(forItem:growNode)+1,makeIfNecessary:true) as? NSTextField
                 check(empty?.stringValue == "Keine sichtbaren Unterordner","empty branch has an explicit successful empty state")
+                let emptyStatus = require(tree.outline.item(atRow:tree.outline.row(forItem:growNode)+1),"empty status"),beforeExpand = tree.outline.numberOfRows
+                tree.outline.expandItem(emptyStatus)
+                check(!tree.outline.isItemExpanded(emptyStatus) && tree.outline.numberOfRows == beforeExpand,"native status row remains a terminal leaf")
                 let added = growing.appendingPathComponent("Added");try FileManager.default.createDirectory(at:added,withIntermediateDirectories:false)
                 left.refresh();await wait("created child") { !growNode.loading && growNode.children?.contains { $0.url == added } == true }
                 check(growNode.children?.count == 1,"normal pane refresh invalidates an expanded cached branch")
