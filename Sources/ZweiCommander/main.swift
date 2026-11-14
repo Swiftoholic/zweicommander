@@ -48,6 +48,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let advancedSearchSmoke = testFlag("--advanced-search-smoke")
         let viewerSmoke = testFlag("--viewer-smoke")
         let toolsIntegrationSmoke = testFlag("--tools-integration-smoke")
+        let flatViewSmoke = testFlag("--flat-view-smoke")
         let mirrorSmoke = testFlag("--mirror-smoke")
         let archiveEditSmoke = testFlag("--archive-edit-smoke")
         let mediaMetadataSmoke = testFlag("--media-metadata-smoke")
@@ -59,7 +60,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         let attributesSmoke = testFlag("--attributes-smoke")
         let externalToolsSmoke = testFlag("--external-tools-smoke")
         let compareSmoke = testFlag("--compare-smoke")
-        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke,serverPaneSmoke,selectionSmoke,tabsSmoke,layoutSmoke,archiveSmoke,archiveMergeSmoke,fileDiffSmoke,advancedSearchSmoke,viewerSmoke,toolsIntegrationSmoke,mirrorSmoke,archiveEditSmoke,mediaMetadataSmoke,packageIntegrationSmoke,launchSmoke,settingsBackupSmoke,attributesSmoke,externalToolsSmoke,settingsIntegrationSmoke,restartSmoke].compactMap { $0 }.first
+        let testIndex = [smoke,operationsSmoke,filtersSmoke,mergeSmoke,profilesSmoke,journalSmoke,ageSmoke,workspaceSmoke,renameSmoke,searchSmoke,compareSmoke,appearanceSmoke,uxSmoke,railSmoke,navigationSmoke,fileUXSmoke,recoverySmoke,remoteSmoke,serverPaneSmoke,selectionSmoke,tabsSmoke,layoutSmoke,archiveSmoke,archiveMergeSmoke,fileDiffSmoke,advancedSearchSmoke,viewerSmoke,toolsIntegrationSmoke,flatViewSmoke,mirrorSmoke,archiveEditSmoke,mediaMetadataSmoke,packageIntegrationSmoke,launchSmoke,settingsBackupSmoke,attributesSmoke,externalToolsSmoke,settingsIntegrationSmoke,restartSmoke].compactMap { $0 }.first
         Preferences.testMode = testIndex != nil
         if Preferences.testMode { setvbuf(stdout,nil,_IOLBF,0) }
         if Preferences.testMode { Preferences.state = SavedState() }
@@ -166,6 +167,9 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         }
         if let packageIntegrationSmoke,args.indices.contains(packageIntegrationSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runPackageIntegrationSmoke(root:root,prefix:args[packageIntegrationSmoke+2]) }
+        }
+        if let flatViewSmoke,args.indices.contains(flatViewSmoke+2),let root {
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runFlatViewSmoke(root:root,prefix:args[flatViewSmoke+2]) }
         }
         if let toolsIntegrationSmoke,args.indices.contains(toolsIntegrationSmoke+2),let root {
             DispatchQueue.main.asyncAfter(deadline:.now()+0.5) { self.runToolsIntegrationSmoke(root:root,prefix:args[toolsIntegrationSmoke+2]) }
@@ -461,7 +465,7 @@ if CommandLine.arguments.dropFirst().first == "--inspect-binary" {
 let launchArguments = Array(CommandLine.arguments.dropFirst())
 if launchArguments == ["--help"] { print(LaunchRequest.usage);exit(0) }
 if launchArguments == ["--version"] { print(Bundle.main.object(forInfoDictionaryKey:"CFBundleShortVersionString") as? String ?? "0.27.0");exit(0) }
-let internalTestFlags: Set<String> = ["--restart-smoke","--settings-integration-smoke","--settings-backup-smoke","--attributes-smoke","--external-tools-smoke","--advanced-search-smoke","--age-smoke","--appearance-smoke","--archive-edit-smoke","--archive-merge-smoke","--archive-smoke","--compare-smoke","--file-diff-smoke","--file-ux-smoke","--filters-smoke","--journal-smoke","--launch-smoke","--layout-smoke","--media-metadata-smoke","--merge-smoke","--mirror-smoke","--navigation-smoke","--operations-smoke","--package-integration-smoke","--profiles-smoke","--rail-smoke","--recovery-smoke","--remote-smoke","--rename-smoke","--search-smoke","--selection-smoke","--server-pane-smoke","--smoke-test","--tabs-smoke","--tools-integration-smoke","--ux-smoke","--viewer-smoke","--workspace-smoke"]
+let internalTestFlags: Set<String> = ["--restart-smoke","--settings-integration-smoke","--settings-backup-smoke","--attributes-smoke","--external-tools-smoke","--advanced-search-smoke","--age-smoke","--appearance-smoke","--archive-edit-smoke","--archive-merge-smoke","--archive-smoke","--compare-smoke","--file-diff-smoke","--file-ux-smoke","--filters-smoke","--journal-smoke","--launch-smoke","--layout-smoke","--media-metadata-smoke","--merge-smoke","--mirror-smoke","--navigation-smoke","--operations-smoke","--package-integration-smoke","--profiles-smoke","--rail-smoke","--recovery-smoke","--remote-smoke","--rename-smoke","--search-smoke","--selection-smoke","--server-pane-smoke","--smoke-test","--tabs-smoke","--tools-integration-smoke","--flat-view-smoke","--ux-smoke","--viewer-smoke","--workspace-smoke"]
 let launchRequest: LaunchRequest?
 do { launchRequest = launchArguments.first.map(internalTestFlags.contains) == true ? nil : try LaunchRequest.parse(launchArguments) }
 catch { fputs("Start fehlgeschlagen: \(error.localizedDescription)\nHilfe: --help\n",stderr);exit(2) }

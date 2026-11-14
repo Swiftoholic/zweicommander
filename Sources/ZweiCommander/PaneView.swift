@@ -3,7 +3,8 @@ import CommanderCore
 
 final class FolderTab {
     let id = UUID()
-    var url: URL
+    var url: URL { didSet { locationVersion &+= 1 } }
+    private(set) var locationVersion: UInt64 = 0
     var title: String?
     var lockMode:TabLockMode = .none
     var locked:Bool { get { lockMode.preventsClosing } set { lockMode = newValue ? .newTab : .none } }
@@ -88,8 +89,9 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     let viewBar = NSStackView()
     let tree = FolderTree()
     var treeVisible = false { didSet { tree.isHidden = !treeVisible; needsLayout = true } }
-    var tabs: [FolderTab] = []
-    var tabIndex = 0
+    var tabs: [FolderTab] = [] { didSet { locationVersion &+= 1 } }
+    var tabIndex = 0 { didSet { if oldValue != tabIndex { locationVersion &+= 1 } } }
+    private(set) var locationVersion: UInt64 = 0
     var recentTabIDs:[UUID] = []
     var closedTabs:[FolderTab] = []
     var sessionCacheRoot:URL?
@@ -387,12 +389,12 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         if tabsStack.arrangedSubviews.indices.contains(tabIndex) { tabsStack.scrollToVisible(tabsStack.arrangedSubviews[tabIndex].frame) }
         onState?()
     }
-    func newTab(url: URL? = nil) {
+    func newTab(url: URL? = nil,activate: Bool = true) {
         if let archive,url.map(archive.contains) ?? true { openArchiveSession(archive,at:url ?? currentURL);return }
         if let remote,url == nil || url?.isFileURL == false { _ = openRemote(remote.connection,path:url?.path ?? currentURL.path);return }
         let t = FolderTab(url ?? currentURL);t.view = tab.view
         if let root = tab.archiveRoot, FileSystem.isInside(t.url,root) { t.archiveRoot = root; t.archiveOrigin = tab.archiveOrigin }
-        tabs.append(t); tabIndex = tabs.count-1;restoreTabView(); rebuildTabs(); refresh(); focus()
+        tabs.append(t); tabIndex = tabs.count-1;restoreTabView(); rebuildTabs(); refresh(); if activate { focus() }
     }
     func closeTab() { closeTab(tab.id) }
     func closeTab(_ id: UUID) {
@@ -432,7 +434,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         if tab.archiveRoot == currentURL, let origin = tab.archiveOrigin { navigate(origin.deletingLastPathComponent()); return }
         navigate(currentURL.deletingLastPathComponent())
     }
-    func showCollection(_ urls: [URL], title: String) { newTab(); tab.collection = urls; tab.title = title;restoreTabView(); rebuildTabs(); refresh() }
+    func showCollection(_ urls: [URL], title: String,activate: Bool = true) { newTab(activate:activate); tab.collection = urls; tab.title = title;restoreTabView(); rebuildTabs(); refresh() }
     func addToCollection(_ urls: [URL]) {
         guard var values = tab.collection else { return }
         for url in urls where !values.contains(url) { values.append(url) }

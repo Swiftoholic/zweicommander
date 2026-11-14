@@ -247,7 +247,10 @@ def fixtures(base):
     restart = base / "restart"
     for side in ("Links", "Rechts"):
         (restart / side).mkdir(parents=True)
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive, archive_merge, file_diff, advanced_search, viewer, tools_integration, mirror, archive_edit, media_metadata, package_integration, launch, settings_backup, attributes, external_tools, settings_integration, restart
+    flat_view = base / "flat-view"
+    for side in ("Links", "Rechts"):
+        (flat_view / side).mkdir(parents=True)
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive, archive_merge, file_diff, advanced_search, viewer, tools_integration, mirror, archive_edit, media_metadata, package_integration, launch, settings_backup, attributes, external_tools, settings_integration, restart, flat_view
 
 
 def main():
@@ -331,9 +334,10 @@ def main():
             ("external-tools", "--external-tools-smoke", roots[34], str(prefix), "EXTERNAL TOOLS UI PASS ", "EXTERNAL TOOLS SMOKE PASS 37 checks", 37),
             ("settings-integration", "--settings-integration-smoke", roots[35], str(prefix), "SETTINGS INTEGRATION UI PASS ", "SETTINGS INTEGRATION SMOKE PASS 27 checks", 27),
             ("restart", "--restart-smoke", roots[36], str(prefix), "RESTART UI PASS ", "RESTART SMOKE PASS 48 checks", 48),
+            ("flat-view", "--flat-view-smoke", roots[37], str(prefix), "FLAT VIEW UI PASS ", "FLAT VIEW SMOKE PASS 20 checks", 20),
         ]
         if args.skip_foreground:
-            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload", "archive", "archive-merge", "file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration", "launch", "settings-backup", "attributes", "external-tools", "settings-integration", "restart"}
+            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload", "archive", "archive-merge", "file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration", "launch", "settings-backup", "attributes", "external-tools", "settings-integration", "restart", "flat-view"}
             skipped = [case for case in cases if case[0] in foreground]
             cases = [case for case in cases if case[0] not in foreground]
             print("Ausgelassen: " + ", ".join(case[0] for case in skipped) + " · " + str(sum(case[-1] for case in skipped)) + " Vordergrundprüfungen offen", flush=True)
@@ -428,7 +432,7 @@ def main():
                     command += ["--wait-for-foreground"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
-                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=240 if name in {"file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration", "launch", "settings-backup", "attributes", "external-tools", "settings-integration", "restart"} else 180 if name in {"archive", "archive-merge"} or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
+                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=240 if name in {"file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration", "launch", "settings-backup", "attributes", "external-tools", "settings-integration", "restart", "flat-view"} else 180 if name in {"archive", "archive-merge"} or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
                     except subprocess.TimeoutExpired:
                         raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
                 if name == "restart":
