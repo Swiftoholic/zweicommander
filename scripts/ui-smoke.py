@@ -341,7 +341,7 @@ def main():
             ("settings-integration", "--settings-integration-smoke", roots[35], str(prefix), "SETTINGS INTEGRATION UI PASS ", "SETTINGS INTEGRATION SMOKE PASS 27 checks", 27),
             ("restart", "--restart-smoke", roots[36], str(prefix), "RESTART UI PASS ", "RESTART SMOKE PASS 48 checks", 48),
             ("flat-view", "--flat-view-smoke", roots[37], str(prefix), "FLAT VIEW UI PASS ", "FLAT VIEW SMOKE PASS 20 checks", 20),
-            ("tree-history", "--tree-history-smoke", roots[38], str(prefix), "TREE HISTORY UI PASS ", "TREE HISTORY SMOKE PASS 30 checks", 30),
+            ("tree-history", "--tree-history-smoke", roots[38], str(prefix), "TREE HISTORY UI PASS ", "TREE HISTORY SMOKE PASS 32 checks", 32),
             ("session-preservation", "--session-preservation-smoke", roots[39], str(prefix), "SESSION PRESERVATION UI PASS ", "SESSION PRESERVATION SMOKE PASS 55 checks", 55),
         ]
         if args.skip_foreground:
