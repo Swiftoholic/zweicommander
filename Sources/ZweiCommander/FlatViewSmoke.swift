@@ -10,6 +10,10 @@ extension AppDelegate {
                 for _ in 0..<500 { if condition() { return };try? await Task.sleep(nanoseconds:40_000_000) }
                 print("FLAT VIEW SMOKE FAIL timeout "+name);fflush(stdout);exit(1)
             }
+            func contains(_ urls:[URL]?,_ target:URL) -> Bool {
+                let path = FileSystem.canonical(target.deletingLastPathComponent()).appendingPathComponent(target.lastPathComponent).path
+                return urls?.contains { FileSystem.canonical($0.deletingLastPathComponent()).appendingPathComponent($0.lastPathComponent).path == path } ?? false
+            }
             let main = self.main!,pane = main.left,window = main.window!
             let personal = UserDefaults.standard.persistentDomain(forName:"local.zweicommander.app") ?? [:]
             let source = FileSystem.canonical(root.appendingPathComponent("Links")),other = source.appendingPathComponent("Child"),hidden = source.appendingPathComponent(".hidden.txt")
@@ -63,11 +67,11 @@ extension AppDelegate {
 
                 await reset();Preferences.state.showHidden = true;pane.showHidden = false;request = await begin()
                 pane.showHidden = true;pane.refresh();await settle();await drain(request.0)
-                check(pane.tab.collection?.contains(file) == true && pane.tabs.count == 2,"ordinary listing refresh does not discard a current flat result")
-                check(pane.tab.collection?.contains(hidden) == false,"queued flat scan uses the pane hidden-file option captured at submission")
+                check(contains(pane.tab.collection,file) && pane.tabs.count == 2,"ordinary listing refresh does not discard a current flat result")
+                check(pane.tab.collection != nil && !contains(pane.tab.collection,hidden),"queued flat scan uses the pane hidden-file option captured at submission")
 
                 await reset();Preferences.state.showHidden = false;pane.showHidden = true;request = await begin();await drain(request.0)
-                check(pane.tab.collection?.contains(hidden) == true,"flat scan uses the active pane option independently of global defaults")
+                check(contains(pane.tab.collection,hidden),"flat scan uses the active pane option independently of global defaults")
 
                 await reset();request = await begin();window.close();window.makeKeyAndOrderFront(nil);NSApp.activate(ignoringOtherApps:true);await drain(request.0)
                 check(pane.tab.collection == nil && pane.tabs.count == 1,"closing and reopening the main window invalidates old flat results")
@@ -86,7 +90,7 @@ extension AppDelegate {
                 check(pane.tab.collection == nil && pane.tabs.count == 1 && main.jobs.scheduler.snapshots.first(where:{ $0.id == running.id })?.state == .cancelled,"accepted running cancellation after the scan cannot publish a successful collection")
 
                 await reset();request = await begin();main.right.focus();let otherResponder = window.firstResponder;await drain(request.0)
-                check(pane.tab.collection?.contains(file) == true && main.active === main.right && window.firstResponder === otherResponder,"flat results open in their source pane without stealing the other pane's focus")
+                check(contains(pane.tab.collection,file) && main.active === main.right && window.firstResponder === otherResponder,"flat results open in their source pane without stealing the other pane's focus")
 
                 await reset();request = await begin();pane.beginPathEditing();let editor = window.firstResponder;await drain(request.0)
                 check(pane.tab.collection == nil && pane.tabs.count == 1 && pane.pathField.sessionActive && window.firstResponder === editor,"flat results preserve a newer path editing session")
@@ -111,10 +115,10 @@ extension AppDelegate {
                 check(pane.currentURL == source && pane.tab.collection == nil && pane.tabs.count == 1 && main.jobs.scheduler.snapshots.first(where:{ $0.id == request.1 })?.state == .failed,"a failed stale scan cannot display an unrelated modal or collection")
 
                 await reset();request = await begin();main.command("flat");await drain(request.0)
-                check(pane.tabs.count == 2 && pane.tab.collection?.contains(file) == true,"two queued requests from one context publish only its first valid result")
+                check(pane.tabs.count == 2 && contains(pane.tab.collection,file),"two queued requests from one context publish only its first valid result")
 
                 await reset();pane.tab.lockMode = .fixed;let fixed = pane.tab;request = await begin();await drain(request.0)
-                check(pane.tabs.count == 2 && pane.tabs.contains(where:{ $0 === fixed && $0.lockMode == .fixed && $0.url == source }) && pane.tab.collection?.contains(file) == true,"flat results preserve a fixed source tab in a separate collection")
+                check(pane.tabs.count == 2 && pane.tabs.contains(where:{ $0 === fixed && $0.lockMode == .fixed && $0.url == source }) && contains(pane.tab.collection,file),"flat results preserve a fixed source tab in a separate collection")
                 check(try Data(contentsOf:file) == Data("flat fixture\n".utf8) && Data(contentsOf:hidden) == Data("hidden fixture\n".utf8) && (personal as NSDictionary).isEqual(to:UserDefaults.standard.persistentDomain(forName:"local.zweicommander.app") ?? [:]),"flat context tests preserve source bytes and personal settings")
             } catch { check(false,error.localizedDescription) }
             print("FLAT VIEW SMOKE \(failures.isEmpty ? "PASS" : "FAIL") \(checks) checks");fflush(stdout);exit(failures.isEmpty ? 0 : 1)
