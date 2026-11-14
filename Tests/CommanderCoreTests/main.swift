@@ -1169,7 +1169,29 @@ let tests: [(String, (CoreTests) throws -> Void)] = [
     ("testLinkedNavigationRefusesUnrelatedAndSameLocations", { try $0.testLinkedNavigationRefusesUnrelatedAndSameLocations() }),
     ("testLinkedNavigationDoesNotClampAboveOppositeFilesystemRoot", { try $0.testLinkedNavigationDoesNotClampAboveOppositeFilesystemRoot() }),
     ("testLinkedNavigationRejectsRemoteAndArchiveContexts", { try $0.testLinkedNavigationRejectsRemoteAndArchiveContexts() }),
-    ("testLinkedNavigationNormalizesDotsWithoutFollowingDiskAliases", { try $0.testLinkedNavigationNormalizesDotsWithoutFollowingDiskAliases() })
+    ("testLinkedNavigationNormalizesDotsWithoutFollowingDiskAliases", { try $0.testLinkedNavigationNormalizesDotsWithoutFollowingDiskAliases() }),
+    ("testSessionPreservationUnknownRootAndTabFieldsSurviveUnrelatedEdits", { try $0.testSessionPreservationUnknownRootAndTabFieldsSurviveUnrelatedEdits() }),
+    ("testSessionPreservationInvalidOptionalTypesKeepOriginalWithUsableFallback", { try $0.testSessionPreservationInvalidOptionalTypesKeepOriginalWithUsableFallback() }),
+    ("testSessionPreservationUnknownLockModeKeepsLegacyProtection", { try $0.testSessionPreservationUnknownLockModeKeepsLegacyProtection() }),
+    ("testSessionPreservationContradictingKnownLockFallsBackWithoutChangingRawMode", { try $0.testSessionPreservationContradictingKnownLockFallsBackWithoutChangingRawMode() }),
+    ("testSessionPreservationFutureViewSurvivesAutomaticFallbackSnapshot", { try $0.testSessionPreservationFutureViewSurvivesAutomaticFallbackSnapshot() }),
+    ("testSessionPreservationExplicitViewEditReplacesOnlyUnsupportedView", { try $0.testSessionPreservationExplicitViewEditReplacesOnlyUnsupportedView() }),
+    ("testSessionPreservationUnknownNestedColumnFieldsFollowColumnIdentity", { try $0.testSessionPreservationUnknownNestedColumnFieldsFollowColumnIdentity() }),
+    ("testSessionPreservationBadRegexAndOversizedFilterFallBackWithoutLoss", { try $0.testSessionPreservationBadRegexAndOversizedFilterFallBackWithoutLoss() }),
+    ("testSessionPreservationExplicitFilterAndLockEditsReplaceProtectedValues", { try $0.testSessionPreservationExplicitFilterAndLockEditsReplaceProtectedValues() }),
+    ("testSessionPreservationUnknownSelectionStaysUntilExplicitSelection", { try $0.testSessionPreservationUnknownSelectionStaysUntilExplicitSelection() }),
+    ("testSessionPreservationDuplicatePathsReorderAndMoveWithoutCrossContamination", { try $0.testSessionPreservationDuplicatePathsReorderAndMoveWithoutCrossContamination() }),
+    ("testSessionPreservationRepeatedReloadDoesNotAccumulateOrDropOpaqueFields", { try $0.testSessionPreservationRepeatedReloadDoesNotAccumulateOrDropOpaqueFields() }),
+    ("testSessionPreservationOpaqueNumbersAndEscapedUnicodeRemainExact", { try $0.testSessionPreservationOpaqueNumbersAndEscapedUnicodeRemainExact() }),
+    ("testSessionPreservationLegacyImportedProfileNormalizesCompleteOpaqueSubtree", { try $0.testSessionPreservationLegacyImportedProfileNormalizesCompleteOpaqueSubtree() }),
+    ("testSessionPreservationFutureImportedProfileUsesFallbackAndRemainsOpaque", { try $0.testSessionPreservationFutureImportedProfileUsesFallbackAndRemainsOpaque() }),
+    ("testSessionPreservationNormalAndLegacyKnownSettingsRemainMutable", { try $0.testSessionPreservationNormalAndLegacyKnownSettingsRemainMutable() }),
+    ("testSessionPreservationStrictBackupStillRejectsRetainedUnsupportedFields", { try $0.testSessionPreservationStrictBackupStillRejectsRetainedUnsupportedFields() }),
+    ("testSessionPreservationDuplicateInvalidAndTruncatedJSONRejectBeforeDecode", { try $0.testSessionPreservationDuplicateInvalidAndTruncatedJSONRejectBeforeDecode() }),
+    ("testSessionPreservationDepthNodeAndByteBudgetsAreBounded", { try $0.testSessionPreservationDepthNodeAndByteBudgetsAreBounded() }),
+    ("testSessionPreservationInvalidRequiredFieldsAndPathsRejectRatherThanDropTabs", { try $0.testSessionPreservationInvalidRequiredFieldsAndPathsRejectRatherThanDropTabs() }),
+    ("testSessionPreservationViewRecoveryNeverReintroducesOldLockFilterOrMetadata", { try $0.testSessionPreservationViewRecoveryNeverReintroducesOldLockFilterOrMetadata() }),
+    ("testSessionPreservationNormalSessionIsNotLimitedToBackupTabCount", { try $0.testSessionPreservationNormalSessionIsNotLimitedToBackupTabCount() })
 ]
 var failed = 0
 let testFilter = CommandLine.arguments.firstIndex(of:"--filter").flatMap { CommandLine.arguments.indices.contains($0+1) ? CommandLine.arguments[$0+1] : nil }

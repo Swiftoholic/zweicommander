@@ -41,7 +41,7 @@ extension PaneView {
             if let remote,!destination.isFileURL { _ = openRemote(remote.connection,path:destination.path) } else { newTab(url:destination) };return true
         }
     }
-    func setTabLock(_ mode:TabLockMode) { tab.lockMode = mode;rebuildTabs();status.stringValue = "Tabsperre: "+mode.title }
+    func setTabLock(_ mode:TabLockMode) { tab.sessionReplacedFields.insert("lockMode");tab.lockMode = mode;rebuildTabs();status.stringValue = "Tabsperre: "+mode.title }
     func layoutPane() throws -> LayoutPane {
         let group = try groupPane(),local = tabs.filter { $0.remote == nil && $0.archiveRoot == nil && $0.collection == nil && !isSessionTemporary($0.url) }
         let values = zip(local,group.folders).map { item,folder -> LayoutTab in
@@ -60,10 +60,12 @@ extension PaneView {
             if replacing,let existing = kept.first(where:{ $0.locked && $0.remote == nil && $0.archiveRoot == nil && $0.collection == nil && $0.url.standardizedFileURL.path == saved.path && !reused.contains($0.id) }) {
                 item = existing;reused.insert(item.id)
             } else { item = FolderTab(URL(fileURLWithPath:saved.path));item.lockMode = saved.lockMode }
+            item.sessionReplacedFields.formUnion(["title","view","filter","filterRegex","selected"])
             item.title = saved.title;item.view = saved.view;item.sessionViewPinned = true;item.filter = saved.filter;item.filterRegex = saved.filterRegex;incoming.append(item)
         }
         let chosen = incoming[pane.selected]
         tabs = kept.filter { !reused.contains($0.id) }+incoming;tabIndex = tabs.firstIndex { $0 === chosen }!
+        for item in tabs { item.sessionReplacedFields.insert("selected") }
         restoreTabView();rebuildTabs();refresh()
     }
 }

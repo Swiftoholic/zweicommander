@@ -20,6 +20,9 @@ final class FolderTab {
     var remote: RemoteFolderSession?
     var remoteEntries: [RemoteEntry] = []
     var selectionMemory: (scope:String,urls:Set<URL>)?
+    var sessionPreservation:SessionFieldPreservation?
+    var sessionReplacedFields:Set<String> = []
+    var sessionViewBeforeImport:SavedTab?
     init(_ url: URL) { self.url = url; history = [url] }
 }
 final class FileTable: CommanderTableView {
@@ -170,6 +173,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
             let u = URL(fileURLWithPath: item.path)
             guard (try? LayoutTab.validatePath(item.path)) != nil else { return nil }
             let t = FolderTab(u); t.title = item.title;t.lockMode = item.lockMode ?? (item.locked ? .newTab : .none);t.filter = item.filter ?? "";t.filterRegex = item.filterRegex ?? false
+            t.sessionPreservation = item.preservation;t.sessionReplacedFields = item.explicitlyReplacedFields
             if let view = item.view,(try? view.validate()) != nil { t.view = view }
             if item.selected == true { restoredActive = t.id };return t
         }
@@ -395,7 +399,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         if let remote,url == nil || url?.isFileURL == false { _ = openRemote(remote.connection,path:url?.path ?? currentURL.path);return }
         let t = FolderTab(url ?? currentURL);t.view = tab.view
         if let root = tab.archiveRoot, FileSystem.isInside(t.url,root) { t.archiveRoot = root; t.archiveOrigin = tab.archiveOrigin }
-        tabs.append(t); tabIndex = tabs.count-1;restoreTabView(); rebuildTabs(); refresh(); if activate { focus() }
+        tabs.append(t);for item in tabs { item.sessionReplacedFields.insert("selected") };tabIndex = tabs.count-1;restoreTabView(); rebuildTabs(); refresh(); if activate { focus() }
     }
     func closeTab() { closeTab(tab.id) }
     func closeTab(_ id: UUID) {
@@ -612,8 +616,8 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         }
         updatePanePresentation()
     }
-    func clearFilter() { filterField.stringValue = "";filterRegex.state = .off;applyFilter();onFilterChange?() }
-    @objc func filterChanged() { activate();applyFilter();onFilterChange?() }
+    func clearFilter() { tab.sessionReplacedFields.formUnion(["filter","filterRegex"]);filterField.stringValue = "";filterRegex.state = .off;applyFilter();onFilterChange?() }
+    @objc func filterChanged() { tab.sessionReplacedFields.formUnion(["filter","filterRegex"]);activate();applyFilter();onFilterChange?() }
     func controlTextDidChange(_ obj: Notification) { if obj.object as? NSSearchField === filterField { filterChanged() };if obj.object as? PathEditor === pathField { pathField.edited() } }
     func controlTextDidEndEditing(_ obj:Notification) {
         guard obj.object as? PathEditor === pathField else { return }
@@ -744,6 +748,9 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     var savedTabs: [SavedTab] {
         let local = tabs.filter { $0.remote == nil && $0.archiveRoot == nil && $0.collection == nil && !isSessionTemporary($0.url) }
         let selected = remote == nil ? tab.id : local.first(where:{ $0.id == lastLocalTabID })?.id ?? local.first?.id
-        return local.map { SavedTab(path:$0.url.path,title:$0.title,locked:$0.locked,view:$0.view,selected:$0.id == selected && $0.id != local.first?.id ? true : nil,lockMode:$0.lockMode == .closeOnly || $0.lockMode == .fixed ? $0.lockMode : nil,filter:$0.filter.isEmpty ? nil : $0.filter,filterRegex:$0.filterRegex ? true : nil) }
+        return local.map {
+            var value = SavedTab(path:$0.url.path,title:$0.title,locked:$0.locked,view:$0.view,selected:$0.id == selected && $0.id != local.first?.id ? true : nil,lockMode:$0.lockMode == .closeOnly || $0.lockMode == .fixed ? $0.lockMode : nil,filter:$0.filter.isEmpty ? nil : $0.filter,filterRegex:$0.filterRegex ? true : nil)
+            value.preservation = $0.sessionPreservation;value.explicitlyReplacedFields = $0.sessionReplacedFields;return value
+        }
     }
 }

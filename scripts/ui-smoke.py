@@ -253,7 +253,10 @@ def fixtures(base):
     tree_history = base / "tree-history"
     for side in ("Links", "Rechts"):
         (tree_history / side).mkdir(parents=True)
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive, archive_merge, file_diff, advanced_search, viewer, tools_integration, mirror, archive_edit, media_metadata, package_integration, launch, settings_backup, attributes, external_tools, settings_integration, restart, flat_view, tree_history
+    session_preservation = base / "session-preservation"
+    for side in ("Links", "Rechts"):
+        (session_preservation / side).mkdir(parents=True)
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive, archive_merge, file_diff, advanced_search, viewer, tools_integration, mirror, archive_edit, media_metadata, package_integration, launch, settings_backup, attributes, external_tools, settings_integration, restart, flat_view, tree_history, session_preservation
 
 
 def main():
@@ -339,6 +342,7 @@ def main():
             ("restart", "--restart-smoke", roots[36], str(prefix), "RESTART UI PASS ", "RESTART SMOKE PASS 48 checks", 48),
             ("flat-view", "--flat-view-smoke", roots[37], str(prefix), "FLAT VIEW UI PASS ", "FLAT VIEW SMOKE PASS 20 checks", 20),
             ("tree-history", "--tree-history-smoke", roots[38], str(prefix), "TREE HISTORY UI PASS ", "TREE HISTORY SMOKE PASS 30 checks", 30),
+            ("session-preservation", "--session-preservation-smoke", roots[39], str(prefix), "SESSION PRESERVATION UI PASS ", "SESSION PRESERVATION SMOKE PASS 45 checks", 45),
         ]
         if args.skip_foreground:
             foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload", "archive", "archive-merge", "file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration", "launch", "settings-backup", "attributes", "external-tools", "settings-integration", "restart", "flat-view", "tree-history"}
@@ -436,7 +440,7 @@ def main():
                     command += ["--wait-for-foreground"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
-                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=240 if name in {"file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration", "launch", "settings-backup", "attributes", "external-tools", "settings-integration", "restart", "flat-view", "tree-history"} else 180 if name in {"archive", "archive-merge"} or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
+                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=240 if name in {"file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration", "launch", "settings-backup", "attributes", "external-tools", "settings-integration", "restart", "flat-view", "tree-history", "session-preservation"} else 180 if name in {"archive", "archive-merge"} or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
                     except subprocess.TimeoutExpired:
                         raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
                 if name == "restart":

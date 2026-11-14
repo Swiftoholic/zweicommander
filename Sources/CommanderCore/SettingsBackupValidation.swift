@@ -73,7 +73,7 @@ public enum SettingsBackupValidation {
             if let profile = importedProfile { try SettingsBackupValidation.validateProfile(profile) }
         }
     }
-    private static func validateProfile(_ value:SettingsProfile) throws {
+    static func validateProfile(_ value:SettingsProfile) throws {
         let columns:Set<String> = ["name","ext","size","modified","kind","attributes","permissions","path"]
         guard value.schemaVersion == 1,value.sourceSHA256.count == 64,value.sourceSHA256.allSatisfy({ $0.isHexDigit }),value.fontSize.isFinite,(8...48).contains(value.fontSize),
               value.columns.count <= 32,value.columns.allSatisfy({ columns.contains($0.id) && (1...1000).contains($0.characterWidth) && $0.title.utf8.count <= 1024 }),

@@ -56,10 +56,10 @@ final class FolderTabButton: NSButton, NSDraggingSource {
         (title as NSString).draw(in:NSRect(x:7,y:(bounds.height-16)/2,width:max(1,bounds.width-(closeButton.isHidden ? 13 : 31)),height:16),withAttributes:attributes)
     }
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance();needsDisplay = true }
-    @objc func choose() { pane?.selectTab(tabID) }
+    @objc func choose() { pane?.selectTab(tabID,explicit:true) }
     @objc func run(_ item: NSMenuItem) {
         guard let pane,let command = item.representedObject as? String else { return }
-        pane.selectTab(tabID)
+        pane.selectTab(tabID,explicit:true)
         // Closing a contextual tab never closes the application window.
         if command == "closeTab" { pane.closeTab() } else { pane.onCommand?(command) }
     }
@@ -110,25 +110,29 @@ final class FolderTabButton: NSButton, NSDraggingSource {
 }
 
 extension PaneView {
-    func selectTab(_ id: UUID) {
+    func selectTab(_ id: UUID,explicit:Bool = true) {
         guard let index = tabs.firstIndex(where: { $0.id == id }) else { return }
+        if explicit { for item in tabs { item.sessionReplacedFields.insert("selected") } }
         endPathEditing(restoreFocus:false)
         tabIndex = index;restoreTabView();rebuildTabs();refresh();focus()
         if remote == nil,tab.archiveRoot == nil,tab.collection == nil { lastLocalTabID = tab.id }
     }
-    func stepTab(_ offset: Int) { selectTab(tabs[(tabIndex+offset+tabs.count)%tabs.count].id) }
+    func stepTab(_ offset: Int) { selectTab(tabs[(tabIndex+offset+tabs.count)%tabs.count].id,explicit:true) }
     func moveTab(_ id: UUID,to index: Int) {
         guard let old = tabs.firstIndex(where: { $0.id == id }),tabs.indices.contains(index),old != index else { return }
         let activeID = tab.id,item = tabs.remove(at:old);tabs.insert(item,at:index)
+        for item in tabs { item.sessionReplacedFields.insert("selected") }
         tabIndex = tabs.firstIndex(where: { $0.id == activeID })!;rebuildTabs()
     }
     func duplicateTab() {
         let original = tab,t = FolderTab(original.url)
         t.title = original.title;t.history = original.history;t.position = original.position;t.view = original.view
+        t.sessionPreservation = original.sessionPreservation;t.sessionReplacedFields = original.sessionReplacedFields.union(["lockMode","selected"])
+        t.sessionViewBeforeImport = original.sessionViewBeforeImport
         t.collection = original.collection;t.archiveRoot = original.archiveRoot;t.archiveOrigin = original.archiveOrigin;t.archive = original.archive
         t.filter = original.filter;t.filterRegex = original.filterRegex
         if let remote = original.remote { t.remote = RemoteFolderSession(remote.connection) }
-        tabs.insert(t,at:tabIndex+1);tabIndex += 1;restoreTabView();rebuildTabs();refresh();focus()
+        tabs.insert(t,at:tabIndex+1);for item in tabs { item.sessionReplacedFields.insert("selected") };tabIndex += 1;restoreTabView();rebuildTabs();refresh();focus()
     }
     func closeOtherTabs() {
         let current = tab

@@ -3,10 +3,12 @@ import CommanderCore
 
 extension MainWindow {
     func applySettingsProfile(_ profile: SettingsProfile) {
-        Preferences.apply(profile)
+        let rememberCurrentViews = Preferences.beforeImport == nil
+        guard Preferences.apply(profile) else { content.status.stringValue = Preferences.sessionPersistenceNotice ?? "Die Einstellungen können derzeit nicht geändert werden.";return }
+        if rememberCurrentViews { for pane in [left,right] { pane.rememberSessionViewBeforeImport() } }
         left.showHidden = profile.showHidden; right.showHidden = profile.showHidden
         left.configure(profile:profile,isLeft:true); right.configure(profile:profile,isLeft:false)
-        for pane in [left,right] { pane.defaultView = pane.viewSettings;pane.tab.view = pane.viewSettings;pane.restoreTabView() }
+        for pane in [left,right] { pane.tab.sessionReplacedFields.insert("view");pane.defaultView = pane.viewSettings;pane.tab.view = pane.viewSettings;pane.restoreTabView() }
         content.split.isVertical = profile.verticalPanels; content.firstLayout = true; content.needsLayout = true
         applyTheme(); updateFunctionLabels(); onRebuildMenus?(); refresh()
         content.status.stringValue = "INI-Einstellungen übernommen · "+profile.colorScheme
@@ -43,11 +45,21 @@ extension MainWindow {
     }
     func restoreBeforeSettingsImport() {
         guard pendingWork == 0 else { return }
+        let recoveries:[SessionViewRecovery]
+        do {
+            if let previous = Preferences.beforeImport.flatMap(Preferences.decode) {
+                let all = previous.left+previous.right
+                recoveries = try left.prepareSessionViewRecovery(all)+right.prepareSessionViewRecovery(all)
+            } else { recoveries = [] }
+        } catch { showFailure(error);return }
         guard Preferences.restoreBeforeImport() else { _ = dialog("Keine gespeicherten Einstellungen vor dem Import vorhanden",buttons:["OK"]); return }
+        for recovery in recoveries { recovery.apply() }
         for pane in [left,right] {
             pane.restoreConfigurationBeforeImport()
             pane.showHidden = Preferences.state.showHidden
-            pane.defaultView = pane.viewSettings;pane.tab.view = pane.viewSettings;pane.restoreTabView()
+            pane.defaultView = pane.viewSettings
+            if !recoveries.contains(where:{ $0.tab === pane.tab }) { pane.tab.sessionReplacedFields.insert("view");pane.tab.view = pane.viewSettings }
+            pane.restoreTabView()
         }
         content.split.isVertical = Preferences.state.vertical; content.firstLayout = true; content.needsLayout = true
         applyTheme(); updateFunctionLabels(); onRebuildMenus?(); refresh()

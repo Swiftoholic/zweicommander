@@ -21,12 +21,12 @@ enum SettingsBackupViewSnapshot {
         snapshot.left = try tabs(in:left,fallbackFolder:home)
         snapshot.right = try tabs(in:right,fallbackFolder:home.appendingPathComponent("Downloads"))
         snapshot.vertical = vertical
-        return try JSONEncoder().encode(snapshot)
+        return try snapshot.encoded()
     }
     static func semanticallyEqual(_ lhs:Data,_ rhs:Data) -> Bool {
         guard let left = Preferences.decode(lhs),let right = Preferences.decode(rhs),
-              let first = try? JSONSerialization.jsonObject(with:JSONEncoder().encode(left)) as? NSDictionary,
-              let second = try? JSONSerialization.jsonObject(with:JSONEncoder().encode(right)) as? NSDictionary else { return false }
+              let first = try? JSONSerialization.jsonObject(with:left.encoded()) as? NSDictionary,
+              let second = try? JSONSerialization.jsonObject(with:right.encoded()) as? NSDictionary else { return false }
         return first == second
     }
 }

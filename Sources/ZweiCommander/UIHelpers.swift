@@ -134,56 +134,26 @@ final class TextWindow: NSWindowController, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) { onClose?() }
 }
 
-struct SavedTab: Codable {
-    var path: String;var title: String?;var locked: Bool;var view: FolderViewSettings?;var selected: Bool?
-    var lockMode:TabLockMode? = nil;var filter:String? = nil;var filterRegex:Bool? = nil
-    enum CodingKeys: String,CodingKey { case path,title,locked,view,selected,lockMode,filter,filterRegex }
-}
-extension SavedTab {
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy:CodingKeys.self)
-        path = try values.decode(String.self,forKey:.path);title = try values.decodeIfPresent(String.self,forKey:.title);locked = try values.decode(Bool.self,forKey:.locked)
-        view = try? values.decode(FolderViewSettings.self,forKey:.view)
-        if let value = view,(try? value.validate()) == nil { view = nil }
-        selected = try? values.decode(Bool.self,forKey:.selected)
-        lockMode = try? values.decode(TabLockMode.self,forKey:.lockMode)
-        filter = try? values.decode(String.self,forKey:.filter)
-        if let value = filter,value.utf8.count > 4096 || value.contains("\0") { filter = nil }
-        filterRegex = try? values.decode(Bool.self,forKey:.filterRegex)
-    }
-}
-struct SavedState: Codable {
-    var left: [SavedTab] = []
-    var right: [SavedTab] = []
-    var favorites: [String] = []
-    var showHidden = false
-    var vertical = true
-    var theme = 0
-    var shortcuts: [String: String] = [:]
-    var importedProfile: SettingsProfile?
-}
 enum Preferences {
     static var state = load()
     static var testMode = false
     static var primaryTestDefaults: UserDefaults?
     private static var primaryDefaults: UserDefaults? { testMode ? primaryTestDefaults : .standard }
     static var transferJournalTestDirectory: URL?
-    static func decode(_ data: Data) -> SavedState? {
-        // Older builds stored the same profile schema under a different property name.
-        guard var json = try? JSONSerialization.jsonObject(with:data) as? [String:Any] else { return nil }
-        if json["importedProfile"] == nil {
-            let candidates = json.compactMap { key,value -> (String,[String:Any])? in
-                guard let profile = value as? [String:Any],profile["sourceSHA256"] is String,profile["columns"] is [[String:Any]],profile["viewerShortcuts"] is [String:String] else { return nil }
-                return (key,profile)
-            }
-            if candidates.count == 1,let (key,profile) = candidates.first { json.removeValue(forKey:key);json["importedProfile"] = profile }
-        }
-        guard let normalized = try? JSONSerialization.data(withJSONObject:json) else { return nil }
-        return try? JSONDecoder().decode(SavedState.self,from:normalized)
+    private static var unreadableSessionDefaults:UserDefaults?
+    private static var sessionWriteError:String?
+    static var sessionPersistenceNotice:String? {
+        if let sessionWriteError { return sessionWriteError }
+        if let blocked = unreadableSessionDefaults,primaryDefaults === blocked { return "Der gespeicherte Sitzungsstand ist nicht lesbar und bleibt unverändert. Einstellungen über eine geprüfte Sicherung wiederherstellen." }
+        return state.hasUnrecognizedData ? "Einige gespeicherte Optionen benötigen eine andere Version. Sie bleiben erhalten; unterstützte Einstellungen sind weiter nutzbar." : nil
     }
+    static func decode(_ data: Data) -> SavedState? { try? SavedState.decode(data) }
     static func load() -> SavedState {
-        guard let data = primaryDefaults?.data(forKey: "ZweiCommander.state.v1"), let value = decode(data) else { return SavedState() }
-        return value
+        unreadableSessionDefaults = nil;sessionWriteError = nil
+        guard let defaults = primaryDefaults,let raw = defaults.object(forKey:SettingsBackupStores.state) else { return SavedState() }
+        guard let data = raw as? Data else { unreadableSessionDefaults = defaults;return SavedState() }
+        do { return try SavedState.decode(data) }
+        catch { unreadableSessionDefaults = defaults;return SavedState() }
     }
     static var beforeImport: Data? {
         if let data = primaryDefaults?.data(forKey:"ZweiCommander.beforeSettingsImport") { return data }
@@ -192,23 +162,37 @@ enum Preferences {
     }
     static func save() {
         guard let finishMutation = try? SettingsBackupStorage.beginSettingsMutation() else { return };defer { finishMutation() }
-        if let defaults = primaryDefaults,let data = try? JSONEncoder().encode(state) { defaults.set(data, forKey: "ZweiCommander.state.v1") }
+        guard let defaults = primaryDefaults else { return }
+        if defaults === unreadableSessionDefaults { return }
+        do { let data = try state.encoded();defaults.set(data,forKey:SettingsBackupStores.state);sessionWriteError = nil }
+        catch { sessionWriteError = "Sitzung nicht gespeichert: "+error.localizedDescription }
     }
-    static func apply(_ profile: SettingsProfile) {
-        guard let finishMutation = try? SettingsBackupStorage.beginSettingsMutation() else { return };defer { finishMutation() }
+    @discardableResult static func apply(_ profile: SettingsProfile) -> Bool {
+        guard let finishMutation = try? SettingsBackupStorage.beginSettingsMutation() else { return false };defer { finishMutation() }
+        guard primaryDefaults !== unreadableSessionDefaults || unreadableSessionDefaults == nil else { return false }
+        if let defaults = primaryDefaults {
+            let backupKeys = defaults.dictionaryRepresentation().keys.filter { $0 == SettingsBackupStores.beforeImport || SettingsBackupStores.isLegacyBeforeImport($0) }
+            if !backupKeys.isEmpty,beforeImport.flatMap(decode) == nil {
+                sessionWriteError = "Die Vor-Import-Sicherung ist nicht lesbar oder nicht eindeutig. Sie bleibt unverändert; der INI-Import wurde nicht übernommen.";return false
+            }
+        }
+        let previous = state
         if let defaults = primaryDefaults,beforeImport == nil,
-           let old = try? JSONEncoder().encode(state) { defaults.set(old, forKey: "ZweiCommander.beforeSettingsImport") }
+           let old = try? state.encoded() { defaults.set(old, forKey: "ZweiCommander.beforeSettingsImport") }
+        state.explicitlyReplacedFields.insert("importedProfile")
         state.importedProfile = profile
         state.showHidden = profile.showHidden
         state.theme = profile.darkAppearance ? 2 : 1
         state.vertical = profile.verticalPanels
         state.shortcuts.merge(profile.shortcuts, uniquingKeysWith: { _, imported in imported })
         save()
+        if sessionWriteError != nil { state = previous;return false }
+        return sessionWriteError == nil
     }
     static func restoreBeforeImport() -> Bool {
         guard let finishMutation = try? SettingsBackupStorage.beginSettingsMutation() else { return false };defer { finishMutation() }
         guard let old = beforeImport,let value = decode(old) else { return false }
-        state = value; save(); return true
+        unreadableSessionDefaults = nil;state = value; save(); return true
     }
 }
 

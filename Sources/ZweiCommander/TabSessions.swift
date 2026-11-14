@@ -22,6 +22,8 @@ extension Preferences {
 extension FolderTab {
     func copyForSession() -> FolderTab {
         let copy = FolderTab(url);copy.title = title;copy.lockMode = lockMode;copy.history = history;copy.position = position;copy.view = view;copy.sessionViewPinned = true;copy.filter = filter;copy.filterRegex = filterRegex
+        copy.sessionPreservation = sessionPreservation;copy.sessionReplacedFields = sessionReplacedFields
+        copy.sessionViewBeforeImport = sessionViewBeforeImport
         copy.collection = collection;copy.archiveRoot = archiveRoot;copy.archiveOrigin = archiveOrigin;copy.archive = archive
         if let remote { copy.remote = RemoteFolderSession(remote.connection) };return copy
     }
@@ -108,7 +110,7 @@ extension MainWindow {
             })
             secondaryWindows.append(controller);controller.showWindow(nil)
         case "copyTabToOther":
-            let source = active;source.rememberTabView();let copy = source.tab.copyForSession();other.tabs.append(copy);other.selectTab(copy.id);source.focus()
+            let source = active;source.rememberTabView(explicit:false);let copy = source.tab.copyForSession();other.tabs.append(copy);other.selectTab(copy.id);source.focus()
         case "openInNewTab","openInOther","openInOtherTab":
             guard let entry = active.selectionSeed else { return true }
             let source = active,target = id == "openInNewTab" ? active : other
