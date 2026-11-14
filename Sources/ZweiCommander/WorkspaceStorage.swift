@@ -59,7 +59,7 @@ extension PaneView {
         var value = viewSettings;value.display = mode
         applyView(value);rememberTabView();focus()
     }
-    func rememberTabView() { guard !changingView else { return };tab.view = viewSettings;tab.sessionViewPinned = true;onState?() }
+    func rememberTabView(explicit:Bool = true) { guard !changingView else { return };if explicit { tab.sessionReplacedFields.insert("view") };tab.view = viewSettings;tab.sessionViewPinned = true;onState?() }
     @objc func viewModeChanged() { changeDisplay(PaneDisplayMode.allCases[viewMode.indexOfSelectedItem]) }
     @objc func sortModeChanged() {
         let keys = ["name","ext","size","modified","kind","attributes","permissions","path"]+MediaMetadataField.allCases.map(\.rawValue)

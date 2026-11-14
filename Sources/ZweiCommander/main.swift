@@ -98,7 +98,7 @@ final class AppDelegate:NSObject,NSApplicationDelegate,NSMenuItemValidation {
         if let importPath = startupRequest?.settingsImportPath ?? testImport {
             do {
                 let profile = try INISettingsImport.load(directory:URL(fileURLWithPath:importPath))
-                Preferences.apply(profile)
+                guard Preferences.apply(profile) else { throw CommanderError.message(Preferences.sessionPersistenceNotice ?? "Die Einstellungen können derzeit nicht geändert werden.") }
                 if let exportPath = startupRequest?.settingsExportPath ?? testExport {
                     let encoder = JSONEncoder();encoder.outputFormatting = [.prettyPrinted,.sortedKeys]
                     try encoder.encode(profile).write(to:URL(fileURLWithPath:exportPath),options:.atomic)

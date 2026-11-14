@@ -234,6 +234,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         content.onLayoutChange = { [weak self] in self?.scheduleLayoutSave() }
         if startLeft == nil && startRight == nil { restoreLastLayout() }
         layoutPersistenceReady = true
+        if let notice = Preferences.sessionPersistenceNotice { content.status.stringValue = notice;content.status.toolTip = notice }
     }
     required init?(coder:NSCoder) { fatalError() }
     func buildToolbar() {
@@ -375,6 +376,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     func saveState() {
         guard !isApplyingWorkspace,!SettingsBackupStorage.persistenceSuspended else { return }
         Preferences.state.left = left.savedTabs;Preferences.state.right = right.savedTabs;Preferences.state.vertical = content.split.isVertical;Preferences.save()
+        if let notice = Preferences.sessionPersistenceNotice { content.status.stringValue = notice;content.status.toolTip = notice }
         if layoutPersistenceReady {
             do { try Preferences.saveLastLayout(layoutState);layoutPersistenceError = nil } catch { layoutPersistenceError = error.localizedDescription;content.status.stringValue = error.localizedDescription }
         }

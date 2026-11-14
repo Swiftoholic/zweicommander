@@ -107,8 +107,8 @@ extension MainWindow {
             case "closeTab":
                 if active.tab.locked { active.status.stringValue = "Dieser Tab ist gegen Schließen gesperrt." }
                 else if active.tabs.count > 1 { active.closeTab() } else { window?.performClose(nil) }
-            case "lockTab": active.tab.locked.toggle(); active.rebuildTabs()
-            case "nameTab": if let name = prompt("Tab benennen",value:active.tab.title ?? active.currentURL.lastPathComponent) { active.tab.title = name.isEmpty ? nil : name; active.rebuildTabs() }
+            case "lockTab": active.setTabLock(active.tab.locked ? .none : .newTab)
+            case "nameTab": if let name = prompt("Tab benennen",value:active.tab.title ?? active.currentURL.lastPathComponent) { active.tab.sessionReplacedFields.insert("title");active.tab.title = name.isEmpty ? nil : name; active.rebuildTabs() }
             case "collection": if let urls = requireSelection() { active.showCollection(urls,title:"Dateisammlung") }
             case "newCollection": active.showCollection([],title:"Dateisammlung")
             case "removeCollectionItem": active.removeFromCollection()
