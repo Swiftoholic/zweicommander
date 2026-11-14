@@ -8,15 +8,24 @@ extension AppDelegate {
             var checks = 0,failures:[String] = []
             let suite = "local.zweicommander.tests."+UUID().uuidString
             guard Preferences.testMode,let defaults = UserDefaults(suiteName:suite) else { print("SESSION PRESERVATION SMOKE FAIL isolated defaults");exit(1) }
+            let queueGate = DispatchSemaphore(value:0)
+            var probeJob:UUID?
+            let oldRestartPending = SettingsBackupStorage.restartPending
             let oldState = Preferences.state,oldPrimary = Preferences.primaryTestDefaults,oldWorkspace = Preferences.workspaceTestDefaults,oldLayout = Preferences.layoutTestDefaults
             let personal = UserDefaults.standard.persistentDomain(forName:"local.zweicommander.app") ?? [:],clipboard = NSPasteboard.general.changeCount,passwords = Preferences.remoteTestPasswords.values
             @MainActor func cleanup() {
+                queueGate.signal();if let probeJob { self.main.jobs.scheduler.cancel(probeJob) }
+                SettingsBackupStorage.restartPending = oldRestartPending
                 Preferences.primaryTestDefaults = oldPrimary;Preferences.workspaceTestDefaults = oldWorkspace;Preferences.layoutTestDefaults = oldLayout
                 _ = Preferences.load();Preferences.state = oldState
                 defaults.removePersistentDomain(forName:suite);_ = defaults.synchronize()
             }
             @MainActor func check(_ value:Bool,_ name:String) { checks += 1;print("SESSION PRESERVATION UI \(value ? "PASS" : "FAIL") "+name);if !value { failures.append(name) } }
             @MainActor func require<T>(_ value:T?,_ name:String) -> T { guard let value else { print("SESSION PRESERVATION SMOKE FAIL missing "+name);cleanup();exit(1) };return value }
+            @MainActor func wait(_ name:String,_ ready:()->Bool) async {
+                for _ in 0..<300 { if ready() { return };try? await Task.sleep(nanoseconds:20_000_000) }
+                print("SESSION PRESERVATION SMOKE FAIL timeout "+name);cleanup();exit(1)
+            }
             @MainActor func bytes() -> Data { require(defaults.data(forKey:SettingsBackupStores.state),"saved session") }
             @MainActor func tree() throws -> [String:SessionJSON] { require(try SessionJSON.parse(bytes()).fields,"saved root") }
             @MainActor func retained(_ id:String) throws -> [String:SessionJSON] {
@@ -45,6 +54,22 @@ extension AppDelegate {
                 check(rootAfter["futureSession"] == fixture["futureSession"],"actual Main saveState preserves unknown root values and exact large numbers")
                 for key in ["view","lockMode","filter","filterRegex","selected"] { check(firstAfter[key] == first[key],"ordinary native autosave preserves unsupported "+key) }
                 check(main.content.status.stringValue.contains("bleiben erhalten"),"main window explains compatible preservation instead of silently dropping options")
+                let notice = require(Preferences.sessionPersistenceNotice,"future session notice")
+                main.jobs.publish();main.jobs.publish()
+                check(main.content.status.stringValue == notice && main.content.status.toolTip == notice,"actual repeated idle queue publishing keeps the future-session notice visible")
+                probeJob = main.jobs.submitReported("Sitzungsprüfung",body:{ token,reporter in
+                    reporter.report("Halbzeit",fraction:0.5)
+                    while queueGate.wait(timeout:.now()+0.1) == .timedOut { try token.check() };try token.check()
+                },completion:{ (_:Result<Void,Error>) in })
+                await wait("synthetic active queue progress") { self.main.jobs.active?.id == probeJob && self.main.jobs.active?.fraction == 0.5 }
+                main.jobs.publish();main.saveState()
+                check(main.content.status.stringValue.contains("Sitzungsprüfung") && main.content.status.stringValue.contains("Halbzeit") && main.content.status.stringValue.contains(notice),"actual running queue status and session notice remain visible together after autosave")
+                check(!main.content.progress.isHidden && !main.content.progress.isIndeterminate && main.content.progress.doubleValue == 0.5,"session notice does not change the real job progress")
+                check(main.content.status.toolTip?.contains("Sitzungsprüfung") == true && main.content.status.toolTip?.contains(notice) == true,"running queue tooltip explains both the job and preserved session")
+                queueGate.signal()
+                await wait("synthetic queue completion") { self.main.jobs.scheduler.snapshots.first(where:{ $0.id == probeJob })?.state == .completed }
+                main.jobs.publish()
+                check(main.content.status.stringValue == notice && main.content.status.toolTip == notice,"queue completion returns to the persistent session notice")
                 let unchangedReload = Preferences.load(),unchangedPane = PaneView(url:a,savedTabs:unchangedReload.left)
                 check(unchangedPane.tabs.count == 3 && unchangedPane.tab.title == "Zweiter" && unchangedPane.tabs[0].view == nil,"a fresh native pane reloads the compatible fallback and selected tab")
                 check(try unchangedReload.left[0].sessionJSON().fields?["view"] == first["view"],"ordinary save and reload preserve the unsupported view subtree")
@@ -93,13 +118,21 @@ extension AppDelegate {
                 let valid = try SavedState().encoded()
                 for invalid:Any in [Data("{broken".utf8),"wrong stored type",["future":"object"]] {
                     defaults.set(invalid,forKey:SettingsBackupStores.state);Preferences.state = Preferences.load();main.saveState()
+                    main.jobs.publish()
                     check((NSDictionary(dictionary:["value":defaults.object(forKey:SettingsBackupStores.state)!])).isEqual(to:["value":invalid]),"unreadable required session data cannot be replaced by fallback autosave")
                     check(Preferences.sessionPersistenceNotice?.contains("nicht lesbar") == true,"unreadable session has a visible recovery explanation")
+                    check(main.content.status.stringValue == Preferences.sessionPersistenceNotice && main.content.status.toolTip == Preferences.sessionPersistenceNotice,"actual idle queue publishing keeps the unreadable-session recovery visible")
                     let liveProfile = pane.importedProfile;main.applySettingsProfile(profileSettings)
                     check(pane.importedProfile == liveProfile && main.content.status.stringValue.contains("nicht lesbar"),"blocked INI import preserves the live view and reports the recovery guard truthfully")
                 }
                 defaults.set(valid,forKey:SettingsBackupStores.beforeImport)
                 check(Preferences.restoreBeforeImport() && defaults.data(forKey:SettingsBackupStores.state) == valid,"explicit pre-import recovery clears the narrow unreadable-session guard")
+                let recoveredState = Preferences.state
+                Preferences.state = try SavedState.decode(original);SettingsBackupStorage.restartPending = true;main.jobs.publish()
+                check(main.content.status.stringValue == "Einstellungen wiederhergestellt. Jetzt neu starten." && main.content.status.toolTip == main.content.status.stringValue,"pending restored settings show restart instead of the old live session notice")
+                SettingsBackupStorage.restartPending = false;Preferences.state = recoveredState
+                main.jobs.publish()
+                check(Preferences.sessionPersistenceNotice == nil && main.content.status.stringValue == "Bereit" && main.content.status.toolTip == nil,"successful recovery clears the stale visible queue notice and tooltip")
                 defaults.set("unknown raw backup",forKey:SettingsBackupStores.beforeImport);main.applySettingsProfile(profileSettings)
                 check(defaults.string(forKey:SettingsBackupStores.beforeImport) == "unknown raw backup" && main.content.status.stringValue.contains("Vor-Import"),"an existing unreadable pre-import backup is preserved and blocks false import success")
                 check((personal as NSDictionary).isEqual(to:UserDefaults.standard.persistentDomain(forName:"local.zweicommander.app") ?? [:]),"native regression leaves personal preferences untouched")
