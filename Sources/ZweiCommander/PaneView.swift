@@ -87,7 +87,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     let sortDirection = ActionButton("",symbol:"arrow.up.arrow.down",action:{})
     let viewBar = NSStackView()
     let tree = FolderTree()
-    var treeVisible = false { didSet { tree.isHidden = !treeVisible; needsLayout = true } }
+    var treeVisible = false { didSet { tree.isHidden = !treeVisible;needsLayout = true;if treeVisible && !oldValue { tree.refreshExpanded() } } }
     var tabs: [FolderTab] = []
     var tabIndex = 0
     var recentTabIDs:[UUID] = []
@@ -210,6 +210,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         pathField.isEditable = true;pathField.isSelectable = true;pathField.isBordered = true;pathField.drawsBackground = true;pathField.isHidden = true
         pathField.onCancel = { [weak self] in self?.endPathEditing() }
         pathField.onChoose = { [weak self] url in self?.endPathEditing(restoreFocus:false);self?.navigate(url) }
+        pathField.onHistoryChoose = { [weak self] url in self?.endPathEditing(restoreFocus:false);self?.history(to:url) }
         pathField.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
         breadcrumb.setContentHuggingPriority(.defaultLow,for:.horizontal);breadcrumb.setContentCompressionResistancePriority(.defaultLow,for:.horizontal)
         breadcrumb.onChoose = { [weak self] in self?.navigate($0) };breadcrumb.onEdit = { [weak self] in self?.beginPathEditing() }
@@ -410,22 +411,51 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         guard url.isFileURL else { return }
         let u = url.standardizedFileURL
         guard FileSystem.isDirectory(u) else { showFailure(CommanderError.message("Ordner nicht gefunden: \(u.path)")); return }
-        let old = currentURL
-        if routeLockedNavigation(u) { return }
+        let old = currentURL,originalTab = tab,canLink = tab.archiveRoot == nil && tab.collection == nil
+        if routeLockedNavigation(u) {
+            if tab !== originalTab { notifyLocalNavigation(from:old,linked:linked || !canLink) }
+            return
+        }
         if let root = tab.archiveRoot, !FileSystem.isInside(u, root) { tab.archiveRoot = nil; tab.archiveOrigin = nil }
         tab.url = u; tab.collection = nil;tab.sessionViewPinned = false;tab.filter = "";tab.filterRegex = false
         tab.history = Array(tab.history.prefix(tab.position+1)); tab.history.append(u); tab.position = tab.history.count-1
         restoreTabView();rebuildTabs(); refresh(); focus()
-        if !linked { onNavigate?(self,old,u) }
+        notifyLocalNavigation(from:old,linked:linked || !canLink)
     }
     func history(_ offset: Int) {
-        let i = tab.position+offset; guard i >= 0 && i < tab.history.count else { return }
-        if let archive,archive.contains(tab.history[i]) { if routeLockedNavigation(tab.history[i]) { return };tab.position = i;navigateArchive(tab.history[i],history:false);return }
-        if remote != nil { let value = tab.history[i];if routeLockedNavigation(value) { return };tab.position = i;navigateRemote(value,history:false);return }
-        if routeLockedNavigation(tab.history[i]) { return }
-        tab.position = i; tab.url = tab.history[i]; tab.collection = nil;tab.sessionViewPinned = false;tab.filter = "";tab.filterRegex = false
+        let next = tab.position.addingReportingOverflow(offset);guard !next.overflow else { return };history(to:next.partialValue)
+    }
+    func history(to url:URL) { if let index = tab.history.lastIndex(of:url) { history(to:index) } }
+    func history(to index:Int) {
+        guard tab.history.indices.contains(index),index != tab.position else { return }
+        let destination = tab.history[index],originalTab = tab,old = currentURL,canLink = tab.archiveRoot == nil && tab.collection == nil
+        if let archive {
+            guard archive.contains(destination),archive.catalog.isDirectory(archive.path(destination)) else { status.stringValue = "Archivordner im Verlauf ist nicht mehr verfügbar.";return }
+            if routeLockedNavigation(destination) { return }
+            navigateArchive(destination,history:false)
+            if tab === originalTab,currentURL == destination { tab.position = index;updateNavigationHelp() }
+            return
+        }
+        if let remote {
+            guard let resolved = try? remote.resolve(destination.absoluteString,relativeTo:old) else { status.stringValue = "Serverordner im Verlauf ist nicht mehr verfügbar.";return }
+            if routeLockedNavigation(resolved) { return }
+            navigateRemote(resolved,history:false)
+            if tab === originalTab,currentURL == resolved { tab.position = index;updateNavigationHelp() }
+            return
+        }
+        guard destination.isFileURL,FileSystem.isDirectory(destination) else { status.stringValue = "Ordner im Verlauf ist nicht mehr verfügbar. Nach dem Verbinden erneut versuchen.";status.toolTip = destination.path;return }
+        if routeLockedNavigation(destination) {
+            if tab !== originalTab { notifyLocalNavigation(from:old,linked:!canLink) }
+            return
+        }
+        tab.position = index;tab.url = destination;tab.collection = nil;tab.sessionViewPinned = false;tab.filter = "";tab.filterRegex = false
         if let root = tab.archiveRoot, !FileSystem.isInside(tab.url, root) { tab.archiveRoot = nil; tab.archiveOrigin = nil }
         restoreTabView();rebuildTabs(); refresh(); focus()
+        notifyLocalNavigation(from:old,linked:!canLink)
+    }
+    private func notifyLocalNavigation(from old:URL,linked:Bool) {
+        guard !linked,old != currentURL,remote == nil,archive == nil,tab.archiveRoot == nil,tab.collection == nil else { return }
+        onNavigate?(self,old,currentURL)
     }
     func goParent() {
         if let archive,currentURL == archive.root { leaveArchive();return }
@@ -454,6 +484,7 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
     }
     func requestSelection(_ urls:Set<URL>) { selectionRequest = (FileSystem.canonical(currentURL),urls) }
     func refresh() {
+        if treeVisible,remote == nil,archive == nil { tree.refreshExpanded() }
         loadToken.cancel();sortToken.cancel();listingQueue.cancelAllOperations();sortingQueue.cancelAllOperations();sortVersion += 1;isSorting = false
         generation += 1;let g = generation,url = currentURL,hidden = showHidden,collection = tab.collection,tabID = tab.id,remote = self.remote,archive = self.archive,catalog = archive?.catalog
         let directory = FileSystem.canonical(url)
@@ -713,33 +744,4 @@ final class PaneView: NSView, NSTableViewDataSource, NSTableViewDelegate, NSSear
         let selected = remote == nil ? tab.id : local.first(where:{ $0.id == lastLocalTabID })?.id ?? local.first?.id
         return local.map { SavedTab(path:$0.url.path,title:$0.title,locked:$0.locked,view:$0.view,selected:$0.id == selected && $0.id != local.first?.id ? true : nil,lockMode:$0.lockMode == .closeOnly || $0.lockMode == .fixed ? $0.lockMode : nil,filter:$0.filter.isEmpty ? nil : $0.filter,filterRegex:$0.filterRegex ? true : nil) }
     }
-}
-
-final class TreeNode {
-    let url: URL; var children: [TreeNode]?
-    init(_ url: URL) { self.url = url }
-    func load() -> [TreeNode] {
-        if let children { return children }
-        let items = ((try? FileSystem.list(url, showHidden: false)) ?? []).filter { $0.isDirectory && !$0.isSymbolicLink && !$0.isPackage }
-        let value = FileSystem.sorted(items).map { TreeNode($0.url) }; children = value; return value
-    }
-}
-final class FolderTree: NSScrollView, NSOutlineViewDataSource, NSOutlineViewDelegate {
-    let outline = NSOutlineView()
-    var roots = [TreeNode(FileManager.default.homeDirectoryForCurrentUser), TreeNode(URL(fileURLWithPath:"/Volumes")), TreeNode(URL(fileURLWithPath:"/"))]
-    var onChoose: ((URL) -> Void)?
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect); let c = NSTableColumn(identifier: .init("tree")); c.width = 165
-        outline.addTableColumn(c); outline.outlineTableColumn = c; outline.headerView = nil; outline.rowHeight = 24
-        outline.delegate = self; outline.dataSource = self; outline.target = self; outline.doubleAction = #selector(choose)
-        documentView = outline; hasVerticalScroller = true; autohidesScrollers = true
-    }
-    required init?(coder: NSCoder) { fatalError() }
-    func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int { (item as? TreeNode)?.load().count ?? roots.count }
-    func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any { (item as? TreeNode)?.load()[index] ?? roots[index] }
-    func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool { true }
-    func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
-        guard let node = item as? TreeNode else { return nil }; return label(node.url.path == "/" ? "Macintosh HD" : node.url.lastPathComponent, size: 11)
-    }
-    @objc func choose() { guard outline.clickedRow >= 0 else { return }; if let item = outline.item(atRow: outline.clickedRow) as? TreeNode { onChoose?(item.url) } }
 }
