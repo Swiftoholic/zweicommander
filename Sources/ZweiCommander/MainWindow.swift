@@ -123,6 +123,8 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     var settingsRestartInProgress = false
     var settingsRelaunchProcess: Process?
     var settingsRestartArguments: [String]?
+    var flatViewWindowVersion: UInt64 = 0
+    var flatViewAfterScanForTesting: ((CancellationToken)->Void)?
     var onRebuildMenus: (() -> Void)?
     var operationWindow: OperationQueueController?
     var recoveryWindow: RecoveryController?
@@ -505,5 +507,5 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         if !canTerminate { _ = dialog("Dateiaufträge sind offen",message:"Laufende Vorgänge einschließlich Suchen, vorgemerkte Synchronisationen und Aufträge aus temporären Archivansichten erst abschließen oder entfernen. Gespeicherte wartende Kopier- und Verschiebeaufträge bleiben beim Beenden erhalten.",buttons:["OK"]); return false }
         saveState(); return true
     }
-    func windowWillClose(_ notification:Notification) { saveState() }
+    func windowWillClose(_ notification:Notification) { flatViewWindowVersion &+= 1;saveState() }
 }

@@ -95,8 +95,7 @@ extension MainWindow {
                 left.rebuildTabs(); right.rebuildTabs(); refresh()
             case "sameFolder": other.navigate(active.currentURL); active.focus()
             case "flat":
-                let root = active.currentURL, pane = active
-                jobs.submit("Flache Ansicht",work:{ token,_ in var urls:[URL] = []; try FileSystem.walk(root,showHidden:Preferences.state.showHidden,token:token) { urls.append($0) }; return urls },completion:{ [weak pane] result in switch result { case .success(let urls): pane?.showCollection(urls,title:"Flach · "+root.lastPathComponent); case .failure(let e): showFailure(e) } })
+                showFlatView()
             case "newTab": active.newTab()
             case "duplicateTab": active.duplicateTab()
             case "closeOtherTabs": active.closeOtherTabs()
