@@ -18,6 +18,13 @@ extension AppDelegate {
                 window.makeKeyAndOrderFront(nil);NSApp.activate(ignoringOtherApps:true)
                 await wait("active workflow window") { window.isKeyWindow && NSApp.isActive }
             }
+            @MainActor func submitReviewedResume(_ setup:TransferSetupController) -> Bool {
+                let window = require(setup.window,"resume window"),event = key(window,"\r",.command,code:36)
+                let before = "active=\(NSApp.isActive) key=\(window.isKeyWindow) keyWindow=\(NSApp.keyWindow?.windowNumber ?? -1) attachedSheet=\(window.attachedSheet != nil) window=\(window.windowNumber) event.window=\(event.window?.windowNumber ?? -1) eventMatches=\(event.window == nil || event.window === window) handler=\((window as? WorkflowWindow)?.workflowKeys != nil) startEnabled=\(setup.startButton.isEnabled) plan=\(setup.plan != nil) modifiers=\(event.modifierFlags.rawValue) commandReturn=\(WorkflowKeys.matches(event,"\r",.command))"
+                let handled = window.performKeyEquivalent(with:event)
+                if !handled { print("RECOVERY KEY DIAGNOSTIC "+before+" keyAfter=\(window.isKeyWindow) visibleAfter=\(window.isVisible)") }
+                return handled
+            }
             @MainActor func type(_ field: NSTextField,_ value: String) {
                 let editor = require(field.currentEditor() as? NSTextView,"field editor")
                 editor.selectAll(nil);editor.insertText(value,replacementRange:editor.selectedRange())
@@ -46,8 +53,8 @@ extension AppDelegate {
                 recovery.kind.selectItem(at:2);recovery.filterChanged()
                 check(recovery.rows.count == 1 && recovery.selected?.id == partial.id,"partial-only filter selects the persisted copy")
                 recovery.activateSelected()
-                let setup = require(main.secondaryWindows.last as? TransferSetupController,"resume plan")
-                await activate(require(setup.window,"resume window"));await wait("resume preview") { setup.plan != nil }
+                let setup = require(main.secondaryWindows.last as? TransferSetupController,"resume plan"),resumeWindow = require(setup.window,"resume window")
+                await activate(resumeWindow);await wait("resume preview") { setup.plan != nil }
                 check(setup.recoveryNotice?.contains("verglichen") == true && setup.plan?.bytes == partial.totalBytes,"resume review explains verification and plans exact total bytes")
                 check(FileSystem.exists(large) && !FileSystem.exists(right.appendingPathComponent("Groß.bin")),"opening resume review changes no files")
                 var result: OperationReport?
@@ -55,7 +62,13 @@ extension AppDelegate {
                     do { try jobs.submitTransfer(plan,start:start,completion:{ if case .success(let report) = $0 { result = report } });return true }
                     catch { return false }
                 }
-                check(setup.window!.performKeyEquivalent(with:key(setup.window!,"\r",.command,code:36)),"Command Return submits the reviewed resume plan")
+                // Awaiting the preview does not preserve the key window. Exercise the
+                // inactive-window guard, then establish focus at the actual key action.
+                await activate(window)
+                let inactiveHandled = resumeWindow.performKeyEquivalent(with:key(resumeWindow,"\r",.command,code:36))
+                check(!resumeWindow.isKeyWindow && !inactiveHandled && result == nil && jobs.pending == 0 && !FileSystem.exists(right.appendingPathComponent("Groß.bin")),"inactive resume window rejects Command Return without starting file work")
+                await activate(resumeWindow)
+                check(submitReviewedResume(setup),"Command Return submits the reviewed resume plan")
                 await wait("actual resumed copy") { result != nil && jobs.pending == 0 }
                 check(result?.errors.isEmpty == true && result?.reusedBytes == partial.bytes,"resume reports exactly the bytes reused from the prior process")
                 check((try? Checksums.hash(large)) == (try? Checksums.hash(right.appendingPathComponent("Groß.bin"))),"resumed output matches the complete original")
