@@ -24,6 +24,7 @@ extension Preferences {
     static func externalToolLibrary() throws -> ExternalToolLibrary { try externalToolsSnapshot().library }
     static func saveExternalTools(_ library:ExternalToolLibrary) throws { try saveExternalTools(library,replacing:externalToolsSnapshot()) }
     static func saveExternalTools(_ library:ExternalToolLibrary,replacing snapshot:ExternalToolsSnapshot) throws {
+        let finishMutation = try SettingsBackupStorage.beginSettingsMutation();defer { finishMutation() }
         let data = try library.encoded(),current = try externalToolsSnapshot()
         guard current.raw == snapshot.raw else { throw CommanderError.message("Die Werkzeuge wurden in einem anderen Fenster geändert. Dieses Fenster neu laden; es wurde nichts ersetzt.") }
         externalToolsDefaults?.set(data,forKey:externalToolsKey)

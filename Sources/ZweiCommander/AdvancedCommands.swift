@@ -148,17 +148,5 @@ extension MainWindow {
         }.joined(separator:"\n\n")
         showText("Eigenschaften",text)
     }
-    func attributes() {
-        guard ensureWritable(active),let urls = requireSelection() else { return }
-        let mode = input("",placeholder:"z. B. 644"), date = input("",placeholder:"2026-10-17 15:30:00")
-        guard dialog("Rechte und Änderungsdatum",message:"Gilt nur für die ausgewählten Objekte, nicht rekursiv. Leere Felder bleiben unverändert. Verknüpfungen sind ausgeschlossen.",accessory:form([("POSIX-Rechte (oktal)",mode),("Datum (lokale Zeit)",date)]),buttons:["Anwenden","Abbrechen"]) == 0 else { return }
-        do {
-            var attrs:[FileAttributeKey:Any] = [:]
-            if !mode.stringValue.isEmpty { guard let number = Int(mode.stringValue,radix:8),number >= 0,number <= 0o777 else { throw CommanderError.message("Rechte müssen zwischen 000 und 777 liegen.") }; attrs[.posixPermissions] = number }
-            if !date.stringValue.isEmpty { let parser = DateFormatter(); parser.locale = Locale(identifier:"en_US_POSIX"); parser.dateFormat = "yyyy-MM-dd HH:mm:ss"; parser.isLenient = false; guard let value = parser.date(from:date.stringValue) else { throw CommanderError.message("Ungültiges Datum.") }; attrs[.modificationDate] = value }
-            for url in urls { guard !FileSystem.isSymlink(url) else { throw CommanderError.message("Verknüpfung ausgeschlossen: "+url.path) } }
-            for url in urls { try FileManager.default.setAttributes(attrs,ofItemAtPath:url.path) }
-            refresh()
-        } catch { showFailure(error) }
-    }
+    func attributes() { showAttributes() }
 }

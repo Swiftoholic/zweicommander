@@ -14,6 +14,7 @@ extension Preferences {
         return try CompareProfileLibrary(data:data)
     }
     @discardableResult static func editCompareProfiles<Value>(_ edit: (inout CompareProfileLibrary) throws -> Value) throws -> Value {
+        let finishMutation = try SettingsBackupStorage.beginSettingsMutation();defer { finishMutation() }
         var library = try compareProfiles()
         let result = try edit(&library),data = try library.encoded()
         if let defaults = compareDefaults { defaults.set(data,forKey:compareProfilesKey) }

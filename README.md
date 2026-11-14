@@ -2,7 +2,7 @@
 
 ZweiCommander ist ein nativer Dateimanager für macOS mit zwei Dateifenstern, Tabs und Tastaturbedienung. Er wird in Swift und AppKit entwickelt und verwendet Systembibliotheken für Dateivorgänge, Vorschau und Archive.
 
-**Version 0.26.0 ist eine frühe, ausführbare Version.** Ordner lassen sich mit gesonderter Entfernungsvorschau spiegeln, lokale Archive mit geprüften Änderungen bearbeiten und Medieninformationen als optionale Spalten oder Umbenennungstokens nutzen. Dateivergleich, erweiterte Suche und seitenweise Großdateivorschau bleiben verfügbar. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
+**Version 0.27.0 ist eine frühe, ausführbare Version.** Rechte und Zeitstempel lassen sich mit Vorschau ändern, alle eigenen Einstellungen sichern und wiederherstellen sowie eigene Werkzeuge mit Argumenten und Kürzeln verwalten. Normale Startparameter übergeben Ordner und Dateien an das laufende Fenster. Der aktuelle Umfang und die Grenzen stehen in [FUNKTIONEN.md](FUNKTIONEN.md), die Prüfung in [PRUEFBERICHT.txt](PRUEFBERICHT.txt).
 
 ## Funktionen
 
@@ -390,11 +390,11 @@ python3 scripts/ui-smoke.py --app ../ZweiCommander.app --results /tmp/ZweiComman
 python3 scripts/check-public.py
 ```
 
-Die 535 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die 49 nativen Oberflächendurchläufe mit 1518 Prüfungen verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil. Sie verändern keine persönlichen Benutzereinstellungen; eigene Einstellungsbereiche werden anschließend entfernt.
+Die 710 Dateikern- und Integrationstests verwenden temporäre Dateien. Ein lokaler FTP-Test bindet ausschließlich `127.0.0.1`. Die 55 nativen Oberflächendurchläufe mit 1762 Prüfungen verwenden künstliche Verzeichnisbäume und das mitgelieferte künstliche INI-Profil. Sie verändern keine persönlichen Benutzereinstellungen; eigene Einstellungsbereiche werden anschließend entfernt.
 
 Die Serie prüft Dateiaktionen und Vorschau, Ordner- und Tab-Ablageziele, Ordneradressen mit Maus/Tastatur, 3.000 Dateien, Hell-/Dunkelflächen und Darstellung nach Neustart, Suche, Vergleich, Umbenennen und deren Profile. Getrennte App-Prozesse prüfen gespeicherte Aufträge, relative Altersfilter, abruptes Prozessende, beschädigte oder extern geänderte Ablagen, Byte-Fortsetzung, Sicherungswiederherstellung und die neuen Tastaturabläufe. Ausgeführte Dateiaktionen werden anhand ihrer tatsächlichen Inhalte geprüft. Die Dateikerntests beenden außerdem echte Kindprozesse während einer Kopie und vor dem Entfernen einer gefiltert verschobenen Quelle. Weitere Prüfungen verwenden den echten System-SFTP-Server über lokale Pipes und einen lokalen FTP-/FTPS-Server mit temporären Testzertifikaten; verschachtelte Dateien, Pause, Abbruch, Zertifikats- und Profilfehler werden am tatsächlichen Ergebnis geprüft. Die Server-Tab-Prüfung verwendet einen eigenen FTP-Server und prüft tatsächliche Übertragungen und Mutationen über Menü- und Tastaturaktionen. Die nativen Profilprüfungen verwenden einen künstlichen Passwortspeicher; der echte Schlüsselbund wird getrennt mit einem anschließend entfernten künstlichen Eintrag geprüft.
 
-Drag-and-drop wird an den nativen Schnittstellen geprüft; physisches Ziehen aus anderen Apps und nicht antwortende Netzwerkfreigaben sind nicht Ende zu Ende automatisiert. Programmaufrufe werden an der macOS-Aufrufschnittstelle abgefangen und lösen keinen externen Programmstart aus. Die native Upload-Auswahl erhält an der Dateidialogschnittstelle künstliche Datei-URLs; das tatsächliche Auswählen im macOS-Dateidialog ist nicht Ende zu Ende automatisiert. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
+Drag-and-drop wird an den nativen Schnittstellen geprüft; physisches Ziehen aus anderen Apps und nicht antwortende Netzwerkfreigaben sind nicht Ende zu Ende automatisiert. App-Starts über die macOS-Aufrufschnittstelle werden abgefangen; die Ausführung von Programmdateien wird zusätzlich mit echten Kindprozessen geprüft. Die native Upload-Auswahl erhält an der Dateidialogschnittstelle künstliche Datei-URLs; das tatsächliche Auswählen im macOS-Dateidialog ist nicht Ende zu Ende automatisiert. `--settings /Pfad/Layout.ini` erlaubt eine andere, ausschließlich gelesene Importquelle.
 
 Ein zusätzlicher vollständiger SSH/SFTP-Lauf verwendet den nativen `/usr/bin/ssh` und den echten System-SFTP-Server in einem verschlüsselten Loopback-Transport. Dazu benötigt nur die Testumgebung Paramiko, die App selbst hat diese Abhängigkeit nicht. Eine eigene Python-Umgebung mit `pip install --only-binary=:all: paramiko` vorbereiten und anschließend ausführen:
 
@@ -402,11 +402,11 @@ Ein zusätzlicher vollständiger SSH/SFTP-Lauf verwendet den nativen `/usr/bin/s
 python3 scripts/ssh-smoke.py --python /Pfad/zur/Testumgebung/bin/python --tests /Pfad/CommanderCoreTests --results /Pfad/Pruefprotokolle
 ```
 
-Die neun zusätzlichen SSH-Prüfungen erzeugen eigene Anmelde- und Hostschlüssel, prüfen unbekannte/geänderte Hosts und falsche Schlüssel, rekursive Transfers, Mutationen und Abbruch innerhalb einer Datei. Der Testserver lauscht ausschließlich auf `127.0.0.1`; temporäre Schlüssel werden entfernt. Systemdienste, persönliche SSH-Konfiguration und bekannte Hosts bleiben unverändert. Diese Zusatzprüfungen werden getrennt von den 535 Kerntests gezählt; ohne Testabhängigkeit wird kein SSH-Erfolg behauptet.
+Die neun zusätzlichen SSH-Prüfungen erzeugen eigene Anmelde- und Hostschlüssel, prüfen unbekannte/geänderte Hosts und falsche Schlüssel, rekursive Transfers, Mutationen und Abbruch innerhalb einer Datei. Der Testserver lauscht ausschließlich auf `127.0.0.1`; temporäre Schlüssel werden entfernt. Systemdienste, persönliche SSH-Konfiguration und bekannte Hosts bleiben unverändert. Diese Zusatzprüfungen werden getrennt von den 710 Kerntests gezählt; ohne Testabhängigkeit wird kein SSH-Erfolg behauptet.
 
 `check-public.py` prüft die im Git-Index enthaltenen Dateien vor einer Veröffentlichung. Erlaubt sind die Projektdateien, Quellcode, Werkzeuge und künstlichen Testdaten. Lokale Protokolle, Buildprodukte und Arbeitsunterlagen gehören nicht ins Repository.
 
-Die vollständige Serie mit 49 Durchläufen und 1518 Prüfungen benötigt eine entsperrte GUI-Sitzung. `--skip-foreground` lässt 25 Durchläufe mit 989 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-, Serverfenster, Server-Tabs, Auswahlvorschau, Tabgruppen, Arbeitsbereiche, Archive, Archivkonflikte, Dateidiff, erweiterte Suche, Viewer, gemeinsame Werkzeugabläufe, Spiegelung, Archivbearbeitung, Medieninformationen und gemeinsame Paketabläufe ausdrücklich aus; die übrigen 24 Durchläufe umfassen 529 Prüfungen. Ausgelassene Fälle werden nicht als bestanden gezählt. Die Adressleistenprüfung benötigt ein aktives Prüffenster. Falls macOS die Aktivierung aus dem Hintergrund ablehnt, wartet `ui-smoke.py --interactive` bei Bedarf auf einen Klick in „ZweiCommander · Bedienungsprüfung“. Dieses Fenster für den kurzen Bedienungslauf vorne lassen; für diesen Prozess gilt ein Zeitlimit von 180 Sekunden. Vorschläge werden im normalen Betrieb weiterhin nur im aktiven Fenster eingeblendet.
+Die vollständige Serie mit 55 Durchläufen und 1762 Prüfungen benötigt eine entsperrte GUI-Sitzung. `--skip-foreground` lässt 31 Durchläufe mit 1233 Prüfungen für aktive Adress-, Such-, Vergleichs-, Wiederherstellungs-, Serverfenster, Server-Tabs, Auswahlvorschau, Tabgruppen, Arbeitsbereiche, Archive, Archivkonflikte, Dateidiff, erweiterte Suche, Viewer, gemeinsame Werkzeugabläufe, Spiegelung, Archivbearbeitung, Medieninformationen, gemeinsame Paketabläufe, Eigenschaftsänderungen, Einstellungssicherung, Werkzeugverwaltung, Startübergabe und Neustart ausdrücklich aus; die übrigen 24 Durchläufe umfassen 529 Prüfungen. Ausgelassene Fälle werden nicht als bestanden gezählt. Die Adressleistenprüfung benötigt ein aktives Prüffenster. Falls macOS die Aktivierung aus dem Hintergrund ablehnt, wartet `ui-smoke.py --interactive` bei Bedarf auf einen Klick in „ZweiCommander · Bedienungsprüfung“. Dieses Fenster für den kurzen Bedienungslauf vorne lassen; für diesen Prozess gilt ein Zeitlimit von 180 Sekunden. Vorschläge werden im normalen Betrieb weiterhin nur im aktiven Fenster eingeblendet.
 
 ## Projektstruktur
 
@@ -417,3 +417,44 @@ Die vollständige Serie mit 49 Durchläufen und 1518 Prüfungen benötigt eine e
 - `Sources/CArchive`: ABI-Deklarationen für die in macOS enthaltene libarchive.
 - `Tests`: Funktionsprüfungen, künstliche Testdaten und lokaler FTP-Testserver.
 - `Resources` und `scripts`: App-Metadaten, Icon-Erzeugung und Buildwerkzeuge.
+
+
+## Rechte und Zeitstempel
+
+**Datei → Rechte und Datum …** (Standard **⌘⇧I**) zeigt vor jeder Änderung die betroffenen Dateien und Ordner mit alten und neuen Werten. POSIX-Rechte `0000`–`7777`, Erstellungs-, Änderungs- und Zugriffszeit sind einzeln wählbar. Absolute Zeitpunkte verwenden lokale Zeit oder UTC; relative Werte verschieben um ganze Sekunden und erhalten die Nanosekunden. Nicht eindeutige oder nicht existierende lokale Sommerzeitangaben werden abgewiesen.
+
+Rekursion, Datei-/Ordnerwahl, Namensmuster/RegEx sowie vorhandene Größen-/Datumsfilter begrenzen den Plan. Einzelne Zeilen lassen sich auslassen. Vor der ersten Änderung werden alle beobachteten Objekte erneut geprüft. Verknüpfungen und bereits nicht lesbare Dateien bleiben gesperrt. Eigentümer, Gruppen und ACLs werden nicht geändert. Bis zu 10.000 beobachtete Objekte; reichen die verfügbaren Systemressourcen nicht, beginnt keine Änderung.
+
+**⌘R** prüft neu, **⌘↩** startet, **⌘⇧↩** merkt vor und **Escape** stoppt oder schließt. **⌘Z** nimmt unveränderte Objekte der letzten Änderung in diesem Fenster zurück; bereits abgeschlossene Schritte bleiben bei Abbruch erhalten. Schließen beendet die Rücknahmemöglichkeit. Fremde Änderungen werden als Konflikte gemeldet; eine vollständige Gesamtrücksetzung wird nicht versprochen.
+
+## Eigene Einstellungen sichern
+
+**Hilfe → Einstellungen sichern / wiederherstellen …** (Standard **⌘⇧,**) exportiert die 14 eigenen Einstellungsbereiche in eine versionierte JSON-Datei. Tabs, Favoriten, Spalten, Darstellung, Profile, letzte Anordnung, Tabgruppen, Arbeitsbereiche und eigene Werkzeuge sind enthalten. Auch geerbte Spaltenlayouts älterer Tabs werden bei ausdrücklichem Export erfasst. Normale Starts schreiben alte Daten nicht um.
+
+Sicherungen enthalten lokale Pfade, Serverprofile und Werkzeugargumente. Schlüsselbund-Passwörter, Schlüsseldateien, Aufträge und Wiederherstellungsnutzdaten sind nicht enthalten. Neue Dateinamen als Exportziel wählen; vorhandene Dateien werden nicht ersetzt. Die Importvorschau zeigt übernommene, ersetzte und auf Standard zurückgesetzte Bereiche. Erst die Bestätigung übernimmt den vollständigen Stand. Beschädigte, unbekannte oder neuere Daten werden vorher abgewiesen. Grenzen: 48 MiB Sicherung, insgesamt 32 MiB Einstellungsdaten.
+
+Der vorherige Stand bleibt mit privaten Dateirechten lokal gesichert. Nach der Wiederherstellung **Neu starten** wählen. Bis dahin sind weitere Einstellungsänderungen gesperrt; der Neustart wartet auf das Ende des alten Prozesses, bevor die Auftragsablage erneut geöffnet wird. Die Prüfung unmittelbar vor und nach dem Speichern ist keine exklusive Sperre gegen fremde Prozesse.
+
+## Eigene Werkzeuge
+
+**Eigene Werkzeuge → Werkzeuge verwalten …** (Standard **⌘⌥T**) verwaltet bis zu 100 Programme oder Apps mit Kategorien, Reihenfolge und neun Kürzelplätzen. **⌘⌥1**–**9** öffnet die zugewiesene Startvorschau. Bereits selbst belegte Kombinationen bleiben erhalten. Werkzeuge können zusätzlich in der oberen Leiste samt Überlaufmenü erscheinen.
+
+Jede Argumentzeile ist ein eigenes Argument. `\n`, `\r`, `\t` und `\\` erlauben maskierte Zeichen; `\e` steht allein für ein leeres Argument. `{active}` und `{inactive}` verwenden die Ordner beider Seiten, `{focused}` das fokussierte Objekt, `{file}`, `{name}`, `{stem}` und `{ext}` die aktuelle Datei. `{selection}` und `{names}` stehen jeweils als vollständige Zeile für mehrere einzelne Argumente. Es erfolgt keine automatische Shell-Auswertung. Auf Wunsch startet ein Aufruf pro ausgewählter Datei.
+
+Programmdateien erhalten genaue UTF-8-Argumente und den gewählten lokalen Arbeitsordner. macOS verwaltet den Arbeitsordner von Apps; deren Argumentdarstellung hängt vom System ab. Server- und Archivansichten werden nicht als lokale Pfade übergeben. Die Vorschau bleibt an Definition und Dateiauswahl gebunden; spätere Änderungen erfordern eine neue Prüfung. Starten ist ausdrücklich erforderlich.
+
+Programmdateien laufen in der gemeinsamen Warteschlange mit Pause, Abbruch, Zeitlimit und begrenzter Ausgabe. Auch geerbte Ausgabeschreiber werden bis zum Ende oder zur Grenze überwacht. Hintergrundprogramme müssen ihre Ein-/Ausgabe selbst umleiten. Höchstens 1.000 Auswahlobjekte, 100 Einzelaufrufe, 1.024 expandierte Argumente und 128 KiB Argumenttext pro Aufruf.
+
+## Normaler Start und Übergabe
+
+Die ausführbare Datei im App-Bundle unterstützt:
+
+```text
+ZweiCommander --left ~/Documents --right ~/Downloads --active right
+ZweiCommander --left /Pfad/Ordner --select-left Bericht.txt --new-tabs
+ZweiCommander /Pfad/Datei.txt /Pfad/andererOrdner
+```
+
+Dateipfade markieren das Objekt im Elternordner. `--new-tabs` hängt neue Tabs an; gesperrte und besondere Tabs bleiben auch ohne diese Option erhalten. Absolute und relative Pfade, `~` sowie lokale `file://`-Adressen sind möglich. `--` beendet die Optionsauswertung und erlaubt Namen wie `--import-settings` als gewöhnliche Dateinamen. `--help` und `--version` öffnen kein Fenster.
+
+Ein zweiter Aufruf derselben Ausgabe übergibt die Navigation an das vorhandene Fenster und öffnet keine zweite Auftragsablage. Ein leerer Aufruf öffnet ein geschlossenes Hauptfenster wieder. Die native Adresse `zweicommander://open` unterstützt ausschließlich Navigationswerte; Einstellungsimporte und Programmaufrufe sind darüber nicht verfügbar. Während einer offenen Pfad-/Namenseingabe oder eines geschützten Arbeitsfensters wird die Navigation mit Hinweis zurückgewiesen.

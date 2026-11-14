@@ -162,7 +162,9 @@ extension AppDelegate {
                 let expectedNames = Set(names+[literalINI.lastPathComponent]),childPID = getpid()
                 for name in names {
                     let sender = Process();sender.executableURL = executable;sender.currentDirectoryURL = literalFolder;sender.arguments = ["--",name,literalINI.lastPathComponent]
-                    sender.standardInput = FileHandle.nullDevice;sender.standardOutput = FileHandle.nullDevice;sender.standardError = FileHandle.nullDevice;senders.append(sender)
+                    let senderLog = root.appendingPathComponent("Sender-"+name+".log");try SettingsBackupFile.writeNew(Data(),to:senderLog)
+                    let diagnostics = try FileHandle(forWritingTo:senderLog);defer { try? diagnostics.close() }
+                    sender.standardInput = FileHandle.nullDevice;sender.standardOutput = diagnostics;sender.standardError = diagnostics;senders.append(sender)
                     try sender.run();try await wait("normale Startübergabe "+name) { !sender.isRunning }
                     try check(sender.terminationStatus == 0,"normal CLI sender exits successfully for literal "+name)
                     try await wait("übergebene Dateiauswahl "+name) {
@@ -173,6 +175,13 @@ extension AppDelegate {
                     try check(getpid() == childPID && self.main.jobs.journal === journal && self.main.jobs.history === history && self.main.jobs.journalError == nil,"normal CLI handoff retains the original healthy process and journal for "+name)
                     try check(Preferences.state.importedProfile == nil && Preferences.state.showHidden && (try Data(contentsOf:literalINI)) == literalData && (try Data(contentsOf:literalFolder.appendingPathComponent(name))) == literalContents && Set(try FileManager.default.contentsOfDirectory(atPath:literalFolder.path)) == expectedNames,"literal option filenames never trigger import export or inspection for "+name)
                 }
+                self.main.window?.performClose(nil)
+                try await wait("geschlossenes Hauptfenster") { self.main.window?.isVisible == false }
+                try check(self.main.window?.isVisible == false,"the existing app can keep its journal after its main window closes")
+                let reopen = Process();reopen.executableURL = executable;reopen.arguments = [];reopen.standardInput = FileHandle.nullDevice;reopen.standardOutput = FileHandle.nullDevice;reopen.standardError = FileHandle.nullDevice;senders.append(reopen)
+                try reopen.run();try await wait("leerer normaler Start") { !reopen.isRunning && self.main.window?.isVisible == true }
+                try check(reopen.terminationStatus == 0 && self.main.window?.isVisible == true,"an empty normal CLI invocation reopens the existing closed main window")
+                try check(getpid() == childPID && self.main.jobs.journal === journal && self.main.jobs.journalError == nil,"empty CLI reopen retains the existing healthy process and journal")
                 try check(try RestartSmokeFingerprint.current() == proof.personalStateID,"both processes preserve all personal standard preference values")
                 finish(failures.isEmpty)
             } catch {

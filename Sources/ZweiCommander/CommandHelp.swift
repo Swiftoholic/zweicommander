@@ -53,6 +53,9 @@ enum CommandHelp {
         "recovery":"Sicherungen wiederherstellen und vorhandene Teilkopien vor dem Fortsetzen prüfen.",
         "pauseTransfers":"Laufende Dateiübertragung und nachfolgende Aufträge pausieren oder fortsetzen.",
         "stopTransfers":"Laufenden Auftrag abbrechen. Fertige Schritte bleiben erhalten.",
+        "settingsBackup":"Alle eigenen Einstellungen und Profile lokal sichern oder mit Vorschau wiederherstellen. Nach Wiederherstellung neu starten.",
+        "externalTools":"Eigene Programme, Argumente und Kürzelplätze verwalten. Vor dem Start wird der konkrete Aufruf gezeigt.",
+        "attributes":"Rechte und Zeitstempel ausgewählter Dateien mit Vorschau, Filtern und optionalen Unterordnern ändern.",
         "customizeToolbar":"Sichtbare Befehle und ihre Reihenfolge in der Werkzeugleiste ändern.",
         "selectPattern":"Muster, RegEx und Datei-/Ordnerwahl mit unverbindlicher Vorschau. Ersetzen, hinzufügen, abwählen oder eingrenzen.",
         "selectFiles":"Alle sichtbaren Dateien auswählen; Ordner bleiben unmarkiert.",
@@ -73,7 +76,7 @@ enum CommandHelp {
         "copyShellPaths":"Lokale Pfade als einzeln zitierte Argumente für zsh oder andere POSIX-Shells kopieren. Es wird nichts ausgeführt.",
         "copySelectionTable":"Name, Bytes, Datum, Art und Pfad als TSV kopieren. Steuerzeichen werden sichtbar maskiert."
     ]
-    static func menuHelp(_ id:String) -> String? { (details[id] ?? (id.hasPrefix("workspace") ? "Gespeicherten Arbeitsbereich dieses Listenplatzes öffnen. Die Belegung kann in den Einstellungen geändert werden." : nil)).map { $0+(shortcut(id).isEmpty ? "" : "\n"+shortcut(id)) } }
+    static func menuHelp(_ id:String) -> String? { (details[id] ?? (id.hasPrefix("externalTool") ? "Den zugewiesenen Werkzeugaufruf mit konkreten Argumenten prüfen und starten." : nil) ?? (id.hasPrefix("workspace") ? "Gespeicherten Arbeitsbereich dieses Listenplatzes öffnen. Die Belegung kann in den Einstellungen geändert werden." : nil)).map { $0+(shortcut(id).isEmpty ? "" : "\n"+shortcut(id)) } }
     static func shortcut(_ id:String) -> String {
         var value = AppDelegate.resolvedShortcut(id).lowercased()
         if value == "space" { return "Leertaste" }

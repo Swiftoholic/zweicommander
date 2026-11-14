@@ -13,6 +13,7 @@ extension Preferences {
         return try CopyProfileLibrary(data:data)
     }
     @discardableResult static func editCopyProfiles<Value>(_ edit: (inout CopyProfileLibrary) throws -> Value) throws -> Value {
+        let finishMutation = try SettingsBackupStorage.beginSettingsMutation();defer { finishMutation() }
         var library = try copyProfiles()
         let result = try edit(&library),data = try library.encoded()
         if let defaults = profileDefaults { defaults.set(data,forKey:copyProfilesKey) }

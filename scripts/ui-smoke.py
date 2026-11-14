@@ -237,7 +237,17 @@ def fixtures(base):
     launch = base / "launch"
     for side in ("Links", "Rechts"):
         (launch / side).mkdir(parents=True)
-    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive, archive_merge, file_diff, advanced_search, viewer, tools_integration, mirror, archive_edit, media_metadata, package_integration, launch
+    settings_backup, attributes, external_tools = [base / name for name in ("settings-backup", "attributes", "external-tools")]
+    for target in (settings_backup, attributes, external_tools):
+        for side in ("Links", "Rechts"):
+            (target / side).mkdir(parents=True)
+    settings_integration = base / "settings-integration"
+    for side in ("Links", "Rechts"):
+        (settings_integration / side).mkdir(parents=True)
+    restart = base / "restart"
+    for side in ("Links", "Rechts"):
+        (restart / side).mkdir(parents=True)
+    return main, operations, filters, merge, profiles, journal, damaged, age, workspace, rename, search, compare, ux, navigation, files, recovery, remote, server_pane, selection, tabs, layout, archive, archive_merge, file_diff, advanced_search, viewer, tools_integration, mirror, archive_edit, media_metadata, package_integration, launch, settings_backup, attributes, external_tools, settings_integration, restart
 
 
 def main():
@@ -315,10 +325,15 @@ def main():
             ("archive-edit", "--archive-edit-smoke", roots[28], str(prefix), "ARCHIVE EDIT UI PASS ", "ARCHIVE EDIT SMOKE PASS 39 checks", 39),
             ("media-metadata", "--media-metadata-smoke", roots[29], str(prefix), "MEDIA METADATA UI PASS ", "MEDIA METADATA SMOKE PASS 42 checks", 42),
             ("package-integration", "--package-integration-smoke", roots[30], str(prefix), "PACKAGE INTEGRATION UI PASS ", "PACKAGE INTEGRATION SMOKE PASS 26 checks", 26),
-            ("launch", "--launch-smoke", roots[31], str(prefix), "LAUNCH UI PASS ", "LAUNCH SMOKE PASS 24 checks", 24),
+            ("launch", "--launch-smoke", roots[31], str(prefix), "LAUNCH UI PASS ", "LAUNCH SMOKE PASS 28 checks", 28),
+            ("settings-backup", "--settings-backup-smoke", roots[32], str(prefix), "SETTINGS BACKUP UI PASS ", "SETTINGS BACKUP SMOKE PASS 57 checks", 57),
+            ("attributes", "--attributes-smoke", roots[33], str(prefix), "ATTRIBUTES UI PASS ", "ATTRIBUTES SMOKE PASS 47 checks", 47),
+            ("external-tools", "--external-tools-smoke", roots[34], str(prefix), "EXTERNAL TOOLS UI PASS ", "EXTERNAL TOOLS SMOKE PASS 37 checks", 37),
+            ("settings-integration", "--settings-integration-smoke", roots[35], str(prefix), "SETTINGS INTEGRATION UI PASS ", "SETTINGS INTEGRATION SMOKE PASS 27 checks", 27),
+            ("restart", "--restart-smoke", roots[36], str(prefix), "RESTART UI PASS ", "RESTART SMOKE PASS 48 checks", 48),
         ]
         if args.skip_foreground:
-            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload", "archive", "archive-merge", "file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration", "launch"}
+            foreground = {"navigation", "search-save", "search-reload", "compare-save", "compare-reload", "recovery-save", "recovery-reload", "remote-save", "remote-reload", "server-pane", "selection", "tabs-save", "tabs-reload", "layout-save", "layout-reload", "archive", "archive-merge", "file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration", "launch", "settings-backup", "attributes", "external-tools", "settings-integration", "restart"}
             skipped = [case for case in cases if case[0] in foreground]
             cases = [case for case in cases if case[0] not in foreground]
             print("Ausgelassen: " + ", ".join(case[0] for case in skipped) + " · " + str(sum(case[-1] for case in skipped)) + " Vordergrundprüfungen offen", flush=True)
@@ -339,6 +354,10 @@ def main():
         try:
             for name, flag, root, image, pass_prefix, marker, expected in cases:
                 command = [str(binary), flag, str(root), image]
+                if name == "restart":
+                    if binary.parent.parent.parent.suffix != ".app":
+                        raise SystemExit("Neustartprüfung benötigt ein App-Bundle.")
+                    command += ["before"]
                 if name in {"server-pane", "selection"}:
                     fixture = Path(__file__).resolve().parents[1] / "Tests/fixtures/ftp_server.py"
                     pane_server = subprocess.Popen(["/usr/bin/python3", str(fixture), str(root / "Server"), "--delay", "0.001"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -409,9 +428,18 @@ def main():
                     command += ["--wait-for-foreground"]
                 with (args.results / (name + ".log")).open("w", encoding="utf-8") as log:
                     try:
-                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=240 if name in {"file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration", "launch"} else 180 if name in {"archive", "archive-merge"} or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
+                        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=240 if name in {"file-diff", "advanced-search", "viewer", "tools-integration", "mirror", "archive-edit", "media-metadata", "package-integration", "launch", "settings-backup", "attributes", "external-tools", "settings-integration", "restart"} else 180 if name in {"archive", "archive-merge"} or name == "navigation" and args.interactive else 120 if name in {"layout-save", "layout-reload"} else 90 if name in {"server-pane", "selection", "tabs-save", "tabs-reload"} else 45)
                     except subprocess.TimeoutExpired:
                         raise SystemExit(name + ": Zeitlimit überschritten; Testprozess beendet")
+                if name == "restart":
+                    deadline = time.monotonic() + (120 if result.returncode == 0 else 0)
+                    while not (root / "Restart-Probe.done").exists() and time.monotonic() < deadline:
+                        time.sleep(0.05)
+                    child_log = root / "Restart-Probe.log"
+                    with (args.results / (name + ".log")).open("a", encoding="utf-8") as output:
+                        output.write(child_log.read_text(encoding="utf-8") if child_log.exists() else "RESTART SMOKE FAIL child log missing\n")
+                        if not (root / "Restart-Probe.done").exists():
+                            output.write("RESTART SMOKE FAIL child timeout\n")
                 output = (args.results / (name + ".log")).read_text(encoding="utf-8")
                 count = sum(line.startswith(pass_prefix) for line in output.splitlines())
                 if result.returncode or marker not in output or count != expected or " FAIL " in output:
@@ -426,6 +454,11 @@ def main():
                     pane_server = None
                 print(name + ": " + str(count) + " native UI-Prüfungen bestanden", flush=True)
         finally:
+            restart_domain = roots[36] / "Restart-Domain.txt"
+            if restart_domain.exists():
+                name = restart_domain.read_text(encoding="utf-8").strip()
+                if name.startswith("local.zweicommander.tests."):
+                    subprocess.run(["defaults", "delete", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if pane_server is not None:
                 pane_server.terminate()
                 try:

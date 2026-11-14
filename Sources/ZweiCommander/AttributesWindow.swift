@@ -37,7 +37,7 @@ final class AttributesController:NSWindowController,NSWindowDelegate,NSTableView
         top(label("Namensfilter",weight:.medium),20,478,130);top(include,155,478,310);top(exclude,490,478,350,28,true);top(regex,860,478,100)
         top(label("Unterordner",weight:.medium),20,438,130);top(excludedFolders,155,438,310);top(criteria,490,438,200);top(refresh,860,438,270);refresh.autoresizingMask = [.minYMargin,.minXMargin]
         top(summary,20,397,1110,27,true);top(reviewFilter,20,360,1110,28,true)
-        table.dataSource = self;table.delegate = self;table.rowHeight = 35;table.usesAlternatingRowBackgroundColors = true;table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
+        table.dataSource = self;table.delegate = self;table.rowHeight = 51;table.usesAlternatingRowBackgroundColors = true;table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
         for (id,title,width) in [("include","",CGFloat(32)),("name","Objekt / Pfad",360),("before","Vorher",300),("after","Nachher / Hinweis",400)] { let column = NSTableColumn(identifier:.init(id));column.title = title;column.width = width;column.minWidth = id == "include" ? 32 : 150;table.addTableColumn(column) }
         scroll.frame = NSRect(x:20,y:170,width:1110,height:176);scroll.autoresizingMask = [.width,.height];scroll.documentView = table;scroll.hasVerticalScroller = true;scroll.hasHorizontalScroller = true;scroll.borderType = .bezelBorder;root.addSubview(scroll)
         info.frame = NSRect(x:20,y:125,width:1110,height:37);info.maximumNumberOfLines = 2;info.lineBreakMode = .byWordWrapping;info.autoresizingMask = [.width];root.addSubview(info)
@@ -99,7 +99,7 @@ final class AttributesController:NSWindowController,NSWindowDelegate,NSTableView
     }
     func filterRows() {
         let text = reviewFilter.stringValue.trimmingCharacters(in:.whitespacesAndNewlines);rows = plan?.rows.filter { text.isEmpty || $0.source.path.localizedCaseInsensitiveContains(text) } ?? [];table.reloadData()
-        summary.stringValue = "\(plan?.selectedRows.count ?? 0) Änderungen ausgewählt · \(rows.count) von \(plan?.rows.count ?? 0) Objekten sichtbar"
+        summary.stringValue = "\(plan?.selectedRows.count ?? 0) \(plan?.selectedRows.count == 1 ? "Änderung" : "Änderungen") ausgewählt · \(rows.count) von \(plan?.rows.count ?? 0) Objekten sichtbar"
     }
     @objc func toggleRow(_ sender:NSButton) { guard rows.indices.contains(sender.tag) else { return };toggle(rows[sender.tag]) }
     func toggleSelectedRow() { guard rows.indices.contains(table.selectedRow) else { return };toggle(rows[table.selectedRow]) }
@@ -165,10 +165,10 @@ final class AttributesController:NSWindowController,NSWindowDelegate,NSTableView
         else if let reason = value.reason { text = reason }
         else if let after = value.after { text = description(permissions:after.permissions,created:after.created,modified:after.modified,accessed:after.accessed) }
         else { text = "Unverändert" }
-        let field = label(text,size:11,color:value.reason != nil ? .secondaryLabelColor : .labelColor);field.toolTip = text;field.maximumNumberOfLines = 2;field.lineBreakMode = .byTruncatingMiddle;return field
+        let field = label(text,size:11,color:value.reason != nil ? .secondaryLabelColor : .labelColor);field.toolTip = text;field.maximumNumberOfLines = 3;field.lineBreakMode = column?.identifier.rawValue == "name" ? .byTruncatingMiddle : .byTruncatingTail;return field
     }
     private func description(permissions:UInt16,created:AttributeTimestamp,modified:AttributeTimestamp,accessed:AttributeTimestamp) -> String {
         let formatter = DateFormatter();formatter.locale = Locale(identifier:"en_US_POSIX");formatter.timeZone = timeZone.indexOfSelectedItem == 1 ? TimeZone(secondsFromGMT:0)! : .current;formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return String(format:"%04o",permissions)+" · Erstellt "+formatter.string(from:created.date)+"\nGeändert "+formatter.string(from:modified.date)+" · Zugriff "+formatter.string(from:accessed.date)
+        return String(format:"%04o",permissions)+" · Erstellt "+formatter.string(from:created.date)+"\nGeändert "+formatter.string(from:modified.date)+"\nZugriff "+formatter.string(from:accessed.date)
     }
 }

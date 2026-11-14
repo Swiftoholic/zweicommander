@@ -22,7 +22,7 @@ extension Preferences {
         },write:{ data in
             if testMode { if let defaults = remoteProfileTestDefaults { defaults.set(data,forKey:remoteProfilesKey) } else { remoteMemory = data } }
             else { UserDefaults.standard.set(data,forKey:remoteProfilesKey) }
-        })
+        },mutationGate:{ try SettingsBackupStorage.beginSettingsMutation() })
         remoteStorage = store;return store
     }
 }

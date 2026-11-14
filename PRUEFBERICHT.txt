@@ -1,66 +1,19 @@
-ZweiCommander 0.26.0 (Build 27) — Abschlussprüfung am 8. November 2026
+ZweiCommander 0.27.0 (Build 28) — Kandidatenprüfung am 14. November 2026
 
-Ergebnis
-- 535/535 gemeinsame Dateikern- und Integrationstests bestanden.
-- 1518/1518 native Oberflächenprüfungen in 49 Durchläufen am universellen
-  Release-Build bestanden. Kein Fall wurde ausgelassen. Die Gruppen umfassen
-  24 Fälle/529 Prüfungen und 25 Fälle/989 Prüfungen für aktive Fenster.
-  Unterbrochene Fokus-/Clipboardläufe wurden nicht als bestanden gezählt.
-- Neue native Prüfbereiche: 44 Spiegelung, 39 Archivbearbeitung,
-  42 Medieninformationen/-spalten und 26 gemeinsame Menü-/Fensterabläufe.
-- 9/9 zusätzliche echte SSH/SFTP-Prüfungen bestanden; Testschlüssel entfernt.
-- Universeller Release-Build x86_64/arm64, Ziel macOS 13, ohne Compilerwarnungen;
-  lokale Ad-hoc-Signatur streng geprüft. Unveränderte eingefrorene Eingaben.
-- Installierte App bytegleich zur geprüften Ausgabe; regulärer Start erfolgreich.
-  Bestehende Tabs, Favoriten, Darstellung, Kürzel, Profile, letzte Anordnung,
-  Journal und Wiederherstellungsablage gegen den Stand vor dem Upgrade geprüft.
-- Öffentlicher Quellstand und Release-Binärdatei auf die geprüften persönlichen
-  Angaben kontrolliert. Private Konfigurationen, Medien, Referenzmaterial und
-  Laufzeitprotokolle sind keine Bestandteile der Veröffentlichung.
+Zwischenstand
+- 709 gemeinsame Kernprüfungen in einem vollständigen Durchlauf bestanden.
+  Der zusätzliche aktuelle Startadressentest ist gezielt bestanden; die finale
+  gemeinsame Registrierung umfasst 710 Prüfungen.
+- Eigenschaftsänderungen, vollständige Sicherung, eigene Werkzeuge und native
+  Startübergabe sind zusammengeführt. Gezielte native Fensterprüfungen bestehen.
+- Die echte Neustartprüfung beendet den alten Prozess, öffnet die isolierte
+  Auftrags-/Wiederherstellungsablage neu und prüft normale CLI-Übergaben.
 
-Ordnerspiegelung, Archivbearbeitung und Medieninformationen
-33 neue Spiegelungskernprüfungen prüfen beide Richtungen, Filter und versteckte
-Gegenstücke, vollständige Baumbelege, Quellenänderungen, Links, Abbruch nach
-Kopierfehlern, Wiederherstellung ohne Überschreiben, belegte Namen, geänderte
-Sicherungen, v1/v2-Historien und Fehler beim Speichern. Nachträglich verschobene
-Wurzeln/Eltern während Fortschrittsrückrufen liefern zugängliche tatsächliche
-Belegpfade und einen angehaltenen Lauf; Historieneinträge behalten ihre IDs.
-Ordnerhandles werden vor den ersten Änderungen reserviert; Ressourcenfehler
-führen vor dem Kopieren zum Abbruch. Keine automatische Gesamtrücksetzung,
-keine dauerhafte Spiegelbeziehung und keine Rücknahme angelegter Kopierordner.
-
-36 neue Archivkernprüfungen prüfen ZIP/7z/TAR-GZip, Hinzufügen/Umbenennen/Entfernen,
-Inhalte und unterstützte Metadaten, Ersetzungssicherung und Rücknahme,
-Pfadkollisionen, Quelle/Ergänzungen/Elternwechsel, Abbruch und Veröffentlichungs-
-fehler. Codec-/Dictionarygrenzen gelten auch vor dem ursprünglichen nativen
-7z-Leser. Gültige bekannte ZIP-Extra-IDs dürfen keine opaque Nutzreste verbergen;
-TAR-PAX/GNU-/7z-Zusätze werden konservativ geprüft. Eltern-Snapshots bleiben
-linear statt je Ergänzung quadratisch zu wachsen. Früh während Verifikation
-veränderte gleiche Stage-Inodes werden abgewiesen; eigene Metadatenänderungen
-liegen vor dem verifizierten Snapshot, Version und SHA binden die Veröffentlichung.
-Nach Veröffentlichung verschobene Eltern behalten zugängliche Rücknahmebelege,
-auch über die Historie. TAR-GZip normalisiert gegebenenfalls äußere Hülldaten;
-die Schlussbestätigung weist darauf hin. Keine universelle Hüllenerhaltung.
-
-40 neue Medienkernprüfungen prüfen Bild/EXIF, ID3v2.3/v2.4/v1, WAV und MP4/MOV,
-Byte-/Struktur-/Zeitgrenzen, Unicode, veraltete Dateien, Links/Spezialdateien,
-ID3-Flags/Footer, Video-Rotation, Sparse-8-GiB-MDAT, Dateinamentokens und
-Profilversionen. Hinweise sind dedupliziert und auf 32 mal 512 UTF-8-Bytes begrenzt.
-Sechs zusätzliche isolierte Cacheprüfungen bedienen neuesten Abonnenten,
-Closure-Lebensdauer, Cachehit, Generation und neue/veraltete Identitäten.
-Die nativen Medienprüfungen bedienen tatsächliche Spaltentoggles und aktuelle
-Zellen, einschließlich acht Neuladungen aller neun Spalten, Auswahl/Fokus,
-asynchrone numerische Sortierung, Inspector-Navigation, Abbruch und Umbenennung.
-Alte Acht-Spalten-Sitzungen und v1-Profile werden beim normalen Start nicht
-umgeschrieben. Bilder bis 64 MiB, Header bis 8 MiB/20.000 Schritte; der einzelne
-ImageIO-Aufruf ist nicht mitten im Aufruf abbrechbar. Keine Medienwiedergabe.
-
-Gemeinsame native Abläufe prüfen Standard-/eigene/deaktivierte Kürzel,
-Kollisionen mit vorhandenen Belegungen, echte Menüs, Texteingabe und verdeckte
-Dateiseiten. Native Sheets respektieren eine schließverhindernde Delegation und
-lassen sich nach Freigabe einschließlich laufender Neuprüfung schließen.
-Quelldaten, persönliche Einstellungen und allgemeine Zwischenablage bleiben
-bei erfolgreichen vollständigen Prüfungen erhalten. Alle Testdaten sind künstlich.
+Noch vor Veröffentlichung
+- Quellen einfrieren, universellen Build und alle 55 Fälle/1762 native Prüfungen
+  am gleichen fertigen Binärstand ausführen; 710 Kern- und neun SSH-Prüfungen.
+- Normale Installation, Zustandserhalt und weiterer normaler Neustart ohne
+  Testmodus; anschließend öffentliche Quellen und Archive prüfen.
 
 Die folgenden Abschnitte ergänzen bisherige Prüfbereiche und deren Grenzen.
 

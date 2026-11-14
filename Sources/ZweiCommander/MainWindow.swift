@@ -120,6 +120,9 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     let themeMenu = NSPopUpButton(frame:.zero,pullsDown:false)
     let favoriteMenu = NSPopUpButton(frame:.zero,pullsDown:false)
     let cache: URL
+    var settingsRestartInProgress = false
+    var settingsRelaunchProcess: Process?
+    var settingsRestartArguments: [String]?
     var onRebuildMenus: (() -> Void)?
     var operationWindow: OperationQueueController?
     var recoveryWindow: RecoveryController?
@@ -139,10 +142,12 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         let lists = secondaryWindows.compactMap { $0 as? RemoteWindow }.reduce(0) { $0+$1.browse.pending }
         let profiles = secondaryWindows.compactMap { $0 as? RemoteConnectionController }.filter(\.isWorking).count
         let panes = [left,right].filter { $0.remote != nil && $0.isLoading }.count
-        return comparisons+searches+lists+profiles+panes+jobs.pending
+        let attributes = secondaryWindows.compactMap { $0 as? AttributesController }.filter { $0.isWorking || $0.isPreparing }.count
+        let applications = secondaryWindows.compactMap { $0 as? ExternalToolLaunchController }.filter(\.isLaunchingApplication).count
+        return comparisons+searches+lists+profiles+panes+jobs.pending+applications+attributes
     }
     var canTerminate: Bool {
-        guard !left.inlineRename.hasPendingCommit,!right.inlineRename.hasPendingCommit,jobs.canClose,
+        guard secondaryWindows.compactMap({ $0 as? AttributesController }).allSatisfy({ !$0.isWorking }),secondaryWindows.compactMap({ $0 as? ExternalToolLaunchController }).allSatisfy({ !$0.isLaunchingApplication }),!left.inlineRename.hasPendingCommit,!right.inlineRename.hasPendingCommit,jobs.canClose,
               ![left,right].contains(where:{ $0.remote != nil && $0.isLoading }) else { return false }
         guard secondaryWindows.compactMap({ $0 as? CompareController }).allSatisfy({ !$0.isComparing && !$0.isPreparingPlan }),
               secondaryWindows.compactMap({ $0 as? SearchController }).allSatisfy({ !$0.isSearching }),
@@ -243,6 +248,15 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
             b.flat = true;b.verticalLabel = labels;b.font = .systemFont(ofSize:10);b.symbolTint = item.tint;b.identifier = .init(id);CommandHelp.apply(b,id:id,title:item.title)
             b.setContentCompressionResistancePriority(.required,for:.horizontal);content.toolbar.addArrangedSubview(b)
         }
+        let tools = externalToolDescriptors.filter(\.showInToolbar)
+        if !tools.isEmpty,!content.toolbar.arrangedSubviews.isEmpty {
+            let separator = NSBox();separator.boxType = .separator;separator.widthAnchor.constraint(equalToConstant:1).isActive = true;separator.heightAnchor.constraint(equalToConstant:labels ? 35 : 20).isActive = true;content.toolbar.addArrangedSubview(separator)
+        }
+        for tool in tools {
+            let button = ActionButton(labels ? tool.title : "",symbol:tool.symbol,action:{ [weak self] in self?.command("externalTool:"+tool.id.uuidString) })
+            button.flat = true;button.verticalLabel = labels;button.font = .systemFont(ofSize:10);button.symbolTint = .systemPurple;button.identifier = .init("externalTool:"+tool.id.uuidString)
+            configureExternalToolButton(button,tool:tool);button.setContentCompressionResistancePriority(.required,for:.horizontal);content.toolbar.addArrangedSubview(button)
+        }
         favoriteMenu.target = self;favoriteMenu.action = #selector(favoriteChosen);favoriteMenu.controlSize = .small
         if !favoriteMenu.constraints.contains(where: { $0.firstAttribute == .width }) { favoriteMenu.widthAnchor.constraint(equalToConstant:115).isActive = true }
         if favoriteMenu.superview == nil { content.utilityBar.addArrangedSubview(favoriteMenu) }
@@ -278,8 +292,12 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
         guard isWindowLoaded else { return }
         left.updateNavigationHelp();right.updateNavigationHelp()
         if content.commandMode.indexOfSelectedItem == 0,!(content.commandField.currentEditor() is NSTextView) { content.commandField.stringValue = active.currentURL.path }
+        let toolButtons = Dictionary(uniqueKeysWithValues:externalToolDescriptors.map { ($0.id,$0) })
         for case let button as NSButton in content.toolbar.arrangedSubviews {
             let id = button.identifier?.rawValue
+            if let id,id.hasPrefix("externalTool:"),let uuid = UUID(uuidString:String(id.dropFirst(13))),let tool = toolButtons[uuid],let action = button as? ActionButton {
+                configureExternalToolButton(action,tool:tool);continue
+            }
             if let id { button.isEnabled = archiveCommandEnabled(id) ?? serverCommandEnabled(id) ?? true }
             if let button = button as? ActionButton,let id { CommandHelp.apply(button,id:id,title:ToolbarCommand.all.first { $0.id == id }?.title) }
             if let id,["back","forward"].contains(id),let navigation = active.navigationButtons[id] { button.isEnabled = navigation.isEnabled;button.toolTip = navigation.toolTip }
@@ -355,7 +373,7 @@ final class MainWindow: NSWindowController, NSWindowDelegate {
     }
     func setActive(_ pane:PaneView) { active = pane; left.isActive = pane === left; right.isActive = pane === right; window?.subtitle = (pane === left ? "Links" : "Rechts")+" · "+pane.locationText;updateChromeState() }
     func saveState() {
-        guard !isApplyingWorkspace else { return }
+        guard !isApplyingWorkspace,!SettingsBackupStorage.persistenceSuspended else { return }
         Preferences.state.left = left.savedTabs;Preferences.state.right = right.savedTabs;Preferences.state.vertical = content.split.isVertical;Preferences.save()
         if layoutPersistenceReady {
             do { try Preferences.saveLastLayout(layoutState);layoutPersistenceError = nil } catch { layoutPersistenceError = error.localizedDescription;content.status.stringValue = error.localizedDescription }

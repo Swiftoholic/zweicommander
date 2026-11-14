@@ -119,7 +119,11 @@ extension AppDelegate {
                 undoEditor.close()
                 let closeEditor = try await queuedRestricted(closeFile)
                 check(try handles(closeFile) == 1 && closeEditor.receipts.count == 1,"restrictive file retains exactly one descriptor before workspace close")
-                closeEditor.close();await wait("released closed metadata descriptor") { (try? handles(closeFile)) == 0 }
+                closeEditor.close()
+                // The normal close observer removes controllers. Retain this one
+                // explicitly to prove cleanup does not depend on deallocation.
+                self.main.secondaryWindows.append(closeEditor)
+                await wait("released closed metadata descriptor") { (try? handles(closeFile)) == 0 }
                 check(try handles(closeFile) == 0 && closeEditor.closed && self.main.secondaryWindows.contains(where:{$0 === closeEditor}),"closed controller retained by the main window releases all receipt descriptors")
                 check(NSPasteboard.general.changeCount == clipboard,"attributes workflow leaves the general clipboard untouched")
                 check((saved as NSDictionary).isEqual(to:UserDefaults.standard.persistentDomain(forName:"local.zweicommander.app") ?? [:]),"attributes workflow does not persist personal settings")

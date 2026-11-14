@@ -10,6 +10,7 @@ extension Preferences {
         return try WorkspaceLibrary.decode(data)
     }
     static func saveWorkspace(_ library: WorkspaceLibrary) throws {
+        let finishMutation = try SettingsBackupStorage.beginSettingsMutation();defer { finishMutation() }
         let data = try library.encoded()
         workspaceDefaults?.set(data,forKey:workspaceKey)
         state.favorites = library.favorites.filter { $0.kind == .folder }.map(\.path)

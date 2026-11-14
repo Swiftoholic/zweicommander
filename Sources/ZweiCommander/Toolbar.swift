@@ -45,6 +45,7 @@ extension Preferences {
         return settings
     }
     static func saveToolbar(_ settings: ToolbarSettings) throws {
+        let finishMutation = try SettingsBackupStorage.beginSettingsMutation();defer { finishMutation() }
         try settings.validate()
         if let old = toolbarDefaults?.object(forKey:toolbarKey) {
             guard let data = old as? Data,let value = try? JSONDecoder().decode(ToolbarSettings.self,from:data),
@@ -120,7 +121,11 @@ extension MainWindow {
     func toolbarOverflowMenu() -> NSMenu {
         let menu = NSMenu()
         for case let button as ActionButton in content.toolbar.arrangedSubviews where button.isHidden {
-            guard let id = button.identifier?.rawValue,let command = ToolbarCommand.all.first(where: { $0.id == id }) else { continue }
+            guard let id = button.identifier?.rawValue else { continue }
+            if id.hasPrefix("externalTool:"),let uuid = UUID(uuidString:String(id.dropFirst(13))),let tool = externalToolDescriptors.first(where:{ $0.id == uuid }) {
+                let item = NSMenuItem(title:tool.title,action:#selector(toolbarMenuChosen(_:)),keyEquivalent:"");item.target = self;item.representedObject = id;item.isEnabled = button.isEnabled;item.toolTip = button.toolTip;item.image = NSImage(systemSymbolName:tool.symbol,accessibilityDescription:nil);menu.addItem(item);continue
+            }
+            guard let command = ToolbarCommand.all.first(where: { $0.id == id }) else { continue }
             let item = NSMenuItem(title:command.title,action:#selector(toolbarMenuChosen(_:)),keyEquivalent:"");item.target = self;item.representedObject = id
             item.state = button.state;item.isEnabled = button.isEnabled;item.image = NSImage(systemSymbolName:command.symbol,accessibilityDescription:nil);menu.addItem(item)
         }

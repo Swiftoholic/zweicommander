@@ -14,6 +14,7 @@ extension Preferences {
         return try RenameProfileLibrary(data:data)
     }
     @discardableResult static func editRenameProfiles<Value>(_ edit: (inout RenameProfileLibrary) throws -> Value) throws -> Value {
+        let finishMutation = try SettingsBackupStorage.beginSettingsMutation();defer { finishMutation() }
         var library = try renameProfiles()
         let result = try edit(&library),data = try library.encoded()
         if let defaults = renameDefaults { defaults.set(data,forKey:renameProfilesKey) }

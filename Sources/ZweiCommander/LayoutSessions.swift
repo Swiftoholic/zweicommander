@@ -13,6 +13,7 @@ extension Preferences {
         return try LayoutLibrary.decode(data)
     }
     @discardableResult static func editLayouts<T>(_ edit:(inout LayoutLibrary)throws->T) throws -> T {
+        let finishMutation = try SettingsBackupStorage.beginSettingsMutation();defer { finishMutation() }
         var value = try layouts();let result = try edit(&value),data = try value.encoded()
         if let defaults = layoutDefaults { defaults.set(data,forKey:layoutsKey) } else { memoryLayouts = value };return result
     }
@@ -22,6 +23,7 @@ extension Preferences {
         guard let data = value as? Data else { throw CommanderError.message("Die gespeicherte Fensteranordnung ist nicht lesbar und bleibt erhalten.") };return try WorkspaceLayout.decode(data)
     }
     static func saveLastLayout(_ value:WorkspaceLayout) throws {
+        let finishMutation = try SettingsBackupStorage.beginSettingsMutation();defer { finishMutation() }
         _ = try lastLayout();let data = try value.encoded()
         if let defaults = layoutDefaults { defaults.set(data,forKey:lastLayoutKey) } else { memoryLastLayout = value }
     }
@@ -101,7 +103,7 @@ extension MainWindow {
         do { if let layout = try Preferences.lastLayout() { try applyLayout(layout) } } catch { layoutPersistenceError = error.localizedDescription;content.status.stringValue = error.localizedDescription }
     }
     func scheduleLayoutSave() {
-        guard layoutPersistenceReady,!isApplyingWorkspace else { return };pendingLayoutSave?.cancel()
+        guard layoutPersistenceReady,!isApplyingWorkspace,!SettingsBackupStorage.persistenceSuspended else { return };pendingLayoutSave?.cancel()
         let task = DispatchWorkItem { [weak self] in self?.saveState() };pendingLayoutSave = task;DispatchQueue.main.asyncAfter(deadline:.now()+0.25,execute:task)
     }
     func focusOtherVisiblePane() { if !other.isHidden { other.focus() } }

@@ -29,6 +29,7 @@ extension Preferences {
         return value
     }
     static func saveAppearance(_ value: AppearanceSettings) throws {
+        let finishMutation = try SettingsBackupStorage.beginSettingsMutation();defer { finishMutation() }
         try value.validate()
         if let old = appearanceDefaults?.object(forKey:appearanceKey) {
             guard let data = old as? Data,let decoded = try? JSONDecoder().decode(AppearanceSettings.self,from:data),

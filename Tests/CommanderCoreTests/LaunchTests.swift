@@ -96,6 +96,16 @@ extension CoreTests {
     func testLaunchLegacyImportArgumentsDoNotBecomeNavigationTargets() throws {
         let request = try LaunchRequest.parse(["--import-settings","sample.ini","--export-settings-profile","sample.json"])
         XCTAssertTrue(request.isEmpty)
+        XCTAssertEqual(request.settingsImportPath,"sample.ini");XCTAssertEqual(request.settingsExportPath,"sample.json")
         XCTAssertThrowsError(try LaunchRequest.parse(["--import-settings","sample.ini","--unexpected"]))
+    }
+    func testLaunchLiteralOptionNamesCannotRequestImportExportOrInspection() throws {
+        for name in ["--import-settings","--export-settings-profile","--inspect-binary"] {
+            let path = try file(name,"literal file"),other = try file("ordinary.ini","[Display]\nShowHidden=1")
+            let request = try LaunchRequest.parse(["--",name,other.lastPathComponent],directory:root)
+            XCTAssertEqual(request.left?.selection?.path,launchPath(path));XCTAssertEqual(request.right?.selection?.path,launchPath(other))
+            XCTAssertTrue(request.settingsImportPath == nil && request.settingsExportPath == nil)
+            try request.validate()
+        }
     }
 }

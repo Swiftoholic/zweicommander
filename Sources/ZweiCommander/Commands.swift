@@ -3,6 +3,7 @@ import CommanderCore
 
 extension MainWindow {
     func command(_ id:String) {
+        if SettingsBackupStorage.persistenceSuspended,id != "settingsBackup" { content.status.stringValue = "Einstellungen wiederhergestellt. Vor weiteren Aktionen neu starten.";return }
         if let workflow = keyWorkflowWindow {
             guard workflow.canPerformCommand(id) else { return }
             if workflow.performEditingCommand(id) { return }
@@ -13,6 +14,10 @@ extension MainWindow {
         if id == "closeTab",let key = NSApp.keyWindow,key !== window { key.performClose(nil); return }
         defer { updateChromeState();content.needsLayout = true;scheduleLayoutSave() }
         do {
+            if id.hasPrefix("externalTool:"),let tool = UUID(uuidString:String(id.dropFirst(13))) {
+                if externalToolCommandEnabled(tool) { launchExternalTool(tool) };return
+            }
+            if id.hasPrefix("externalTool"),let slot = Int(id.dropFirst(12)),(1...9).contains(slot) { launchExternalToolSlot(slot);return }
             if try handleArchiveCommand(id) { return }
             if try handleSelectionCommand(id) { return }
             if try handleWorkspaceCommand(id) { return }
@@ -51,6 +56,8 @@ extension MainWindow {
             case "duplicates": duplicates()
             case "compare": compare()
             case "fileCompare": compareSelectedFiles()
+            case "externalTools": showExternalTools()
+            case "settingsBackup": showSettingsBackup()
             case "mediaMetadata": if mediaMetadataCommandEnabled { showMediaMetadata() }
             case "pack": pack()
             case "extract": extract()

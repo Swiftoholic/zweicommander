@@ -40,15 +40,15 @@ public struct LaunchTarget: Equatable {
         guard !text.isEmpty, text.utf8.count <= 16_384, !text.contains("\0") else {
             throw CommanderError.message("Leerer oder zu langer Startpfad.")
         }
-        if text.hasPrefix("file:") {
-            guard let components = URLComponents(string: text), components.scheme == "file",
+        if text.prefix(5).lowercased() == "file:" {
+            guard let components = URLComponents(string: text), components.scheme?.lowercased() == "file",
                   components.user == nil, components.password == nil, components.port == nil,
                   components.query == nil, components.fragment == nil,
-                  components.host == nil || components.host == "" || components.host == "localhost",
+                  components.host == nil || components.host == "" || components.host?.lowercased() == "localhost",
                   let url = components.url, url.isFileURL, url.path.hasPrefix("/"), !url.path.contains("\0") else {
                 throw CommanderError.message("Nur lokale file://-Startadressen ohne Anmeldung oder Zusatzparameter verwenden.")
             }
-            return url.standardizedFileURL
+            return URL(fileURLWithPath:url.path).standardizedFileURL
         }
         guard text.hasPrefix("/") || !text.contains("://"), !text.hasPrefix("~") || text == "~" || text.hasPrefix("~/") else {
             throw CommanderError.message("Ein lokaler Dateipfad wird benötigt; ~ steht nur für den eigenen Benutzerordner.")
@@ -73,6 +73,8 @@ public struct LaunchRequest: Equatable {
     public let right: LaunchTarget?
     public let active: LaunchSide?
     public let newTabs: Bool
+    public let settingsImportPath: String?
+    public let settingsExportPath: String?
     public var isEmpty: Bool { left == nil && right == nil && active == nil && !newTabs }
 
     /// Parses arguments after argv[0]. It never opens a window or writes settings.
@@ -120,7 +122,8 @@ public struct LaunchRequest: Equatable {
         let active = options["--active"].flatMap(LaunchSide.init(rawValue:))
         guard options["--active"] == nil || active != nil else { throw CommanderError.message("--active erwartet left oder right.") }
         guard !newTabs || left != nil || right != nil else { throw CommanderError.message("--new-tabs benötigt mindestens einen Startpfad.") }
-        return LaunchRequest(left: left, right: right, active: active, newTabs: newTabs)
+        return LaunchRequest(left: left, right: right, active: active, newTabs: newTabs,
+                             settingsImportPath: options["--import-settings"], settingsExportPath: options["--export-settings-profile"])
     }
 
     public func validate() throws { try left?.validate();try right?.validate() }

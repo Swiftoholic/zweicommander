@@ -165,6 +165,8 @@ struct SavedState: Codable {
 enum Preferences {
     static var state = load()
     static var testMode = false
+    static var primaryTestDefaults: UserDefaults?
+    private static var primaryDefaults: UserDefaults? { testMode ? primaryTestDefaults : .standard }
     static var transferJournalTestDirectory: URL?
     static func decode(_ data: Data) -> SavedState? {
         // Older builds stored the same profile schema under a different property name.
@@ -180,20 +182,22 @@ enum Preferences {
         return try? JSONDecoder().decode(SavedState.self,from:normalized)
     }
     static func load() -> SavedState {
-        guard let data = UserDefaults.standard.data(forKey: "ZweiCommander.state.v1"), let value = decode(data) else { return SavedState() }
+        guard let data = primaryDefaults?.data(forKey: "ZweiCommander.state.v1"), let value = decode(data) else { return SavedState() }
         return value
     }
     static var beforeImport: Data? {
-        if let data = UserDefaults.standard.data(forKey:"ZweiCommander.beforeSettingsImport") { return data }
-        let keys = UserDefaults.standard.dictionaryRepresentation().keys.filter { $0.hasPrefix("ZweiCommander.before") && $0.hasSuffix("Import") }
-        return keys.count == 1 ? keys.first.flatMap { UserDefaults.standard.data(forKey:$0) } : nil
+        if let data = primaryDefaults?.data(forKey:"ZweiCommander.beforeSettingsImport") { return data }
+        let keys = (primaryDefaults?.dictionaryRepresentation().keys.map { $0 } ?? []).filter { $0.hasPrefix("ZweiCommander.before") && $0.hasSuffix("Import") }
+        return keys.count == 1 ? keys.first.flatMap { primaryDefaults?.data(forKey:$0) } : nil
     }
     static func save() {
-        if !testMode, let data = try? JSONEncoder().encode(state) { UserDefaults.standard.set(data, forKey: "ZweiCommander.state.v1") }
+        guard let finishMutation = try? SettingsBackupStorage.beginSettingsMutation() else { return };defer { finishMutation() }
+        if let defaults = primaryDefaults,let data = try? JSONEncoder().encode(state) { defaults.set(data, forKey: "ZweiCommander.state.v1") }
     }
     static func apply(_ profile: SettingsProfile) {
-        if !testMode, beforeImport == nil,
-           let old = try? JSONEncoder().encode(state) { UserDefaults.standard.set(old, forKey: "ZweiCommander.beforeSettingsImport") }
+        guard let finishMutation = try? SettingsBackupStorage.beginSettingsMutation() else { return };defer { finishMutation() }
+        if let defaults = primaryDefaults,beforeImport == nil,
+           let old = try? JSONEncoder().encode(state) { defaults.set(old, forKey: "ZweiCommander.beforeSettingsImport") }
         state.importedProfile = profile
         state.showHidden = profile.showHidden
         state.theme = profile.darkAppearance ? 2 : 1
@@ -202,6 +206,7 @@ enum Preferences {
         save()
     }
     static func restoreBeforeImport() -> Bool {
+        guard let finishMutation = try? SettingsBackupStorage.beginSettingsMutation() else { return false };defer { finishMutation() }
         guard let old = beforeImport,let value = decode(old) else { return false }
         state = value; save(); return true
     }

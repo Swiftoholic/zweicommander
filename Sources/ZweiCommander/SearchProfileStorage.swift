@@ -14,6 +14,7 @@ extension Preferences {
         return try SearchProfileLibrary(data:data)
     }
     @discardableResult static func editSearchProfiles<Value>(_ edit: (inout SearchProfileLibrary) throws -> Value) throws -> Value {
+        let finishMutation = try SettingsBackupStorage.beginSettingsMutation();defer { finishMutation() }
         var library = try searchProfiles()
         let result = try edit(&library),data = try library.encoded()
         if let defaults = searchDefaults { defaults.set(data,forKey:searchProfilesKey) }

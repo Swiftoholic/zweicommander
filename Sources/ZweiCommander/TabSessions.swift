@@ -13,6 +13,7 @@ extension Preferences {
         return try TabGroupLibrary.decode(data)
     }
     @discardableResult static func editTabGroups<Value>(_ edit:(inout TabGroupLibrary)throws->Value) throws -> Value {
+        let finishMutation = try SettingsBackupStorage.beginSettingsMutation();defer { finishMutation() }
         var library = try tabGroups();let value = try edit(&library),data = try library.encoded()
         if let defaults = tabGroupsDefaults { defaults.set(data,forKey:tabGroupsKey) } else { testTabGroups = library };return value
     }

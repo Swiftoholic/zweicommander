@@ -76,6 +76,20 @@ extension AppDelegate {
                 try await wait("file URL selection") { !self.main.left.isLoading && self.main.left.selectedURLs.map(identity) == [identity(file)] }
                 check(FileSystem.canonical(self.main.left.currentURL).path == FileSystem.canonical(newLeft).path,"file URL launch targets reach the actual folder")
                 check(self.main.left.selectedURLs.map(identity) == [identity(file)],"relative selectors retain quoted Unicode filenames")
+                let delivered = try LaunchRequest.parse(["--right",newRight.path,"--select-right",hidden.lastPathComponent,"--active","right"])
+                self.application(NSApp,open:[try delivered.navigationURL()])
+                try await wait("delivered navigation") { !self.main.right.isLoading && self.main.right.selectedURLs.map(identity) == [identity(hidden)] }
+                check(self.main.active === self.main.right && self.main.right.selectedURLs.map(identity) == [identity(hidden)],"native open URL delivery reaches the existing window and exact file")
+                let literal = newLeft.appendingPathComponent("--import-settings");try Data("literal file".utf8).write(to:literal)
+                self.application(NSApp,open:[literal])
+                try await wait("literal file delivery") { !self.main.left.isLoading && self.main.left.selectedURLs.map(identity) == [identity(literal)] }
+                check(self.main.left.selectedURLs.map(identity) == [identity(literal)],"native document delivery treats option-like filenames as literal paths")
+                let beforeRefusal = [self.main.left.currentURL,self.main.right.currentURL]
+                self.application(NSApp,open:[URL(string:"zweicommander://open?import-settings=forbidden.ini")!])
+                check([self.main.left.currentURL,self.main.right.currentURL] == beforeRefusal,"external URLs cannot request settings imports or mutate pane locations on error")
+                var remoteFile = URLComponents();remoteFile.scheme = "file";remoteFile.host = "server.invalid";remoteFile.path = right.path
+                self.application(NSApp,open:[remoteFile.url!])
+                check([self.main.left.currentURL,self.main.right.currentURL] == beforeRefusal,"document delivery validates file URL authority before extracting a local path")
                 check(try Data(contentsOf:hidden) == Data("hidden source".utf8),"startup navigation does not modify selected file contents")
                 check(NSPasteboard.general.changeCount == clipboard,"startup navigation preserves the general clipboard")
                 check((domain as NSDictionary).isEqual(to:UserDefaults.standard.persistentDomain(forName:"local.zweicommander.app") ?? [:]),"test launches do not persist personal settings")
