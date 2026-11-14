@@ -315,7 +315,7 @@ def main():
             ("compare-save", "--compare-smoke", roots[11], str(prefix), "COMPARE UI PASS ", "COMPARE SMOKE PASS 24 checks", 24),
             ("compare-reload", "--compare-smoke", roots[11], str(prefix), "COMPARE UI PASS ", "COMPARE SMOKE PASS 30 checks", 30),
             ("recovery-save", "--recovery-smoke", roots[15], str(prefix), "RECOVERY UI PASS ", "RECOVERY SMOKE PASS 40 checks", 40),
-            ("recovery-reload", "--recovery-smoke", roots[15], str(prefix), "RECOVERY UI PASS ", "RECOVERY SMOKE PASS 15 checks", 15),
+            ("recovery-reload", "--recovery-smoke", roots[15], str(prefix), "RECOVERY UI PASS ", "RECOVERY SMOKE PASS 16 checks", 16),
             ("remote-save", "--remote-smoke", roots[16], str(prefix), "REMOTE UI PASS ", "REMOTE SMOKE PASS 31 checks", 31),
             ("remote-reload", "--remote-smoke", roots[16], str(prefix), "REMOTE UI PASS ", "REMOTE SMOKE PASS 14 checks", 14),
             ("server-pane", "--server-pane-smoke", roots[17], str(prefix), "SERVER PANE PASS ", "SERVER PANE SMOKE PASS 47 checks", 47),
